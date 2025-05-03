@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+
 from decouple import config #is a method that allows you to read values from your .env file
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -28,13 +29,15 @@ DEBUG = config("DEBUG", default=False, cast=bool) #converting to datatype boolea
 
 ALLOWED_HOSTS = []
 
+AUTH_USER_MODEL = 'accounts.User'
 
 # Application definition
 
 INSTALLED_APPS = [
     #third-party apps
-    "daphne",
+    # "daphne",
     "rest_framework",
+    "rest_framework_simplejwt",
     "drf_yasg",
     
     #project apps
@@ -140,3 +143,28 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+#REST FRAMEWORK SETTINGS
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+#SWAGGER SETTINGS
+#This adds an Authorize button in Swagger UI, allowing users to try out secured endpoints.
+SWAGGER_SETTINGS = {
+    "SECURITY_DEFINITIONS": {
+        "Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+        },
+    },
+    "SECURITY_REQUIREMENTS": [
+        {"Bearer": []},
+    ],
+}

@@ -11,6 +11,7 @@ cryptography==44.0.2
 daphne==4.1.2
 Django==5.2
 djangorestframework==3.16.0
+djangorestframework_simplejwt==5.5.0
 drf-yasg==1.21.10
 hyperlink==21.0.0
 idna==3.10
@@ -21,6 +22,7 @@ psycopg2==2.9.10
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.22
+PyJWT==2.9.0
 pyOpenSSL==25.0.0
 python-decouple==3.8
 pytz==2025.2
