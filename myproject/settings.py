@@ -155,7 +155,7 @@ REST_FRAMEWORK = {
 }
 
 #SWAGGER SETTINGS
-#This adds an Authorize button in Swagger UI, allowing users to try out secured endpoints.
+#this adds an Authorize button in Swagger UI, allowing users to try out secured endpoints.
 SWAGGER_SETTINGS = {
     "SECURITY_DEFINITIONS": {
         "Bearer": {

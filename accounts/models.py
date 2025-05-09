@@ -50,24 +50,36 @@ class UserManager(BaseUserManager):
     def normalize_username(username):
         return username.lower() if username else ''
 
-class User(AbstractBaseUser, PermissionsMixin): #abstractbaseuser provides password, last_login, is_authenticated
-    username = models.CharField(max_length=50, unique=True, blank=False, null=False)
-    email = models.EmailField(max_length=255, blank=False, null=False)
+class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, is_authenticated
+    username = models.CharField(max_length=50, unique=True)
+    email = models.EmailField(max_length=255)
     role = models.CharField(
         max_length=20,
         choices=RoleEnum.choices(),
-        blank=False,
-        null=False,
         default=RoleEnum.USER
     )
-    phone_number = models.CharField(max_length=15, blank=False, null=False)
+    phone_number = models.CharField(max_length=15)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
+    is_superuser = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
 
     objects = UserManager() #connecting to the manager created above
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email'] #fields required(aside from username and password) when creating superuser
+
+    def __str__(self):
+        return self.username
+
+    def has_perm(self, perm, obj=None):
+        if self.is_superuser:
+            return True
+        return False
+
+    def has_module_perms(self, app_label):
+        if self.is_superuser:
+            return True
+        return False
