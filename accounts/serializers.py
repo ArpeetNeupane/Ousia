@@ -55,20 +55,20 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return user
 
 class UserLoginSerializer(serializers.Serializer): #using Serializer here instead of ModelSerializer as we're not working with any CRUD operations thta require model access, we're just validating the user credentials
-    email = serializers.CharField(required = True)
+    username = serializers.CharField(required = True)
     password = serializers.CharField(write_only = True, required=True)
 
     def validate(self, data):
-        email = data['email']
+        username = data['username']
         password = data['password']
 
-        email_exists = User.objects.filter(email=email).exists()
+        username_exists = User.objects.filter(username=username).exists()
 
-        if not email_exists:
+        if not username_exists:
             raise serializers.ValidationError(
                 {"message": "Invalid Credentials."}
             )
-        user = User.objects.get(email=email)
+        user = User.objects.get(username=username)
         if not user.check_password(password):
             raise serializers.ValidationError(
                 {"message": "Invalid Credentials."}

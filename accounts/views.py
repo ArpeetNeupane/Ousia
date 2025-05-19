@@ -58,14 +58,14 @@ class LoginView(APIView):
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                "email": openapi.Schema(
-                    type=openapi.TYPE_STRING, description="The email of the user."
+                "username": openapi.Schema(
+                    type=openapi.TYPE_STRING, description="The username of the user."
                 ),
                 "password": openapi.Schema(
                     type=openapi.TYPE_STRING, description="The password of the user."
                 ),
             },
-            required=["email", "password"],
+            required=["username", "password"],
         ),
         responses={
             200: openapi.Response(

@@ -4,6 +4,15 @@ from django.core.mail import send_mail
 
 from enum import Enum
 
+class RoleEnum(Enum):
+    SUPERUSER = 'superuser'
+    ADMIN = 'admin'
+    USER = 'user'
+
+    @classmethod
+    def choices(cls):
+        return [(role.name, role.value) for role in cls] #same as writing for role in RoleEnum as cls refers to the class itself
+
 class UserManager(BaseUserManager):
     use_in_migrations = True #very crucial so that when creating future users, django doesn't forget to implement the rules set here like hashing passwords, etc.
 
@@ -24,7 +33,7 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, username, phone_number, email=None, password=None, role='superuser', **extra_fields):
+    def create_superuser(self, username, phone_number, email=None, password=None, role=RoleEnum.SUPERUSER.value, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_admin", True)
         extra_fields.setdefault("is_superuser", True)
@@ -47,15 +56,6 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
         verbose_name = 'User'
         verbose_name_plural = 'Users'
         ordering = ['-date_joined'] #newest first
-
-    class RoleEnum(Enum):
-        SUPERUSER = 'superuser'
-        ADMIN = 'admin'
-        USER = 'user'
-
-        @classmethod
-        def choices(cls):
-            return [(role.name, role.value) for role in cls] #same as writing for role in RoleEnum as cls refers to the class itself
     
     username = models.CharField(max_length=50, unique=True)
     email = models.EmailField(max_length=255, unique=True)
@@ -75,7 +75,7 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
     objects = UserManager() #connecting to the manager created above
 
     USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = ['email'] #fields required(aside from username and password) when creating superuser
+    REQUIRED_FIELDS = ['email', 'phone_number'] #fields required(aside from username and password) when creating superuser
 
     def __str__(self):
         return self.username
