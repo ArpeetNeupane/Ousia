@@ -8,7 +8,7 @@ class UserCreationForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ('email', 'phone_number', 'role')
+        fields = ('username', 'email', 'phone_number', 'role')
 
     def clean_password2(self):
         password1 = self.cleaned_data.get("password1")
@@ -29,7 +29,7 @@ class UserChangeForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ('email', 'phone_number', 'role', 'password', 'is_active', 'is_admin', 'is_staff', 'is_superuser')
+        fields = ('username', 'email', 'phone_number', 'role', 'password', 'is_active', 'is_admin', 'is_staff', 'is_superuser')
 
     #This method prevents the user's password from being accidentally changed in the admin when you're updating other fields like email or role.
     def clean_password(self):
