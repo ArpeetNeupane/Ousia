@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     
     #project apps
     "accounts",
+    "core",
 
     "django.contrib.admin",
     "django.contrib.auth",

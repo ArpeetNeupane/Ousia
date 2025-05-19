@@ -54,7 +54,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(password=password, **validated_data)
         return user
 
-class UserLoginSerializer(serializers.Serializer): #using serializer here instead of ModelSerializer as we're not working with any CRUD operations thta require model access, we're just validating the user credentials
+class UserLoginSerializer(serializers.Serializer): #using Serializer here instead of ModelSerializer as we're not working with any CRUD operations thta require model access, we're just validating the user credentials
     email = serializers.CharField(required = True)
     password = serializers.CharField(write_only = True, required=True)
 
