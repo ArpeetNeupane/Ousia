@@ -13,6 +13,7 @@ class RoleEnum(Enum):
     def choices(cls):
         return [(role.name, role.value) for role in cls] #same as writing for role in RoleEnum as cls refers to the class itself
 
+
 class UserManager(BaseUserManager):
     use_in_migrations = True #very crucial so that when creating future users, django doesn't forget to implement the rules set here like hashing passwords, etc.
 
@@ -50,6 +51,7 @@ class UserManager(BaseUserManager):
     @staticmethod
     def normalize_username(username):
         return username.lower().strip() if username else ''
+
 
 class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, is_authenticated
     class Meta:
@@ -92,3 +94,27 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
 
     def send_email_to_user(self, subject, message, sender_email=None, **kwargs):
         send_mail(self, subject, message, sender_email, [self.email], **kwargs)
+
+
+class AreaOfInterest(models.Model):
+    name = models.CharField(max_length=50)
+    description = models.CharField(max_length=255, blank=True, null=True)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='interest_creator')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
+class UserAreaOfInterest(models.Model):
+    usersInterest = models.ForeignKey(AreaOfInterest, on_delete=models.CASCADE, related_name='users_interest')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_related_interest')
+
+    class Meta:
+        unique_together = ("user", "usersInterest") #making sure an interest can't be selected twice
+        verbose_name = "User Area of Interest"
+        verbose_name_plural = "User Areas of Interest"
+
+    def __str__(self):
+        return f"{self.user.username} - {self.usersInterest.name}"
