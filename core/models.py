@@ -2,10 +2,13 @@ from django.db import models
 from accounts.models import User
 from django.utils.translation import gettext_lazy as _
 
+#######  also can use UniqueConstraint instead of unique_together as it's deprecated
+#######  exclude soft deleted posts from queryset in view
+
 class CurrentEmotion(models.Model):
     emotion_emoji_name = models.CharField(max_length=20)
     emotion_emoji_path = models.CharField(max_length=255, null=True, blank=True, help_text="The path to emotion emoji in object storage.")
-    current_emoji_url = models.URLField(max_length=2046, null=True, blank=True, help_text="Current presigned url for the emoji.")
+    current_emoji_url = models.URLField(max_length=2048, null=True, blank=True, help_text="Current presigned url for the emoji.")
     emoji_url_expiry_time = models.DateTimeField(null=True, blank=True, help_text="Expiration time of the current url.")
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -30,7 +33,7 @@ class Post(models.Model):
         PRIVATE = 'private', _('Private')
         FRIENDS_ONLY = 'friends_only', _('Friends Only')
 
-    caption = models.CharField(max_length=200)
+    caption = models.CharField(max_length=1024, help_text="Text caption describing the post.")
     post_image_path = models.CharField(max_length=255, null=True, blank=True, help_text="The path to post image in object storage.")
     current_post_image_url = models.URLField(max_length=2048, null=True, blank=True, help_text="Current presigned url for the post image.")
     post_image_url_expiry_time = models.DateTimeField(null=True, blank=True, help_text="Expiration time of the current url.")
@@ -39,11 +42,12 @@ class Post(models.Model):
         max_length=20,
         choices=VisibilityEnum.choices,
         default=VisibilityEnum.FRIENDS_ONLY.value,
+        help_text="Visibility level of the post (Public, Private, or Friends Only)."
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_deleted = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False, help_text="Flag to indicate if the post is soft deleted.")
 
     posted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users_post')
     type_of_post = models.ManyToManyField(HashTag, related_name='tagged_posts', through='PostHashTag') #using '' to say thats its defined below this model or else itll throw an error
@@ -53,13 +57,21 @@ class Post(models.Model):
             models.Index(fields=['created_at']),
         ]
 
+    def soft_delete(self):
+        self.is_deleted = True
+        self.save()
+
+    @property
+    def post_like_count(self):
+        return self.like_on_post.count()
+
     def __str__(self):
         return f"{self.posted_by.username} - #{self.id}"
 
 
 class PostHashTag(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
-    hashtag = models.ForeignKey(HashTag, on_delete=models.CASCADE)
+    hashtag = models.ForeignKey(HashTag, on_delete=models.SET_NULL, null=True)
 
     class Meta:
         unique_together = ('post', 'hashtag')
@@ -103,6 +115,10 @@ class Comment(models.Model):
             models.Index(fields=['post', 'like_count', 'id']),
         ]
 
+    @property
+    def comment_like_count(self):
+        return self.like_on_comment.count()
+
     def __str__(self):
         return f"{self.commented_by.username} commented on post {self.post.id}"
 
@@ -110,7 +126,7 @@ class Comment(models.Model):
 class CommentLike(models.Model):
     liked_at = models.DateTimeField(auto_now_add=True)
     liked_by = models.ForeignKey(User, on_delete=models.CASCADE)
-    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='comment_liked')
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='like_on_comment')
 
     class Meta:
         unique_together = ('liked_by', 'comment')
