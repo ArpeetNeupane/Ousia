@@ -2,7 +2,6 @@ from django.db import models
 from accounts.models import User
 from django.utils.translation import gettext_lazy as _
 
-#######  also can use UniqueConstraint instead of unique_together as it's deprecated
 #######  exclude soft deleted posts from queryset in view
 
 class CurrentEmotion(models.Model):
@@ -33,7 +32,7 @@ class Post(models.Model):
         PRIVATE = 'private', _('Private')
         FRIENDS_ONLY = 'friends_only', _('Friends Only')
 
-    caption = models.CharField(max_length=1024, help_text="Text caption describing the post.")
+    caption = models.CharField(max_length=512, help_text="Text caption describing the post.")
     post_image_path = models.CharField(max_length=255, null=True, blank=True, help_text="The path to post image in object storage.")
     current_post_image_url = models.URLField(max_length=2048, null=True, blank=True, help_text="Current presigned url for the post image.")
     post_image_url_expiry_time = models.DateTimeField(null=True, blank=True, help_text="Expiration time of the current url.")
@@ -71,10 +70,12 @@ class Post(models.Model):
 
 class PostHashTag(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
-    hashtag = models.ForeignKey(HashTag, on_delete=models.SET_NULL, null=True)
+    hashtag = models.ForeignKey(HashTag, on_delete=models.CASCADE)
 
     class Meta:
-        unique_together = ('post', 'hashtag')
+        constraints = [
+            models.UniqueConstraint(fields=['post', 'hashtag'], name='unique_post_hashtag')
+        ]
         indexes = [
             models.Index(fields=['hashtag']),
             models.Index(fields=['post']),
@@ -90,7 +91,9 @@ class Like(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='like_on_post')
 
     class Meta:
-        unique_together = ['liked_by', 'post']
+        constraints = [
+            models.UniqueConstraint(fields=['liked_by', 'post'], name='unique_liked_by_post')
+        ]
 
         #creating database indexes to inprove query performance such as: PostLike.objects.filter(post=some_post)
         indexes = [
@@ -106,7 +109,6 @@ class Comment(models.Model):
     content = models.CharField(max_length=1000, help_text="The actual comment on a post.")
     commented_at = models.DateTimeField(auto_now_add=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comment_on_post')
-    like_count = models.PositiveIntegerField(default=0, help_text="Number of likes on this comment.")
 
     class Meta:
         indexes = [
@@ -129,7 +131,9 @@ class CommentLike(models.Model):
     comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='like_on_comment')
 
     class Meta:
-        unique_together = ('liked_by', 'comment')
+        constraints = [
+            models.UniqueConstraint(fields=['liked_by', 'comment'], name='unique_liked_by_comment')
+        ]
         indexes = [
             models.Index(fields=['comment']),
             models.Index(fields=['liked_by']),
