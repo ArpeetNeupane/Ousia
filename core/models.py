@@ -23,7 +23,7 @@ class HashTag(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='hashtag_creator')
 
     def __str__(self):
-        return f"#{self.name}"
+        return f"{self.name}"
 
 
 class Post(models.Model):
@@ -113,8 +113,6 @@ class Comment(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=['post', 'commented_at']),
-            models.Index(fields=['post', 'like_count']),
-            models.Index(fields=['post', 'like_count', 'id']),
         ]
 
     @property
