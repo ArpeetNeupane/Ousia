@@ -46,16 +46,30 @@ class Post(models.Model):
     is_deleted = models.BooleanField(default=False)
 
     posted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users_post')
-    type_of_post = models.ManyToManyField(HashTag, related_name='tagged_posts')
+    type_of_post = models.ManyToManyField(HashTag, related_name='tagged_posts', through='PostHashTag') #using '' to say thats its defined below this model or else itll throw an error
 
     class Meta:
         indexes = [
             models.Index(fields=['created_at']),
-            models.Index(fields=['type_of_post'])
         ]
 
     def __str__(self):
         return f"{self.posted_by.username} - #{self.id}"
+
+
+class PostHashTag(models.Model):
+    post = models.ForeignKey(Post, on_delete=models.CASCADE)
+    hashtag = models.ForeignKey(HashTag, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('post', 'hashtag')
+        indexes = [
+            models.Index(fields=['hashtag']),
+            models.Index(fields=['post']),
+        ]
+
+    def __str__(self):
+        return f"Post#{self.post.id} - {self.hashtag.name}"
 
 
 class Like(models.Model):
@@ -84,8 +98,9 @@ class Comment(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['commented_at']),
-            models.Index(fields=['like_count']),
+            models.Index(fields=['post', 'commented_at']),
+            models.Index(fields=['post', 'like_count']),
+            models.Index(fields=['post', 'like_count', 'id']),
         ]
 
     def __str__(self):

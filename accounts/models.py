@@ -1,17 +1,12 @@
 from django.db import models
 from django.contrib.auth.models import BaseUserManager, AbstractBaseUser
 from django.core.mail import send_mail
+from django.utils.translation import gettext_lazy as _
 
-from enum import Enum
-
-class RoleEnum(Enum):
-    SUPERUSER = 'superuser'
-    ADMIN = 'admin'
-    USER = 'user'
-
-    @classmethod
-    def choices(cls):
-        return [(role.name, role.value) for role in cls] #same as writing for role in RoleEnum as cls refers to the class itself
+class RoleEnum(models.TextChoices):
+    SUPERUSER = 'superuser', _('SUPERUSER')
+    ADMIN = 'admin', _('ADMIN')
+    USER = 'user', _('USER')
 
 
 class UserManager(BaseUserManager):
@@ -50,7 +45,9 @@ class UserManager(BaseUserManager):
 
     @staticmethod
     def normalize_username(username):
-        return username.lower().strip() if username else ''
+        if not username:
+            raise ValueError("Username cannot be empty or None.")
+        return username.lower().strip()
 
 
 class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, is_authenticated
@@ -63,7 +60,7 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
     email = models.EmailField(max_length=255, unique=True)
     role = models.CharField(
         max_length=20,
-        choices=RoleEnum.choices(),
+        choices=RoleEnum.choices,
         default=RoleEnum.USER.value
     )
     phone_number = models.CharField(max_length=15)
@@ -93,7 +90,7 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
         return False
 
     def send_email_to_user(self, subject, message, sender_email=None, **kwargs):
-        send_mail(self, subject, message, sender_email, [self.email], **kwargs)
+        send_mail(subject, message, sender_email, [self.email], **kwargs)
 
 
 class AreaOfInterest(models.Model):
@@ -106,15 +103,20 @@ class AreaOfInterest(models.Model):
     def __str__(self):
         return self.name
 
+    def __repr__(self):
+        return (f"AreaOfInterest(name={self.name!r},"
+                f"created_by={self.created_by!r},"
+                f"created_at={self.created_at.isoformat()})")
+
 
 class UserAreaOfInterest(models.Model):
-    usersInterest = models.ForeignKey(AreaOfInterest, on_delete=models.CASCADE, related_name='users_interest')
+    users_interest = models.ForeignKey(AreaOfInterest, on_delete=models.CASCADE, related_name='users_interest')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_related_interest')
 
     class Meta:
-        unique_together = ("user", "usersInterest") #making sure an interest can't be selected twice
+        unique_together = ("user", "users_interest") #making sure an interest can't be selected twice
         verbose_name = "User Area of Interest"
         verbose_name_plural = "User Areas of Interest"
 
     def __str__(self):
-        return f"{self.user.username} - {self.usersInterest.name}"
+        return f"{self.user.username} - {self.users_interest.name}"
