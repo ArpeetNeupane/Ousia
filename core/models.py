@@ -6,9 +6,9 @@ from django.utils.translation import gettext_lazy as _
 
 class CurrentEmotion(models.Model):
     emotion_emoji_name = models.CharField(max_length=20)
-    emotion_emoji_path = models.CharField(max_length=255, null=True, blank=True, help_text="The path to emotion emoji in object storage.")
-    current_emoji_url = models.URLField(max_length=2048, null=True, blank=True, help_text="Current presigned url for the emoji.")
-    emoji_url_expiry_time = models.DateTimeField(null=True, blank=True, help_text="Expiration time of the current url.")
+    emotion_emoji_path = models.CharField(max_length=255, null=True, blank=True, help_text=_("The path to emotion emoji in object storage."))
+    current_emoji_url = models.URLField(max_length=2048, null=True, blank=True, help_text=_("Current presigned url for the emoji."))
+    emoji_url_expiry_time = models.DateTimeField(null=True, blank=True, help_text=_("Expiration time of the current url."))
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -40,21 +40,21 @@ class Post(models.Model):
         PRIVATE = 'private', _('Private')
         FRIENDS_ONLY = 'friends_only', _('Friends Only')
 
-    caption = models.CharField(max_length=512, help_text="Text caption describing the post.")
-    post_image_path = models.CharField(max_length=255, null=True, blank=True, help_text="The path to post image in object storage.")
-    current_post_image_url = models.URLField(max_length=2048, null=True, blank=True, help_text="Current presigned url for the post image.")
-    post_image_url_expiry_time = models.DateTimeField(null=True, blank=True, help_text="Expiration time of the current url.")
+    caption = models.CharField(max_length=512, help_text=_("Text caption describing the post."))
+    post_image_path = models.CharField(max_length=255, null=True, blank=True, help_text=_("The path to post image in object storage."))
+    current_post_image_url = models.URLField(max_length=2048, null=True, blank=True, help_text=_("Current presigned url for the post image."))
+    post_image_url_expiry_time = models.DateTimeField(null=True, blank=True, help_text=_("Expiration time of the current url."))
     # posted_from = models.CharField(max_length=255, blank=True, null=True)
     visibility = models.CharField(
         max_length=20,
         choices=VisibilityEnum.choices,
         default=VisibilityEnum.FRIENDS_ONLY.value,
-        help_text="Visibility level of the post (Public, Private, or Friends Only)."
+        help_text=_("Visibility level of the post (Public, Private, or Friends Only).")
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_deleted = models.BooleanField(default=False, help_text="Flag to indicate if the post is soft deleted.")
+    is_deleted = models.BooleanField(default=False, help_text=_("Flag to indicate if the post is soft deleted."))
 
     posted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users_post')
     type_of_post = models.ManyToManyField(HashTag, related_name='tagged_posts', through='PostHashTag') #using '' to say thats its defined below this model or else itll throw an error
@@ -118,9 +118,10 @@ class Like(models.Model):
     def __str__(self):
         return f"{self.liked_by.username} liked post {self.post}"
 
+
 class Comment(models.Model):
     commented_by = models.ForeignKey(User, on_delete=models.CASCADE)
-    content = models.CharField(max_length=1000, help_text="The actual comment on a post.")
+    content = models.CharField(max_length=1000, help_text=_("The actual comment on a post."))
     commented_at = models.DateTimeField(auto_now_add=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comment_on_post')
 
