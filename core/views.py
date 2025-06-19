@@ -1,17 +1,19 @@
 from core.serializers import *
 from core.models import *
 from core.paginations import DefaultPagination
+from core.permissions import OwnsObjectOrAdmin
 from myproject.utils import api_response
 
 from rest_framework import generics, status
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
+from django.http import Http404
 
 
 class HashTagListCreateAPI(generics.ListCreateAPIView):
@@ -20,6 +22,7 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
     queryset = HashTag.objects.all()
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post']
 
     def perform_create(self, serializer):
         serializer.save()
@@ -123,33 +126,148 @@ class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
     pagination_class = DefaultPagination
     queryset = HashTag.objects.all()
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
+    http_method_names = ['get', 'patch', 'delete']
+
+    def get_permissions(self):
+        if self.request.method == 'PATCH' or self.request.method == 'DELETE':
+            return [IsAuthenticated(), OwnsObjectOrAdmin()]
+        return [IsAuthenticated()]
 
     def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Successfully retrieved hashtag.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except Http404:
+            return api_response(
+                is_success=False,
+                error_message="Hashtag not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @swagger_auto_schema(
-            
+        responses={
+            200: openapi.Response(
+                description="Hashtag retrieved successfully",
+                schema=HashTagCreateUpdateSerializer()
+            ),
+            404: 'Hashtag not found',
+            500: 'Internal Server Error.'
+        },
+        tags=["HashTag"]
     )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
 
-
     def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Hashtag updated successfully.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except Http404:
+            return api_response(
+                is_success=False,
+                error_message="Hashtag not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+            )
+
 
     @swagger_auto_schema(
-            
+        request_body=HashTagCreateUpdateSerializer,
+        responses={
+            200: openapi.Response(
+                description="Hashtag updated successfully",
+                schema=HashTagCreateUpdateSerializer()
+            ),
+            403: 'Permission denied',
+            404: 'Hashtag not found',
+            400: 'Validation error',
+            500: 'Internal Server Error.'
+        },
+        tags=["HashTag"]
     )
     def patch(self, request, *args, **kwargs):
         return super().patch(request, *args, **kwargs)
 
 
     def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+        try:
+            instance = self.get_object()
+            instance.delete()
+            return api_response(
+                is_success=True,
+                result={"message": f"Hashtag deleted successfully."},
+                status_code=status.HTTP_200_OK
+            )
+
+        except Http404:
+            return api_response(
+                is_success=False,
+                error_message="Hashtag not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @swagger_auto_schema(
-            
+        responses={
+            200: 'Hashtag deleted successfully',
+            403: 'Permission denied',
+            404: 'Hashtag not found',
+            500: 'Internal Server Error.'
+        },
+        tags=["HashTag"]
     )
     def delete(self, request, *args, **kwargs):
         return super().delete(request, *args, **kwargs)

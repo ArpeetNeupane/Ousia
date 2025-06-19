@@ -13,6 +13,10 @@ class CurrentEmotion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        verbose_name = "CurrentEmotion"
+        verbose_name_plural = "CurrentEmotions"
+
     def __str__(self):
         return self.emotion_emoji_name
 
@@ -21,6 +25,10 @@ class HashTag(models.Model):
     name = models.CharField(max_length=50, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='hashtag_creator')
+
+    class Meta:
+        verbose_name = "Hashtag"
+        verbose_name_plural = "Hashtags"
 
     def __str__(self):
         return f"{self.name}"
@@ -52,6 +60,8 @@ class Post(models.Model):
     type_of_post = models.ManyToManyField(HashTag, related_name='tagged_posts', through='PostHashTag') #using '' to say thats its defined below this model or else itll throw an error
 
     class Meta:
+        verbose_name = "Post"
+        verbose_name_plural = "Posts"
         indexes = [
             models.Index(fields=['created_at']),
         ]
@@ -73,6 +83,8 @@ class PostHashTag(models.Model):
     hashtag = models.ForeignKey(HashTag, on_delete=models.CASCADE)
 
     class Meta:
+        verbose_name = "PostHashTag"
+        verbose_name_plural = "PostHashTags"
         constraints = [
             models.UniqueConstraint(fields=['post', 'hashtag'], name='unique_post_hashtag')
         ]
@@ -91,6 +103,8 @@ class Like(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='like_on_post')
 
     class Meta:
+        verbose_name = "Like"
+        verbose_name_plural = "Likes"
         constraints = [
             models.UniqueConstraint(fields=['liked_by', 'post'], name='unique_liked_by_post')
         ]
@@ -111,6 +125,8 @@ class Comment(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comment_on_post')
 
     class Meta:
+        verbose_name = "Comment"
+        verbose_name_plural = "Comments"
         indexes = [
             models.Index(fields=['post', 'commented_at']),
         ]
@@ -129,6 +145,8 @@ class CommentLike(models.Model):
     comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='like_on_comment')
 
     class Meta:
+        verbose_name = "CommentLike"
+        verbose_name_plural = "CommentLikes"
         constraints = [
             models.UniqueConstraint(fields=['liked_by', 'comment'], name='unique_liked_by_comment')
         ]
