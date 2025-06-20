@@ -66,7 +66,8 @@ class MediaUploadSerializer(serializers.ModelSerializer):
         return url
 
 
-class PostRetrieveCreateSerializer(MediaValidationMixin, serializers.ModelSerializer):
+class PostResponseCreateSerializer(MediaValidationMixin, serializers.ModelSerializer):
+    posted_by_username = serializers.SerializerMethodField(read_only=True)
     media_files = MediaUploadSerializer(source='post_media', many=True, read_only=True)
     media = serializers.ListField(
         child=serializers.FileField(),
@@ -78,10 +79,13 @@ class PostRetrieveCreateSerializer(MediaValidationMixin, serializers.ModelSerial
     class Meta:
         model = Post
         fields = [
-            'id', 'caption', 'visibility', 'created_at', 'posted_by',
+            'id', 'caption', 'visibility', 'created_at', 'posted_by', 'posted_by_username',
             'type_of_post', 'media', 'media_files', 'post_like_count', 'post_comment_count'
         ]
-        read_only_fields = ['id', 'created_at', 'posted_by', 'post_like_count', 'post_comment_count', 'media_url']
+        read_only_fields = ['id', 'created_at', 'posted_by', 'posted_by_username', 'post_like_count', 'post_comment_count', 'media_url']
+
+    def get_posted_by_username(self, obj):
+        return obj.posted_by.username if obj.posted_by else None
 
     def create(self, validated_data):
         request = self.context['request']
@@ -134,7 +138,7 @@ class PostRetrieveCreateSerializer(MediaValidationMixin, serializers.ModelSerial
         return data
 
 
-class PostRetrieveUpdateSerializer(MediaValidationMixin, serializers.ModelSerializer):
+class PostResponseUpdateSerializer(MediaValidationMixin, serializers.ModelSerializer):
     type_of_post = serializers.CharField(
         required=False,
         help_text="Comma-separated hashtag names"

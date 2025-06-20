@@ -124,15 +124,15 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
 
 
 class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = HashTagRetrieveCreateUpdateSerializer
-    pagination_class = DefaultPagination
-    queryset = HashTag.objects.all()
     authentication_classes = [JWTAuthentication]
     permission_classes = []
+    serializer_class = HashTagRetrieveCreateUpdateSerializer
+    queryset = HashTag.objects.all()
+    pagination_class = DefaultPagination
     http_method_names = ['get', 'patch', 'delete']
 
     def get_permissions(self):
-        if self.request.method == 'PATCH' or self.request.method == 'DELETE':
+        if self.request.method in ['PATCH', 'DELETE']:
             return [IsAuthenticated(), OwnsObjectOrAdmin()]
         return [IsAuthenticated()]
 
@@ -280,10 +280,10 @@ class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
 
 
 class PostListCreateAPI(generics.ListCreateAPIView):
-    queryset = Post.objects.all()
-    serializer_class = PostRetrieveCreateSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
+    serializer_class = PostResponseCreateSerializer
+    queryset = Post.objects.all()
     parser_classes = [FormParser, MultiPartParser]
     pagination_class = DefaultPagination
     http_method_names = ['get', 'post']
@@ -352,7 +352,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
         responses={
             201: openapi.Response(
                 description="Successfully created a post.",
-                schema=PostRetrieveCreateSerializer,
+                schema=PostResponseCreateSerializer,
             ),
             400: openapi.Response(description="Invalid data."),
             500: openapi.Response(description="Internal server error."),
@@ -386,7 +386,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
         responses={
             200: openapi.Response(
                 description="Successfully retrieved paginated data.",
-                schema=PostRetrieveCreateSerializer(many=True),
+                schema=PostResponseCreateSerializer(many=True),
             ),
             204: openapi.Response(description="No content."),
             400: openapi.Response(description="Bad request."),
@@ -401,5 +401,58 @@ class PostListCreateAPI(generics.ListCreateAPIView):
 
 
 
-# class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
-#     http_method_names = ['get', 'patch', 'delete']
+class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = []
+    serializer_class = PostResponseUpdateSerializer
+    queryset = Post.objects.all()
+    parser_classes = [FormParser, MultiPartParser]
+    pagination_class = DefaultPagination
+    http_method_names = ['get', 'patch', 'delete']
+
+    def get_permissions(self):
+        if self.request.method in ['PATCH', 'DELETE']:
+            return [IsAuthenticated(), OwnsObjectOrAdmin()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        print(f"Queryset count: {qs.count()}")
+        return qs
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Post successfully retrieved.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except Http404:
+            return api_response(
+                is_success=False,
+                error_message="Post not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def get(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+
+    def partial_update(self, request, *args, **kwargs):
+        pass
+
+    def patch(self, request, *args, **kwargs):
+        return super().patch(request, *args, **kwargs)

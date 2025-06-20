@@ -11,5 +11,5 @@ class OwnsObjectOrAdmin(BasePermission):
         if request.user and request.user.is_staff:
             return True
 
-        owner = getattr(obj, 'user', None) or getattr(obj, 'created_by', None)
+        owner = getattr(obj, 'user', None) or getattr(obj, 'created_by', None) or getattr(obj, 'posted_by', None)
         return owner == request.user
