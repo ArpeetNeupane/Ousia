@@ -57,8 +57,6 @@ class Post(models.Model):
     posted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users_post')
     type_of_post = models.ManyToManyField(HashTag, related_name='tagged_posts', through='PostHashTag') #using '' to say thats its defined below this model or else itll throw an error
 
-    media_public_id = models.CharField(max_length=255, null=True, blank=True, help_text=_("Cloudinary public ID for the uploaded image/video."))
-    is_video = models.BooleanField(default=False, help_text=_("Flag to indicate if media is a video."))
     class Meta:
         verbose_name = "Post"
         verbose_name_plural = "Posts"
@@ -83,6 +81,22 @@ class Post(models.Model):
 
     def __str__(self):
         return f"{self.posted_by.username} - #{self.id}"
+
+
+class MediaUpload(models.Model):
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='post_media')
+    public_id = models.CharField(max_length=255, null=True, blank=True, help_text=_("Cloudinary public ID for the uploaded image/video."))
+    is_video = models.BooleanField(default=False, help_text=_("Flag to indicate if media is a video."))
+    upload_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['upload_order']
+        verbose_name = "Media Upload"
+        verbose_name_plural = "Media Uploads"
+
+    def __str__(self):
+        return f"Media for Post #{self.post.id}"
 
 
 class PostHashTag(models.Model):

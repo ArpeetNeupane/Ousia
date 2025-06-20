@@ -317,10 +317,41 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             )
 
     @swagger_auto_schema(
-        operation_description="Create a new post.",
+        operation_description="Create a new post with multiple media files.",
+        manual_parameters=[
+            openapi.Parameter(
+                'caption',
+                openapi.IN_FORM,
+                description="Post caption.",
+                type=openapi.TYPE_STRING,
+                required=True
+            ),
+            openapi.Parameter(
+                'visibility',
+                openapi.IN_FORM,
+                description="Post visibility.",
+                type=openapi.TYPE_STRING,
+                enum=['public', 'private', 'friends_only'],
+                required=False
+            ),
+            openapi.Parameter(
+                'type_of_post',
+                openapi.IN_FORM,
+                description="Hashtag names.",
+                type=openapi.TYPE_STRING,
+                required=False
+            ),
+            openapi.Parameter(
+                'media',
+                openapi.IN_FORM,
+                description="Media files (can upload multiple).",
+                type=openapi.TYPE_FILE,
+                required=False
+            ),
+        ],
         responses={
             201: openapi.Response(
-                description="Successfully created a hashtag.",
+                description="Successfully created a post.",
                 schema=PostRetrieveCreateSerializer,
             ),
             400: openapi.Response(description="Invalid data."),

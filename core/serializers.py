@@ -42,22 +42,13 @@ class HashTagRetrieveCreateUpdateSerializer(serializers.ModelSerializer):
         return instance
 
 
-class PostRetrieveCreateSerializer(serializers.ModelSerializer):
-    media = serializers.FileField(write_only=True, required=False)
+class MediaUploadSerializer(serializers.ModelSerializer):
     media_url = serializers.SerializerMethodField(read_only=True)
 
-    type_of_post = serializers.SlugRelatedField(
-        queryset=HashTag.objects.all(),
-        slug_field='name',
-        many=True
-    )
     class Meta:
-        model = Post
-        fields = [
-            'id', 'caption', 'visibility', 'created_at', 'posted_by',
-            'type_of_post', 'media', 'media_url', 'post_like_count', 'post_comment_count'
-        ]
-        read_only_fields = ['id', 'created_at', 'posted_by', 'post_like_count', 'post_comment_count', 'media_url']
+        model = MediaUpload
+        fields = ['id', 'public_id', 'is_video', 'upload_order', 'media_url']
+        read_only_fields = ['id', 'public_id', 'is_video', 'upload_order', 'media_url']
 
     def get_media_url(self, obj):
         #returning no url if public id isn't found
@@ -73,6 +64,23 @@ class PostRetrieveCreateSerializer(serializers.ModelSerializer):
         )
         return url
 
+
+class PostRetrieveCreateSerializer(serializers.ModelSerializer):
+    media_files = MediaUploadSerializer(many=True, read_only=True)
+
+    type_of_post = serializers.SlugRelatedField(
+        queryset=HashTag.objects.all(),
+        slug_field='name',
+        many=True
+    )
+    class Meta:
+        model = Post
+        fields = [
+            'id', 'caption', 'visibility', 'created_at', 'posted_by',
+            'type_of_post', 'media_files', 'post_like_count', 'post_comment_count'
+        ]
+        read_only_fields = ['id', 'created_at', 'posted_by', 'post_like_count', 'post_comment_count', 'media_url']
+
     def to_internal_value(self, data):
         if 'type_of_post' in data:
             hashtags = data.get('type_of_post')
@@ -81,13 +89,11 @@ class PostRetrieveCreateSerializer(serializers.ModelSerializer):
                 hashtag_list = [tag.strip() for tag in hashtags.split(',') if tag.strip()]
                 data = data.copy()
                 data.setlist('type_of_post', hashtag_list)
-        
         return super().to_internal_value(data)
 
     def create(self, validated_data):
         request = self.context['request']
-
-        media_files = validated_data.pop('media', None)
+        media_files = request.FILES.getlist('media')
         hashtags_data = validated_data.pop('type_of_post', [])
 
         try:
@@ -111,10 +117,14 @@ class PostRetrieveCreateSerializer(serializers.ModelSerializer):
                     post.type_of_post.set(final_hashtags)
 
             if media_files:
-                uploaded = cloudinary.uploader.upload(media_files, resource_type='auto')
-                post.media_public_id = uploaded['public_id']
-                post.is_video = uploaded['resource_type'] == 'video'
-                post.save(update_fields=['media_public_id', 'is_video'])
+                for index, media_file in enumerate(media_files):
+                    uploaded = cloudinary.uploader.upload(media_file, resource_type='auto')
+                    MediaUpload.objects.create(
+                        post=post,
+                        public_id=uploaded['public_id'],
+                        is_video=uploaded['resource_type'] == 'video',
+                        upload_order=index
+                    )
 
             return post
 
@@ -122,15 +132,17 @@ class PostRetrieveCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("An error occured during creation of Post. Try again later.")
 
 
-
 class PostUpdateSerializer(serializers.ModelSerializer):
     pass
+
 
 class LikeRetrieveCreateSerializer(serializers.ModelSerializer):
     pass
 
+
 class CommentRetrieveCreateSerializer(serializers.ModelSerializer):
     pass
+
 
 class CommentUpdateSerializer(serializers.ModelSerializer):
     pass
