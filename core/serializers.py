@@ -1,9 +1,13 @@
 from core.models import *
+from core.mixins import MediaValidationMixin
 
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
-import cloudinary, cloudinary.uploader
+import cloudinary, cloudinary.uploader, mimetypes, os
 from cloudinary.utils import cloudinary_url
+
+from django.db import transaction
 
 class HashTagRetrieveCreateUpdateSerializer(serializers.ModelSerializer):
     created_by_username = serializers.SerializerMethodField(read_only=True)
@@ -55,65 +59,68 @@ class MediaUploadSerializer(serializers.ModelSerializer):
         if not obj.public_id:
             return None
 
-        url, _ = cloudinary_url(
-            obj.public_id,
-            resource_type="video" if obj.is_video else "image",
-            secure=True,
-            fetch_format="auto",
-            quality="auto"
-        )
+        if obj.is_video:
+            url, _ = cloudinary_url(obj.public_id, resource_type="video", secure=True)
+        else:
+            url, _ = cloudinary_url(obj.public_id, resource_type="image", secure=True)
         return url
 
 
-class PostRetrieveCreateSerializer(serializers.ModelSerializer):
+class PostRetrieveCreateSerializer(MediaValidationMixin, serializers.ModelSerializer):
     media_files = MediaUploadSerializer(source='post_media', many=True, read_only=True)
-
+    media = serializers.ListField(
+        child=serializers.FileField(),
+        required=False,
+        write_only=True,
+        help_text="Upload media files for the post"
+    )
     type_of_post = serializers.CharField(required=False, help_text="Comma-separated hashtag names")
     class Meta:
         model = Post
         fields = [
             'id', 'caption', 'visibility', 'created_at', 'posted_by',
-            'type_of_post', 'media_files', 'post_like_count', 'post_comment_count'
+            'type_of_post', 'media', 'media_files', 'post_like_count', 'post_comment_count'
         ]
         read_only_fields = ['id', 'created_at', 'posted_by', 'post_like_count', 'post_comment_count', 'media_url']
 
     def create(self, validated_data):
         request = self.context['request']
-        media_files = request.FILES.getlist('media')
-        hashtags_string = validated_data.pop('type_of_post', [])
+        media_files = validated_data.pop('media', [])
+        hashtags_string = validated_data.pop('type_of_post', '')
 
         try:
-            #first, creating a post object and then linking the many-to-many hashtag field to it
-            validated_data['posted_by'] = request.user
-            post = super().create(validated_data)
+            with transaction.atomic():
+                #first, creating a post object and then linking the many-to-many hashtag field to it
+                validated_data['posted_by'] = request.user
+                post = super().create(validated_data)
 
-            if hashtags_string:
-                hashtag_names = [tag.strip() for tag in hashtags_string.split(',') if tag.strip()]
-                final_hashtags = []
+                if hashtags_string:
+                    hashtag_names = [tag.strip() for tag in hashtags_string.split(',') if tag.strip()]
+                    final_hashtags = []
 
-                for name in hashtag_names:
-                    try:
-                        hashtag = HashTag.objects.get(name=name)
-                        final_hashtags.append(hashtag)
-                    except HashTag.DoesNotExist:
-                        raise serializers.ValidationError(
-                            {"type_of_post:" f"Hashtag '{name}' doesn't exist."}
+                    for name in hashtag_names:
+                        try:
+                            hashtag = HashTag.objects.get(name=name)
+                            final_hashtags.append(hashtag)
+                        except HashTag.DoesNotExist:
+                            raise serializers.ValidationError(
+                                {"type_of_post:" f"Hashtag '{name}' doesn't exist."}
+                            )
+
+                    if final_hashtags:
+                        post.type_of_post.set(final_hashtags)
+
+                if media_files:
+                    for index, media_file in enumerate(media_files):
+                        uploaded = cloudinary.uploader.upload(media_file, resource_type='auto')
+                        MediaUpload.objects.create(
+                            post=post,
+                            public_id=uploaded['public_id'],
+                            is_video=uploaded['resource_type'] == 'video',
+                            upload_order=index
                         )
-
-                if final_hashtags:
-                    post.type_of_post.set(final_hashtags)
-
-            if media_files:
-                for index, media_file in enumerate(media_files):
-                    uploaded = cloudinary.uploader.upload(media_file, resource_type='auto')
-                    MediaUpload.objects.create(
-                        post=post,
-                        public_id=uploaded['public_id'],
-                        is_video=uploaded['resource_type'] == 'video',
-                        upload_order=index
-                    )
-            post.refresh_from_db()
-            return post
+                post.refresh_from_db()
+                return post
 
         except Exception as e:
             print(str(e))
@@ -127,8 +134,80 @@ class PostRetrieveCreateSerializer(serializers.ModelSerializer):
         return data
 
 
-class PostUpdateSerializer(serializers.ModelSerializer):
-    pass
+class PostRetrieveUpdateSerializer(MediaValidationMixin, serializers.ModelSerializer):
+    type_of_post = serializers.CharField(
+        required=False,
+        help_text="Comma-separated hashtag names"
+    )
+    media = serializers.ListField(
+        child=serializers.FileField(),
+        required=False,
+        write_only=True,
+        help_text="Upload media files. Replaces existing media."
+    )
+    media_files = MediaUploadSerializer(source='post_media', many=True, read_only=True)
+
+    class Meta:
+        model = Post
+        fields = [
+            'id', 'caption', 'visibility', 'type_of_post', 'media', 'media_files',
+            'created_at', 'updated_at', 'post_like_count', 'post_comment_count'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'post_like_count', 'post_comment_count', 'media_files']
+
+    def update(self, instance, validated_data):
+        request = self.context['request']
+        hashtags_string = validated_data.pop('type_of_post', None)
+        media_files = validated_data.pop('media', None)
+
+        #updating caption and visibility
+        instance.caption = validated_data.get('caption', instance.caption) #caption is updated value, instance.caption is fallback to current
+        instance.visibility = validated_data.get('visibility', instance.visibility)
+        instance.save()
+
+        #updating hashtags
+        if hashtags_string is not None:
+            hashtag_names = [tag.strip() for tag in hashtags_string.split(',') if tag.strip()]
+            hashtags = HashTag.objects.filter(name__in=hashtag_names)
+
+            if hashtags.count() != len(set(hashtag_names)):
+                found_names = set(hashtags.values_list('name', flat=True))
+                missing = set(hashtag_names) - found_names
+                raise serializers.ValidationError(
+                    {"type_of_post": f"These hashtags do not exist: {', '.join(missing)}"}
+                )
+            instance.type_of_post.set(hashtags)
+
+        #updating media if new files provided
+        if media_files:
+            #deleting old Cloudinary files and db records
+            for old_media in instance.post_media.all():
+                if old_media.public_id:
+                    try:
+                        cloudinary.uploader.destroy(old_media.public_id, resource_type='video' if old_media.is_video else 'image')
+                    except Exception as e:
+                        print(f"Cloudinary deletion failed for {old_media.public_id}: {e}")
+                old_media.delete()
+
+            #uploading new media files
+            for index, media_file in enumerate(media_files):
+                uploaded = cloudinary.uploader.upload(media_file, resource_type='auto')
+                MediaUpload.objects.create(
+                    post=instance,
+                    public_id=uploaded['public_id'],
+                    is_video=uploaded['resource_type'] == 'video',
+                    upload_order=index
+                )
+
+        instance.refresh_from_db()
+        return instance
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        #returning hashtags as comma-separated names
+        hashtags = instance.type_of_post.all()
+        data['type_of_post'] = ','.join([tag.name for tag in hashtags])
+        return data
 
 
 class LikeRetrieveCreateSerializer(serializers.ModelSerializer):
