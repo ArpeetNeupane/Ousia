@@ -1,8 +1,9 @@
 from django.db import models
-from accounts.models import User
 from django.utils.translation import gettext_lazy as _
 
-#######  exclude soft deleted posts from queryset in view
+from accounts.models import User
+from core.managers import PostManager
+
 
 class CurrentEmotion(models.Model):
     emotion_emoji_name = models.CharField(max_length=20)
@@ -41,9 +42,6 @@ class Post(models.Model):
         FRIENDS_ONLY = 'friends_only', _('Friends Only')
 
     caption = models.CharField(max_length=512, help_text=_("Text caption describing the post."))
-    post_image_path = models.CharField(max_length=255, null=True, blank=True, help_text=_("The path to post image in object storage."))
-    current_post_image_url = models.URLField(max_length=2048, null=True, blank=True, help_text=_("Current presigned url for the post image."))
-    post_image_url_expiry_time = models.DateTimeField(null=True, blank=True, help_text=_("Expiration time of the current url."))
     # posted_from = models.CharField(max_length=255, blank=True, null=True)
     visibility = models.CharField(
         max_length=20,
@@ -59,12 +57,17 @@ class Post(models.Model):
     posted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users_post')
     type_of_post = models.ManyToManyField(HashTag, related_name='tagged_posts', through='PostHashTag') #using '' to say thats its defined below this model or else itll throw an error
 
+    media_public_id = models.CharField(max_length=255, null=True, blank=True, help_text=_("Cloudinary public ID for the uploaded image/video."))
+    is_video = models.BooleanField(default=False, help_text=_("Flag to indicate if media is a video."))
     class Meta:
         verbose_name = "Post"
         verbose_name_plural = "Posts"
         indexes = [
             models.Index(fields=['created_at']),
         ]
+        ordering = ['-created_at']
+
+    objects = PostManager()
 
     def soft_delete(self):
         self.is_deleted = True
@@ -73,6 +76,10 @@ class Post(models.Model):
     @property
     def post_like_count(self):
         return self.like_on_post.count()
+
+    @property
+    def post_comment_count(self):
+        return self.comment_on_post.count()
 
     def __str__(self):
         return f"{self.posted_by.username} - #{self.id}"

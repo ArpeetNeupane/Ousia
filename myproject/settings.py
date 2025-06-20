@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "drf_yasg",
+    "cloudinary",
+    "cloudinary_storage",
     
     #project apps
     "accounts",
@@ -172,6 +174,7 @@ SWAGGER_SETTINGS = {
     ],
 }
 
+#JWT SETTINGS
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=4),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=3),
@@ -183,3 +186,12 @@ SIMPLE_JWT = {
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
 }
+
+#CLOUDINARY SETTINGS
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': config('CLOUDINARY_API_KEY'),
+    'API_SECRET': config('CLOUDINARY_API_SECRET'),
+}
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'

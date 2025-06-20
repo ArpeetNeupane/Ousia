@@ -8,6 +8,7 @@ from rest_framework import generics, status
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError, PermissionDenied
+from rest_framework.parsers import FormParser, MultiPartParser
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -17,11 +18,11 @@ from django.http import Http404
 
 
 class HashTagListCreateAPI(generics.ListCreateAPIView):
-    serializer_class = HashTagCreateUpdateSerializer
-    pagination_class = DefaultPagination
     queryset = HashTag.objects.all()
+    serializer_class = HashTagRetrieveCreateUpdateSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+    pagination_class = DefaultPagination
     http_method_names = ['get', 'post']
 
     def perform_create(self, serializer):
@@ -47,12 +48,14 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
                 },
                 status_code=status.HTTP_201_CREATED
             )
+
         except ValidationError as ve:
             return api_response(
                 is_success=False,
                 error_message=ve.detail,
                 status_code=status.HTTP_400_BAD_REQUEST
             )
+
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -62,11 +65,11 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
 
     @swagger_auto_schema(
         operation_description="Create a new hashtag.",
-        request_body=HashTagCreateUpdateSerializer,
+        request_body=HashTagRetrieveCreateUpdateSerializer,
         responses={
             201: openapi.Response(
                 description="Successfully created a hashtag.",
-                schema=HashTagCreateUpdateSerializer,
+                schema=HashTagRetrieveCreateUpdateSerializer,
             ),
             400: openapi.Response(description="Invalid data."),
             500: openapi.Response(description="Internal server error."),
@@ -85,7 +88,6 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
                 serializer = self.get_serializer(page, many=True)
                 return self.get_paginated_response(serializer.data)
             serializer = self.get_serializer(queryset, many=True)
-
             return api_response(
                 is_success=True,
                 result={
@@ -106,7 +108,7 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
         responses={
             200: openapi.Response(
                 description="Successfully retrieved paginated data.",
-                schema=HashTagCreateUpdateSerializer(many=True),
+                schema=HashTagRetrieveCreateUpdateSerializer(many=True),
             ),
             204: openapi.Response(description="No content."),
             400: openapi.Response(description="Bad request."),
@@ -122,7 +124,7 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
 
 
 class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = HashTagCreateUpdateSerializer
+    serializer_class = HashTagRetrieveCreateUpdateSerializer
     pagination_class = DefaultPagination
     queryset = HashTag.objects.all()
     authentication_classes = [JWTAuthentication]
@@ -162,10 +164,11 @@ class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
             )
 
     @swagger_auto_schema(
+        operation_description="Retrieve a singular hashtag from provided id.",
         responses={
             200: openapi.Response(
                 description="Hashtag retrieved successfully",
-                schema=HashTagCreateUpdateSerializer()
+                schema=HashTagRetrieveCreateUpdateSerializer()
             ),
             404: 'Hashtag not found',
             500: 'Internal Server Error.'
@@ -212,11 +215,12 @@ class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
 
 
     @swagger_auto_schema(
-        request_body=HashTagCreateUpdateSerializer,
+        operation_description="Partially update an existing hashtag.",
+        request_body=HashTagRetrieveCreateUpdateSerializer,
         responses={
             200: openapi.Response(
                 description="Hashtag updated successfully",
-                schema=HashTagCreateUpdateSerializer()
+                schema=HashTagRetrieveCreateUpdateSerializer()
             ),
             403: 'Permission denied',
             404: 'Hashtag not found',
@@ -261,6 +265,7 @@ class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
             )
 
     @swagger_auto_schema(
+        operation_description="Delete an existing hashtag.",
         responses={
             200: 'Hashtag deleted successfully',
             403: 'Permission denied',
@@ -271,3 +276,99 @@ class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
     )
     def delete(self, request, *args, **kwargs):
         return super().delete(request, *args, **kwargs)
+
+
+
+class PostListCreateAPI(generics.ListCreateAPIView):
+    queryset = Post.objects.all()
+    serializer_class = PostRetrieveCreateSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [FormParser, MultiPartParser]
+    pagination_class = DefaultPagination
+    http_method_names = ['get', 'post']
+
+    def create(self, request, *args, **kwargs):
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Post creation successful.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_201_CREATED
+            )
+
+        except ValidationError as ve:
+            return api_response(
+                is_success=False,
+                error_message=ve.detail,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @swagger_auto_schema(
+        operation_description="Create a new post.",
+        responses={
+            201: openapi.Response(
+                description="Successfully created a hashtag.",
+                schema=PostRetrieveCreateSerializer,
+            ),
+            400: openapi.Response(description="Invalid data."),
+            500: openapi.Response(description="Internal server error."),
+        },
+        tags=["Post"]
+    )
+    def post(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+
+    def list(self, request, *args, **kwargs):
+        try:
+            response = super().list(request, *args, **kwargs)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Successfully retrieved posts.",
+                    "data": response.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @swagger_auto_schema(
+        operation_description="Lists paginated version of posts.",
+        responses={
+            200: openapi.Response(
+                description="Successfully retrieved paginated data.",
+                schema=PostRetrieveCreateSerializer(many=True),
+            ),
+            204: openapi.Response(description="No content."),
+            400: openapi.Response(description="Bad request."),
+            401: openapi.Response(description="Unauthorized."),
+            403: openapi.Response(description="Permission Denied."),
+            500: openapi.Response(description="Internal Server Error."),
+        },
+        tags=["Post"],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+
+
+# class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
+#     http_method_names = ['get', 'patch', 'delete']
