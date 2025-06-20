@@ -52,11 +52,11 @@ class MediaUploadSerializer(serializers.ModelSerializer):
 
     def get_media_url(self, obj):
         #returning no url if public id isn't found
-        if not obj.media_public_id:
+        if not obj.public_id:
             return None
 
         url, _ = cloudinary_url(
-            obj.media_public_id,
+            obj.public_id,
             resource_type="video" if obj.is_video else "image",
             secure=True,
             fetch_format="auto",
@@ -66,13 +66,9 @@ class MediaUploadSerializer(serializers.ModelSerializer):
 
 
 class PostRetrieveCreateSerializer(serializers.ModelSerializer):
-    media_files = MediaUploadSerializer(many=True, read_only=True)
+    media_files = MediaUploadSerializer(source='post_media', many=True, read_only=True)
 
-    type_of_post = serializers.SlugRelatedField(
-        queryset=HashTag.objects.all(),
-        slug_field='name',
-        many=True
-    )
+    type_of_post = serializers.CharField(required=False, help_text="Comma-separated hashtag names")
     class Meta:
         model = Post
         fields = [
@@ -81,36 +77,27 @@ class PostRetrieveCreateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'posted_by', 'post_like_count', 'post_comment_count', 'media_url']
 
-    def to_internal_value(self, data):
-        if 'type_of_post' in data:
-            hashtags = data.get('type_of_post')
-            if isinstance(hashtags, str):
-                #splitting comma-separated string into list
-                hashtag_list = [tag.strip() for tag in hashtags.split(',') if tag.strip()]
-                data = data.copy()
-                data.setlist('type_of_post', hashtag_list)
-        return super().to_internal_value(data)
-
     def create(self, validated_data):
         request = self.context['request']
         media_files = request.FILES.getlist('media')
-        hashtags_data = validated_data.pop('type_of_post', [])
+        hashtags_string = validated_data.pop('type_of_post', [])
 
         try:
             #first, creating a post object and then linking the many-to-many hashtag field to it
             validated_data['posted_by'] = request.user
             post = super().create(validated_data)
 
-            if hashtags_data:
+            if hashtags_string:
+                hashtag_names = [tag.strip() for tag in hashtags_string.split(',') if tag.strip()]
                 final_hashtags = []
 
-                for name in hashtags_data:
+                for name in hashtag_names:
                     try:
                         hashtag = HashTag.objects.get(name=name)
                         final_hashtags.append(hashtag)
                     except HashTag.DoesNotExist:
                         raise serializers.ValidationError(
-                            {"hashtag:" "Hashtag with that name doesn't exist."}
+                            {"type_of_post:" f"Hashtag '{name}' doesn't exist."}
                         )
 
                 if final_hashtags:
@@ -125,11 +112,19 @@ class PostRetrieveCreateSerializer(serializers.ModelSerializer):
                         is_video=uploaded['resource_type'] == 'video',
                         upload_order=index
                     )
-
+            post.refresh_from_db()
             return post
 
-        except Exception:
+        except Exception as e:
+            print(str(e))
             raise serializers.ValidationError("An error occured during creation of Post. Try again later.")
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        #converting hashtags back to comma-separated string for consistency
+        hashtags = instance.type_of_post.all()
+        data['type_of_post'] = ','.join([tag.name for tag in hashtags])
+        return data
 
 
 class PostUpdateSerializer(serializers.ModelSerializer):
