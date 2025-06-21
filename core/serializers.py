@@ -92,7 +92,15 @@ class PostResponseCreateSerializer(MediaValidationMixin, serializers.ModelSerial
         media_files = validated_data.pop('media', [])
         hashtags_string = validated_data.pop('type_of_post', '')
 
+        uploaded_media = []
+
         try:
+            if media_files:
+                #uploading media first outside of db transaction so that if transaction rolls back after media upload is successful, there aren't any orphaned/unlinked media
+                for media_file in media_files:
+                    uploaded = cloudinary.uploader.upload(media_file, resource_type='auto')
+                    uploaded_media.append(uploaded)
+
             with transaction.atomic():
                 #first, creating a post object and then linking the many-to-many hashtag field to it
                 validated_data['posted_by'] = request.user
@@ -116,7 +124,6 @@ class PostResponseCreateSerializer(MediaValidationMixin, serializers.ModelSerial
 
                 if media_files:
                     for index, media_file in enumerate(media_files):
-                        uploaded = cloudinary.uploader.upload(media_file, resource_type='auto')
                         MediaUpload.objects.create(
                             post=post,
                             public_id=uploaded['public_id'],
@@ -127,6 +134,16 @@ class PostResponseCreateSerializer(MediaValidationMixin, serializers.ModelSerial
                 return post
 
         except Exception as e:
+            #on failure, cleaning up uploaded media to avoid orphan files
+            for uploaded in uploaded_media:
+                try:
+                    cloudinary.uploader.destroy(
+                        uploaded['public_id'],
+                        resource_type=uploaded['resource_type']
+                    )
+                except Exception:
+                    print("Failed to delete orphaned files.")
+
             print(str(e))
             raise serializers.ValidationError("An error occured during creation of Post. Try again later.")
 
@@ -164,48 +181,72 @@ class PostResponseUpdateSerializer(MediaValidationMixin, serializers.ModelSerial
         hashtags_string = validated_data.pop('type_of_post', None)
         media_files = validated_data.pop('media', None)
 
-        with transaction.atomic():
-            #updating caption and visibility
-            instance.caption = validated_data.get('caption', instance.caption) #caption is updated value, instance.caption is fallback to current
-            instance.visibility = validated_data.get('visibility', instance.visibility)
-            instance.save()
+        uploaded_media = []
 
-            #updating hashtags
-            if hashtags_string is not None:
-                hashtag_names = [tag.strip() for tag in hashtags_string.split(',') if tag.strip()]
-                hashtags = HashTag.objects.filter(name__in=hashtag_names)
-
-                if hashtags.count() != len(set(hashtag_names)):
-                    found_names = set(hashtags.values_list('name', flat=True))
-                    missing = set(hashtag_names) - found_names
-                    raise serializers.ValidationError(
-                        {"type_of_post": f"These hashtags do not exist: {', '.join(missing)}"}
-                    )
-                instance.type_of_post.set(hashtags)
-
-            #updating media if new files provided
+        try:
+            #uploading new media first
             if media_files:
-                #deleting old Cloudinary files and db records
-                for old_media in instance.post_media.all():
-                    if old_media.public_id:
-                        try:
-                            cloudinary.uploader.destroy(old_media.public_id, resource_type='video' if old_media.is_video else 'image')
-                        except Exception as e:
-                            print(f"Cloudinary deletion failed for {old_media.public_id}: {e}")
-                    old_media.delete()
-
-                #uploading new media files
-                for index, media_file in enumerate(media_files):
+                for media_file in media_files:
                     uploaded = cloudinary.uploader.upload(media_file, resource_type='auto')
-                    MediaUpload.objects.create(
-                        post=instance,
-                        public_id=uploaded['public_id'],
-                        is_video=uploaded['resource_type'] == 'video',
-                        upload_order=index
-                    )
+                    uploaded_media.append(uploaded)
 
-            instance.refresh_from_db()
-            return instance
+            with transaction.atomic():
+                #updating caption and visibility
+                instance.caption = validated_data.get('caption', instance.caption) #caption is updated value, instance.caption is fallback to current
+                instance.visibility = validated_data.get('visibility', instance.visibility)
+                instance.save()
+
+                #updating hashtags
+                if hashtags_string is not None:
+                    hashtag_names = [tag.strip() for tag in hashtags_string.split(',') if tag.strip()]
+                    hashtags = HashTag.objects.filter(name__in=hashtag_names)
+
+                    if hashtags.count() != len(set(hashtag_names)):
+                        found_names = set(hashtags.values_list('name', flat=True))
+                        missing = set(hashtag_names) - found_names
+                        raise serializers.ValidationError(
+                            {"type_of_post": f"These hashtags do not exist: {', '.join(missing)}"}
+                        )
+                    instance.type_of_post.set(hashtags)
+
+                #updating media if new files provided
+                if uploaded_media:
+                    #deleting old Cloudinary files and db records
+                    for old_media in instance.post_media.all():
+                        if old_media.public_id:
+                            try:
+                                cloudinary.uploader.destroy(
+                                    old_media.public_id,
+                                    resource_type='video' if old_media.is_video else 'image'
+                                )
+                            except Exception as e:
+                                print(f"Cloudinary deletion failed for {old_media.public_id}: {e}")
+                        old_media.delete()
+
+                    #uploading new media files
+                    for index, uploaded in enumerate(uploaded_media):
+                        MediaUpload.objects.create(
+                            post=instance,
+                            public_id=uploaded['public_id'],
+                            is_video=uploaded['resource_type'] == 'video',
+                            upload_order=index
+                        )
+
+                instance.refresh_from_db()
+                return instance
+
+        except Exception as e:
+            #if upload or DB update fails, cleanup uploaded media to avoid orphan files
+            for uploaded in uploaded_media:
+                try:
+                    cloudinary.uploader.destroy(
+                        uploaded['public_id'],
+                        resource_type=uploaded['resource_type']
+                    )
+                except Exception:
+                    print("Failed to delete orphaned files.")
+            print(str(e))
+            raise serializers.ValidationError("An error occurred during update of Post. Try again later.")
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

@@ -507,4 +507,4 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
             )
 
     def patch(self, request, *args, **kwargs):
-        return super().patch(request, *args, **kwargs)
+        return super().partial_update(request, *args, **kwargs)
