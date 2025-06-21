@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     # "daphne",
     "rest_framework",
     "rest_framework_simplejwt",
+    'rest_framework_simplejwt.token_blacklist',
     "drf_yasg",
     "cloudinary",
     "cloudinary_storage",
@@ -157,6 +158,14 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_PAGINATION_CLASS': 'core.paginations.DefaultPagination',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'login': '5/m', #5 requests per minute
+        'update_password': '1/h' #1 request per 1 hour
+    },
+    'EXCEPTION_HANDLER': 'myproject.utils.custom_exception_handler',
 }
 
 #SWAGGER SETTINGS

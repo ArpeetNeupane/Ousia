@@ -22,12 +22,15 @@ but double-check any raw SQL queries.
 
 Improvements
 
-1. User Password Update Endpoint
-Password Reset Flow: Ensure the password reset flow is secure and includes measures to prevent account takeovers, such as rate limiting 
-and expiring reset tokens. Consider using a library like django-allauth for more robust authentication and account management features.
-consider configuring session invalidation after a password change
+1. User Password Update Endpoint ✅
+Shorten access token lifetime when deploying.!!!!!!!!!! 
+Password Reset Flow: Ensure the password reset flow is secure and includes measures to prevent account takeovers, such as rate limiting ✅
+and expiring reset tokens.✅ Consider using a library like django-allauth for more robust authentication and account management features.
+consider configuring session invalidation after a password change ✅
 
 1.5. user profile signal when account creation
+
+1.75. password reset using email
 
 2. send_email_to_user method: While convenient, maybe Django's send_mail asynchronously (e.g., Celery) to avoid blocking the main 
 thread.

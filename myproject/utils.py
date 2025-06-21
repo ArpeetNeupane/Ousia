@@ -1,5 +1,8 @@
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.exceptions import Throttled
+from rest_framework.views import exception_handler
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 
 def api_response(
     result=None,
@@ -16,3 +19,20 @@ def api_response(
         },
         status=status_code,
     )
+
+
+def blacklist_user_tokens(user):
+    tokens = OutstandingToken.objects.filter(user=user)
+    for token in tokens:
+        BlacklistedToken.objects.get_or_create(token=token)
+
+def custom_exception_handler(exc, context):
+    if isinstance(exc, Throttled):
+        return api_response(
+            is_success=False,
+            error_message="Too many requests. Please wait for some time before trying again.",
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    #fallback to DRF’s default handler for other exceptions
+    return exception_handler(exc, context)

@@ -12,6 +12,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['username', 'email', 'role', 'phone_number']
         read_only_fields = ['date_joined']
 
+
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
     confirm_password = serializers.CharField(write_only=True, required=True)
@@ -54,8 +55,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(password=password, **validated_data)
         return user
 
-class UserLoginSerializer(serializers.Serializer): #using Serializer here instead of ModelSerializer as we're not working with any CRUD operations thta require model access, we're just validating the user credentials
-    username = serializers.CharField(required = True)
+
+class UserLoginSerializer(serializers.Serializer): #using Serializer here instead of ModelSerializer as we're not working with any CRUD operations that require model access, we're just validating the user credentials
+    username = serializers.CharField(required=True)
     password = serializers.CharField(write_only = True, required=True)
 
     def validate(self, data):
@@ -87,3 +89,36 @@ class UserLoginSerializer(serializers.Serializer): #using Serializer here instea
         user_data['refresh_token'] = str(refresh)
 
         return user_data
+
+
+class UserPasswordUpdateSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, required=True)
+    new_password = serializers.CharField(write_only=True, required=True)
+    confirm_new_password = serializers.CharField(write_only=True, required=True)
+
+    def validate_current_password(self, value):
+        user = self.instance #current user, not request.user (that's in view, serializer shouldn't depend on view)
+        #when view passes instance=request.user, in serializer: self.instance = self.request.user which gives current user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate(self, data):
+        new_password = data.get("new_password")
+        confirm_new_password = data.get("confirm_new_password")
+
+        if new_password != confirm_new_password:
+            raise serializers.ValidationError({"new_password": "New passwords do not match."})
+
+        try:
+            validate_password(new_password, self.instance) #validate_password() to enforce password rules, passing instance for user-specific validators (like reusing old password prevention).
+        except ValidationError as e:
+            raise serializers.ValidationError(
+                {"new_password": e.messages}
+            )
+        return data
+
+    def update(self, instance, validated_data):
+        instance.set_password(validated_data['new_password'])
+        instance.save()
+        return instance
