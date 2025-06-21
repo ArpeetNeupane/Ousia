@@ -15,6 +15,9 @@ from drf_yasg import openapi
 
 from django.db import IntegrityError, transaction
 from django.http import Http404
+from django.shortcuts import get_object_or_404
+
+import cloudinary
 
 
 class HashTagListCreateAPI(generics.ListCreateAPIView):
@@ -126,7 +129,7 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
 
 
 
-class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
+class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = []
     serializer_class = HashTagRetrieveCreateUpdateSerializer
@@ -545,3 +548,54 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
         return self.destroy(request, *args, **kwargs)
 
 
+class MediaDeleteAPI(generics.DestroyAPIView):
+    queryset = MediaUpload.objects.all()
+    permission_classes = [IsAuthenticated, OwnsObjectOrAdmin]
+
+    def get_object(self):
+        post_id = self.kwargs.get('post_id') #getting post_id from url
+        media_id = self.kwargs.get('media_id') #getting media_id from url
+        obj = get_object_or_404(MediaUpload, id=media_id, post_id=post_id)
+        self.check_object_permissions(self.request, obj)
+        return obj
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+        except Http404: #handeling 404 from get_object_or_404
+            return api_response(
+                is_success=False,
+                error_message="Media doesn't belong to the post.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            if instance.public_id:
+                cloudinary.uploader.destroy(
+                    instance.public_id,
+                    resource_type="video" if instance.is_video else "image"
+                )
+            instance.delete()
+
+            return api_response(
+                is_success=True,
+                result="Media successfully deleted",
+                status_code=status.HTTP_200_OK
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=f"Failed to delete media. {str(e)}",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def delete(self, request, *args, **kwargs):
+        return self.destroy(request, *args, **kwargs)
