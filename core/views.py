@@ -1,5 +1,5 @@
-from core.serializers import *
-from core.models import *
+from core.serializers import HashTagRetrieveCreateUpdateSerializer, PostResponseCreateSerializer, PostResponseUpdateSerializer
+from core.models import CurrentEmotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment
 from core.paginations import DefaultPagination
 from core.permissions import OwnsObjectOrAdmin
 from myproject.utils import api_response
@@ -270,7 +270,7 @@ class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
         except Exception as e:
             return api_response(
                 is_success=False,
-                error_message=str(e),
+                error_message=f"Failed to delete hashtag. {str(e)}",
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -508,3 +508,38 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
 
     def patch(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
+
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            instance.soft_delete()
+            return api_response(
+                is_success=True,
+                result="Successfully deleted post.",
+                status_code=status.HTTP_200_OK
+            )
+
+        except Http404:
+            return api_response(
+                is_success=False,
+                error_message="Post not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=f"Failed to delete hashtag. {str(e)}",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def delete(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)

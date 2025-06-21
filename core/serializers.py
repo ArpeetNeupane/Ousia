@@ -1,4 +1,4 @@
-from core.models import *
+from core.models import CurrentEmotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment
 from core.mixins import MediaValidationMixin
 
 from rest_framework import serializers
