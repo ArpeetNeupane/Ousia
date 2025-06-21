@@ -6,7 +6,7 @@ from myproject.utils import api_response
 
 from rest_framework import generics, status
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.parsers import FormParser, MultiPartParser
 
@@ -24,9 +24,14 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
     queryset = HashTag.objects.all()
     serializer_class = HashTagRetrieveCreateUpdateSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
     pagination_class = DefaultPagination
     http_method_names = ['get', 'post']
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
 
     def perform_create(self, serializer):
         serializer.save()

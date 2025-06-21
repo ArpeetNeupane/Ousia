@@ -1,0 +1,94 @@
+Accounts app
+
+Validations/Security Concerns
+
+1. Phone Number Validation: Checking for digits and length in the UserRegistrationSerializer, is client-side validation 
+and can be bypassed. Server-side validation is essential. Implement a proper server side validation using a library like phonenumbers for 
+more robust phone number validation, including country code support. It can also help format phone numbers consistently.
+also see Improvements no 3.
+
+2. Admin Site Security: Ensure the Django admin site is properly secured, especially in production. Using a package like 
+django-admin-honeypot to add a fake admin login page to trap malicious users. Enable Two-Factor Authentication(2FA) for the admin site.
+
+3. CSRF Protection: Django has built-in CSRF protection. Make sure to use {% csrf_token %} in forms and that the CsrfViewMiddleware 
+is enabled. For API endpoints, use a suitable mechanism to prevent CSRF attacks, such as checking the Origin or Referer header.
+
+4. SQL Injection: Ensure that all database queries are properly parameterized to prevent SQL injection attacks. Django's ORM helps with this, 
+but double-check any raw SQL queries.
+
+5. To protect from brute force attacks, use packages like django-ratelimit
+
+
+
+Improvements
+
+1. User Password Update Endpoint ✅
+
+2. send_email_to_user method: While convenient, maybe Django's send_mail asynchronously (e.g., Celery) to avoid blocking the main 
+thread.
+
+3. also validate phn no in the model
+
+4. UserLoginSerializer: It directly queries the database twice (User.objects.filter() and User.objects.get()). Consider using authenticate from django.contrib.auth instead. This will also handle checking for inactive users, which your current implementation doesn't do. Example:
+Generated python
+from django.contrib.auth import authenticate
+
+def validate(self, data):
+    username = data['username']
+    password = data['password']
+
+    user = authenticate(username=username, password=password)
+
+    if user is None:
+        raise serializers.ValidationError(
+            {"message": "Invalid Credentials."}
+        )
+    if not user.is_active:
+        raise serializers.ValidationError(
+            {"message": "User is inactive."}
+        )
+
+    self.user = user
+    return data
+
+5. using logging module for logs
+
+6. Monitoring application: Using tools like Sentry or New Relic to monitor application for errors and performance issues.
+
+
+
+
+
+
+
+
+
+
+Core app
+
+1. Media Validation Mixin:
+The MediaValidationMixin relies on mimetypes.guess_type. This method can be unreliable as it depends on the file extension, which can be 
+easily spoofed. A malicious user could upload a file with a valid extension but containing malicious content. Consider using a library like 
+python-magic to inspect the file's content and determine its true MIME type.
+The maximum file size limits (6MB for images and 100MB for videos) are hardcoded. It would be more flexible and maintainable to move these 
+limits to settings.py.
+
+2. logging deletion failed exception of cloudinary media deletion when a transaction fails.
+
+3. double check sql injection vulnurability
+
+4. Post.post_like_count and Post.post_comment_count: These are implemented as properties. Depending on how frequently these counts are 
+accessed, consider caching these values or using Django's aggregation features to improve performance, especially for posts with many 
+likes/comments.
+
+5. In both PostResponseCreateSerializer and PostResponseUpdateSerializer, the logic for handling media uploads and associating them with 
+posts is complex. Consider refactoring this into a separate service class or helper function to improve readability and maintainability.
+
+6. In the PostResponseUpdateSerializer, when updating hashtags, you are fetching all hashtags and iterating over it to see if a certain 
+hashtag exists. This is an O(n) operation and can be optimized by using a set to lookup the hashtags.
+
+7. PostListCreateAPI: The get method for listing posts does not have any ordering/filtering applied. Consider adding options to filter posts 
+by user, hashtags, or date range.
+
+8. Consider a task queue: For long-running tasks like media processing and deletion, use a task queue like Celery to avoid blocking the main 
+thread.
