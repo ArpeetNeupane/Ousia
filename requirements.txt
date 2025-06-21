@@ -22,6 +22,7 @@ idna==3.10
 incremental==24.7.2
 inflection==0.5.1
 packaging==25.0
+pillow==11.2.1
 psycopg2==2.9.10
 pyasn1==0.6.1
 pyasn1-modules==0.4.2

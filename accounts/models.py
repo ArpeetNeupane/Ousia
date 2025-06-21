@@ -74,7 +74,7 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
     objects = UserManager() #connecting to the manager created above
 
     USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = ['email', 'phone_number'] #fields required(aside from username and password) when creating superuser
+    REQUIRED_FIELDS = ['email', 'phone_number'] #fields required(aside from username and password)
 
     def __str__(self):
         return self.username
@@ -92,6 +92,26 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
     def send_email_to_user(self, subject, message, sender_email=None, **kwargs):
         send_mail(subject, message, sender_email, [self.email], **kwargs)
 
+
+class Profile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='user_profile')
+    pfp_public_id = models.CharField(max_length=255, null=True, blank=True, help_text=_("Cloudinary public ID for the uploaded profile picture."))
+    bio = models.TextField(blank=True, null=True)
+    address = models.CharField(max_length=100, blank=True, null=True)
+    birth_date = models.DateField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    synced_username = models.CharField(max_length=50, blank=True)
+    synced_email = models.EmailField(max_length=255, blank=True)
+    synced_phone_number = models.CharField(max_length=15, blank=True)
+
+    class Meta:
+        verbose_name = 'Profile'
+        verbose_name_plural = 'Profiles'
+
+    def __str__(self):
+        return f"{self.user.username}'s Profile"
 
 class AreaOfInterest(models.Model):
     name = models.CharField(max_length=50)

@@ -1,10 +1,18 @@
 from django.core.exceptions import ValidationError
+from django.core.files.images import get_image_dimensions
 from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
 
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from accounts.models import User
+from accounts.models import User, Profile
+
+from cloudinary.utils import cloudinary_url
+from cloudinary.uploader import upload as cloudinary_upload
+
+import os
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -122,3 +130,65 @@ class UserPasswordUpdateSerializer(serializers.Serializer):
         instance.set_password(validated_data['new_password'])
         instance.save()
         return instance
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    pfp = serializers.ImageField(write_only=True, required=False)
+    pfp_url = serializers.SerializerMethodField(read_only=True)
+    class Meta:
+        model = Profile
+        fields = [
+            'id', 'synced_username', 'synced_email', 'synced_phone_number', 'bio', 'address', 'birth_date',
+            'created_at', 'updated_at', 'pfp_public_id', 'pfp_url', 'pfp'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'pfp_public_id', 'pfp_url']
+
+    def get_pfp_url(self, obj):
+        if not obj.pfp_public_id:
+            return None
+        url, _ = cloudinary_url(obj.pfp_public_id, resource_type="image")
+        return url
+
+    def validate_pfp(self, data):
+        max_size_mb = 1024 * 1024 * 6
+        if data.size > max_size_mb:
+            raise serializers.ValidationError(
+                {"pfp": "Max size of profile picture should be less than 6 MB."}
+            )
+
+        #checking image dimensions
+        width,height =  get_image_dimensions(data)
+        max_width, max_height = 2500, 1500
+        if width > max_width or height > max_height:
+            raise serializers.ValidationError(
+                {"pfp": "Profile picture dimension should not exceed 2500x1500px."}
+            )
+
+        #checking allowed extensions
+        ext = os.path.splitext(data.name)[1].lower()
+        allowed_exts = [".jpg", ".jpeg", ".png", ".webp"]
+        if ext not in allowed_exts:
+            raise serializers.ValidationError(
+                {"pfp": f"Unsupported file extension '{ext}'. Allowed: {', '.join(allowed_exts)}"}
+            )
+
+        #checking MIME type. ImageField already checks but doubling down
+        mime_type = data.content_type
+        if not mime_type.startswith("image/"):
+            raise serializers.ValidationError("Uploaded file is not an image.")
+
+        return data
+
+    def update(self, instance, validated_data):
+        with transaction.atomic():
+            for field in ['synced_username', 'synced_email', 'synced_phone_number', 'bio', 'address', 'birth_date']:
+                value = validated_data.get(field, None)
+                if value == "":
+                    validated_data.pop(field)
+
+            image = validated_data.pop('pfp', None)
+            if image:
+                result = cloudinary_upload(image)
+                instance.pfp_public_id = result.get("public_id")
+
+            return super().update(instance, validated_data)
