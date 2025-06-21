@@ -164,47 +164,48 @@ class PostResponseUpdateSerializer(MediaValidationMixin, serializers.ModelSerial
         hashtags_string = validated_data.pop('type_of_post', None)
         media_files = validated_data.pop('media', None)
 
-        #updating caption and visibility
-        instance.caption = validated_data.get('caption', instance.caption) #caption is updated value, instance.caption is fallback to current
-        instance.visibility = validated_data.get('visibility', instance.visibility)
-        instance.save()
+        with transaction.atomic():
+            #updating caption and visibility
+            instance.caption = validated_data.get('caption', instance.caption) #caption is updated value, instance.caption is fallback to current
+            instance.visibility = validated_data.get('visibility', instance.visibility)
+            instance.save()
 
-        #updating hashtags
-        if hashtags_string is not None:
-            hashtag_names = [tag.strip() for tag in hashtags_string.split(',') if tag.strip()]
-            hashtags = HashTag.objects.filter(name__in=hashtag_names)
+            #updating hashtags
+            if hashtags_string is not None:
+                hashtag_names = [tag.strip() for tag in hashtags_string.split(',') if tag.strip()]
+                hashtags = HashTag.objects.filter(name__in=hashtag_names)
 
-            if hashtags.count() != len(set(hashtag_names)):
-                found_names = set(hashtags.values_list('name', flat=True))
-                missing = set(hashtag_names) - found_names
-                raise serializers.ValidationError(
-                    {"type_of_post": f"These hashtags do not exist: {', '.join(missing)}"}
-                )
-            instance.type_of_post.set(hashtags)
+                if hashtags.count() != len(set(hashtag_names)):
+                    found_names = set(hashtags.values_list('name', flat=True))
+                    missing = set(hashtag_names) - found_names
+                    raise serializers.ValidationError(
+                        {"type_of_post": f"These hashtags do not exist: {', '.join(missing)}"}
+                    )
+                instance.type_of_post.set(hashtags)
 
-        #updating media if new files provided
-        if media_files:
-            #deleting old Cloudinary files and db records
-            for old_media in instance.post_media.all():
-                if old_media.public_id:
-                    try:
-                        cloudinary.uploader.destroy(old_media.public_id, resource_type='video' if old_media.is_video else 'image')
-                    except Exception as e:
-                        print(f"Cloudinary deletion failed for {old_media.public_id}: {e}")
-                old_media.delete()
+            #updating media if new files provided
+            if media_files:
+                #deleting old Cloudinary files and db records
+                for old_media in instance.post_media.all():
+                    if old_media.public_id:
+                        try:
+                            cloudinary.uploader.destroy(old_media.public_id, resource_type='video' if old_media.is_video else 'image')
+                        except Exception as e:
+                            print(f"Cloudinary deletion failed for {old_media.public_id}: {e}")
+                    old_media.delete()
 
-            #uploading new media files
-            for index, media_file in enumerate(media_files):
-                uploaded = cloudinary.uploader.upload(media_file, resource_type='auto')
-                MediaUpload.objects.create(
-                    post=instance,
-                    public_id=uploaded['public_id'],
-                    is_video=uploaded['resource_type'] == 'video',
-                    upload_order=index
-                )
+                #uploading new media files
+                for index, media_file in enumerate(media_files):
+                    uploaded = cloudinary.uploader.upload(media_file, resource_type='auto')
+                    MediaUpload.objects.create(
+                        post=instance,
+                        public_id=uploaded['public_id'],
+                        is_video=uploaded['resource_type'] == 'video',
+                        upload_order=index
+                    )
 
-        instance.refresh_from_db()
-        return instance
+            instance.refresh_from_db()
+            return instance
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

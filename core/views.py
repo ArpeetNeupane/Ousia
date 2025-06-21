@@ -82,20 +82,23 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
 
     def list(self, request, *args, **kwargs):
         try:
-            queryset = self.filter_queryset(self.get_queryset())
-            page = self.paginate_queryset(queryset)
-            if page is not None:
-                serializer = self.get_serializer(page, many=True)
-                return self.get_paginated_response(serializer.data)
-            serializer = self.get_serializer(queryset, many=True)
+            response = super().list(request, *args, **kwargs)
             return api_response(
                 is_success=True,
                 result={
                     "message": "Successfully retrieved hashtags.",
-                    "data": request.data
+                    "data": response.data
                 },
                 status_code=status.HTTP_200_OK
             )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -182,8 +185,15 @@ class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
         try:
             instance = self.get_object()
             serializer = self.get_serializer(instance, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
+            if not serializer.is_valid():
+                return api_response(
+                    is_success=False,
+                    error_message=serializer.errors,
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+
             serializer.save()
+
             return api_response(
                 is_success=True,
                 result={
@@ -374,6 +384,14 @@ class PostListCreateAPI(generics.ListCreateAPIView):
                 },
                 status_code=status.HTTP_200_OK
             )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -407,18 +425,12 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = PostResponseUpdateSerializer
     queryset = Post.objects.all()
     parser_classes = [FormParser, MultiPartParser]
-    pagination_class = DefaultPagination
     http_method_names = ['get', 'patch', 'delete']
 
     def get_permissions(self):
         if self.request.method in ['PATCH', 'DELETE']:
             return [IsAuthenticated(), OwnsObjectOrAdmin()]
         return [IsAuthenticated()]
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        print(f"Queryset count: {qs.count()}")
-        return qs
 
     def retrieve(self, request, *args, **kwargs):
         try:
@@ -452,7 +464,47 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
 
 
     def partial_update(self, request, *args, **kwargs):
-        pass
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            if not serializer.is_valid():
+                return api_response(
+                    is_success=False,
+                    error_message=serializer.errors,
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+
+            serializer.save()
+
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Post updated successfully.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except Http404:
+            return api_response(
+                is_success=False,
+                error_message="Post not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def patch(self, request, *args, **kwargs):
         return super().patch(request, *args, **kwargs)
