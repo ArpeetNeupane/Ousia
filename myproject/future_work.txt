@@ -22,7 +22,12 @@ but double-check any raw SQL queries.
 
 Improvements
 
-1. User Password Update Endpoint ✅
+1. User Password Update Endpoint
+Password Reset Flow: Ensure the password reset flow is secure and includes measures to prevent account takeovers, such as rate limiting 
+and expiring reset tokens. Consider using a library like django-allauth for more robust authentication and account management features.
+consider configuring session invalidation after a password change
+
+1.5. user profile signal when account creation
 
 2. send_email_to_user method: While convenient, maybe Django's send_mail asynchronously (e.g., Celery) to avoid blocking the main 
 thread.
@@ -72,6 +77,8 @@ easily spoofed. A malicious user could upload a file with a valid extension but 
 python-magic to inspect the file's content and determine its true MIME type.
 The maximum file size limits (6MB for images and 100MB for videos) are hardcoded. It would be more flexible and maintainable to move these 
 limits to settings.py.
+Consider scanning the files for malicious content using an anti-virus library or service.
+Double-check your Cloudinary upload settings. You may want to specify allowed formats, transformations, and other security-related options. 
 
 2. logging deletion failed exception of cloudinary media deletion when a transaction fails.
 
@@ -92,3 +99,8 @@ by user, hashtags, or date range.
 
 8. Consider a task queue: For long-running tasks like media processing and deletion, use a task queue like Celery to avoid blocking the main 
 thread.
+
+9. Data Sanitization: Sanitize user inputs (especially captions and comments) to prevent cross-site scripting (XSS) attacks. Consider using a 
+library like bleach to allow only a safe subset of HTML tags.
+
+10. tests - not api tests but django tests
