@@ -285,7 +285,7 @@ class HashTagRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
         tags=["HashTag"]
     )
     def delete(self, request, *args, **kwargs):
-        return super().delete(request, *args, **kwargs)
+        return self.delete(request, *args, **kwargs)
 
 
 
@@ -542,4 +542,6 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
             )
 
     def delete(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+        return self.destroy(request, *args, **kwargs)
+
+
