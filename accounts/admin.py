@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.core.exceptions import ValidationError
 
 from accounts.models import User, Profile
 from accounts.forms import UserCreationForm, UserChangeForm
@@ -13,7 +14,7 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {'fields': ('username', 'email', 'password')}),
         ('Personal info', {'fields': ('phone_number', 'role')}),
-        ('Permissions', {'fields': ('is_admin', 'is_staff', 'is_superuser')}),
+        ('Permissions', {'fields': ('is_admin', 'is_staff', 'is_superuser', 'is_active')}),
     )
     add_fieldsets = (
         (None, {
@@ -24,6 +25,14 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ('username',)
     ordering = ('username',)
     filter_horizontal = ()
+
+    def save_model(self, request, obj, form, change):
+        try:
+            obj.full_clean()
+        except ValidationError as e:
+            form.add_error(None, e)
+            return
+        super().save_model(request, obj, form, change)
 
 admin.site.register(User, UserAdmin)
 admin.site.register(Profile)

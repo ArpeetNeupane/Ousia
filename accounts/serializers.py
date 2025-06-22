@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.core.files.images import get_image_dimensions
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth import authenticate
 from django.db import transaction
 
 from rest_framework import serializers
@@ -38,9 +39,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"phone_number": "Phone number must only contain digits."}
             )
-        if len(phone_number) != 10:
+        if len(phone_number) < 10:
             raise serializers.ValidationError(
-                {"phone_number": "Phone number must have exactly 10 digits."}
+                {"phone_number": "Phone number must have at least 10 digits."}
             )
 
         try:
@@ -72,19 +73,19 @@ class UserLoginSerializer(serializers.Serializer): #using Serializer here instea
         username = data['username']
         password = data['password']
 
-        username_exists = User.objects.filter(username=username).exists()
+        #authenticate() returns the user if credentials are correct
+        user = authenticate(username=username, password=password)
 
-        if not username_exists:
+        if user is None:
             raise serializers.ValidationError(
                 {"message": "Invalid Credentials."}
             )
-        user = User.objects.get(username=username)
-        if not user.check_password(password):
+        if not user.is_active:
             raise serializers.ValidationError(
-                {"message": "Invalid Credentials."}
+                {"message": "Please activate your account by contacting the admin before attempting login."}
             )
 
-        self.user = user #saving current validated user in this instance so that it can be used in to_representation later without lookup
+        self.user = user #storing for use in to_representation
         return data
 
     def to_representation(self, instance): #this method handles what to show in response after validation

@@ -6,17 +6,19 @@ Validations/Security Concerns
 and can be bypassed. Server-side validation is essential. Implement a proper server side validation using a library like phonenumbers for 
 more robust phone number validation, including country code support. It can also help format phone numbers consistently.
 also see Improvements no 3.
+✅ for now country code support is through eg: 977980......5, 977 is country code, validation checks for at least 10 digits, max 15
 
 2. Admin Site Security: Ensure the Django admin site is properly secured, especially in production. Using a package like 
 django-admin-honeypot to add a fake admin login page to trap malicious users. Enable Two-Factor Authentication(2FA) for the admin site.
 
 3. CSRF Protection: Django has built-in CSRF protection. Make sure to use {% csrf_token %} in forms and that the CsrfViewMiddleware 
 is enabled. For API endpoints, use a suitable mechanism to prevent CSRF attacks, such as checking the Origin or Referer header.
+✅ using jwt
 
 4. SQL Injection: Ensure that all database queries are properly parameterized to prevent SQL injection attacks. Django's ORM helps with this, 
 but double-check any raw SQL queries.
 
-5. To protect from brute force attacks, use packages like django-ratelimit
+5. To protect from brute force attacks, use packages like django-ratelimit✅
 
 
 
@@ -28,17 +30,18 @@ Password Reset Flow: Ensure the password reset flow is secure and includes measu
 and expiring reset tokens.✅ Consider using a library like django-allauth for more robust authentication and account management features.
 consider configuring session invalidation after a password change ✅
 
-1.5. user profile signal when account creation
+1.5. user profile signal when account creation ✅
 
 1.75. password reset using email
 
 2. send_email_to_user method: While convenient, maybe Django's send_mail asynchronously (e.g., Celery) to avoid blocking the main 
 thread.
 
-3. also validate phn no in the model
+3. also validate phn no in the model ✅
 
-4. UserLoginSerializer: It directly queries the database twice (User.objects.filter() and User.objects.get()). Consider using authenticate from django.contrib.auth instead. This will also handle checking for inactive users, which your current implementation doesn't do. Example:
-Generated python
+4. UserLoginSerializer: It directly queries the database twice (User.objects.filter() and User.objects.get()). Consider using authenticate 
+from django.contrib.auth instead. This will also handle checking for inactive users, which current implementation doesn't do. Example:
+
 from django.contrib.auth import authenticate
 
 def validate(self, data):
@@ -57,7 +60,7 @@ def validate(self, data):
         )
 
     self.user = user
-    return data
+    return data ✅
 
 5. using logging module for logs
 

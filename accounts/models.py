@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import BaseUserManager, AbstractBaseUser
 from django.core.mail import send_mail
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 class RoleEnum(models.TextChoices):
@@ -78,6 +79,12 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
 
     def __str__(self):
         return self.username
+
+    def clean(self):
+        if not self.phone_number.isdigit():
+            raise ValidationError({'phone_number': 'Phone number must only contain digits.'})
+        if len(self.phone_number) < 10:
+            raise ValidationError({'phone_number': 'Phone number must have at least 10 digits.'})
 
     def has_perm(self, perm, obj=None):
         if self.is_superuser:
