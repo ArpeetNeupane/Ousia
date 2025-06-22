@@ -3,6 +3,7 @@ from django.core.files.images import get_image_dimensions
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth import authenticate
 from django.db import transaction
+from django.conf import settings
 
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -151,7 +152,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         return url
 
     def validate_pfp(self, data):
-        max_size_mb = 1024 * 1024 * 6
+        max_size_mb = getattr(settings, 'MAX_IMAGE_SIZE_MB', 6) * 1024 * 1024
         if data.size > max_size_mb:
             raise serializers.ValidationError(
                 {"pfp": "Max size of profile picture should be less than 6 MB."}
@@ -159,7 +160,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
         #checking image dimensions
         width,height =  get_image_dimensions(data)
-        max_width, max_height = 2500, 1500
+        max_width = getattr(settings, 'MAX_IMAGE_WIDTH', 2500)
+        max_height = getattr(settings, 'MAX_IMAGE_HEIGHT', 1500)
         if width > max_width or height > max_height:
             raise serializers.ValidationError(
                 {"pfp": "Profile picture dimension should not exceed 2500x1500px."}

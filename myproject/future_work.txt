@@ -80,13 +80,13 @@ Core app
 1. Media Validation Mixin:
 The MediaValidationMixin relies on mimetypes.guess_type. This method can be unreliable as it depends on the file extension, which can be 
 easily spoofed. A malicious user could upload a file with a valid extension but containing malicious content. Consider using a library like 
-python-magic to inspect the file's content and determine its true MIME type.
+python-magic to inspect the file's content and determine its true MIME type. ✅
 The maximum file size limits (6MB for images and 100MB for videos) are hardcoded. It would be more flexible and maintainable to move these 
-limits to settings.py.
+limits to settings.py. ✅
 Consider scanning the files for malicious content using an anti-virus library or service.
 Double-check your Cloudinary upload settings. You may want to specify allowed formats, transformations, and other security-related options. 
 
-2. logging deletion failed exception of cloudinary media deletion when a transaction fails.
+2. logging deletion failed exception of cloudinary media deletion when a transaction fails, use logging.
 
 3. double check sql injection vulnurability
 

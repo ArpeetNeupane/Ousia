@@ -204,3 +204,14 @@ CLOUDINARY_STORAGE = {
 }
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+#media upload limits
+MAX_MEDIA_TOTAL_FILES = 5
+MAX_MEDIA_VIDEOS = 2
+MAX_MEDIA_IMAGES = 3
+MAX_IMAGE_SIZE_MB = 6
+MAX_VIDEO_SIZE_MB = 100
+MAX_IMAGE_WIDTH = 2500
+MAX_IMAGE_HEIGHT = 1500
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.mkv'}
