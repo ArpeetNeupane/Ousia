@@ -24,14 +24,14 @@ incremental==24.7.2
 inflection==0.5.1
 packaging==25.0
 pillow==11.2.1
-psycopg2==2.9.10
+psycopg2-binary==2.9.10
 pyasn1==0.6.1
 pyasn1-modules==0.4.2
 pycparser==2.22
 pyjwt==2.9.0
 pyopenssl==25.0.0
 python-decouple==3.8
-python-magic-bin==0.4.14
+python-magic==0.4.27
 pytz==2025.2
 pyyaml==6.0.2
 requests==2.32.4

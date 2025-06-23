@@ -179,3 +179,7 @@ class CommentLike(models.Model):
 
     def __str__(self):
         return f"{self.liked_by.username} liked comment #{self.comment.id} on post {self.comment.post.id}"
+
+
+class Friend(models.Model):
+    pass

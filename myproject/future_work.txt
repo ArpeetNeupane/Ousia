@@ -101,7 +101,7 @@ posts is complex. Consider refactoring this into a separate service class or hel
 hashtag exists. This is an O(n) operation and can be optimized by using a set to lookup the hashtags. ✅
 
 7. PostListCreateAPI: The get method for listing posts does not have any ordering/filtering applied. Consider adding options to filter posts 
-by user, hashtags, or date range.
+by user, hashtags, or date range. ✅
 
 8. Consider a task queue: For long-running tasks like media processing and deletion, use a task queue like Celery to avoid blocking the main 
 thread.
