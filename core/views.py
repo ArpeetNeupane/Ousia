@@ -2,9 +2,10 @@ from core.serializers import HashTagRetrieveCreateUpdateSerializer, PostResponse
 from core.models import CurrentEmotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment
 from core.paginations import DefaultPagination
 from core.permissions import OwnsObjectOrAdmin
+from core.filters import PostFilter
 from myproject.utils import api_response
 
-from rest_framework import generics, status
+from rest_framework import generics, status, filters
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.exceptions import ValidationError, PermissionDenied
@@ -13,9 +14,10 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 
 import cloudinary
 
@@ -305,6 +307,10 @@ class PostListCreateAPI(generics.ListCreateAPIView):
     parser_classes = [FormParser, MultiPartParser]
     pagination_class = DefaultPagination
     http_method_names = ['get', 'post']
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = PostFilter
+    ordering_fields = ['created_at', 'updated_at', 'post_like_count', 'post_comment_count']
+    ordering = ['-created_at'] #default ordering
 
     def create(self, request, *args, **kwargs):
         try:

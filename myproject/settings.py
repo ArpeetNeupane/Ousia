@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "drf_yasg",
     "cloudinary",
     "cloudinary_storage",
+    "django_filters",
     
     #project apps
     "accounts.apps.AccountsConfig",
@@ -132,7 +133,7 @@ PASSWORD_HASHERS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Kathmandu"
 
 USE_I18N = True
 
@@ -166,6 +167,9 @@ REST_FRAMEWORK = {
         'update_password': '1/h' #1 request per 1 hour
     },
     'EXCEPTION_HANDLER': 'myproject.utils.custom_exception_handler',
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+    ],
 }
 
 #SWAGGER SETTINGS

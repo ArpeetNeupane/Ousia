@@ -18,7 +18,7 @@ is enabled. For API endpoints, use a suitable mechanism to prevent CSRF attacks,
 4. SQL Injection: Ensure that all database queries are properly parameterized to prevent SQL injection attacks. Django's ORM helps with this, 
 but double-check any raw SQL queries.
 
-5. To protect from brute force attacks, use packages like django-ratelimit✅
+5. To protect from brute force attacks, use packages like django-ratelimit ✅
 
 
 
@@ -95,10 +95,10 @@ accessed, consider caching these values or using Django's aggregation features t
 likes/comments.
 
 5. In both PostResponseCreateSerializer and PostResponseUpdateSerializer, the logic for handling media uploads and associating them with 
-posts is complex. Consider refactoring this into a separate service class or helper function to improve readability and maintainability.
+posts is complex. Consider refactoring this into a separate service class or helper function to improve readability and maintainability. ✅
 
-6. In the PostResponseUpdateSerializer, when updating hashtags, you are fetching all hashtags and iterating over it to see if a certain 
-hashtag exists. This is an O(n) operation and can be optimized by using a set to lookup the hashtags.
+6. In the PostResponseUpdateSerializer, when updating hashtags, i'm fetching all hashtags and iterating over it to see if a certain 
+hashtag exists. This is an O(n) operation and can be optimized by using a set to lookup the hashtags. ✅
 
 7. PostListCreateAPI: The get method for listing posts does not have any ordering/filtering applied. Consider adding options to filter posts 
 by user, hashtags, or date range.
