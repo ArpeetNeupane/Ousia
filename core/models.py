@@ -4,6 +4,8 @@ from django.utils.translation import gettext_lazy as _
 from accounts.models import User
 from core.managers import PostManager
 
+from rest_framework.exceptions import ValidationError
+
 
 class CurrentEmotion(models.Model):
     emotion_emoji_name = models.CharField(max_length=20)
@@ -15,8 +17,8 @@ class CurrentEmotion(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "CurrentEmotion"
-        verbose_name_plural = "CurrentEmotions"
+        verbose_name = _("CurrentEmotion")
+        verbose_name_plural = _("CurrentEmotions")
 
     def __str__(self):
         return self.emotion_emoji_name
@@ -28,8 +30,8 @@ class HashTag(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='hashtag_creator')
 
     class Meta:
-        verbose_name = "Hashtag"
-        verbose_name_plural = "Hashtags"
+        verbose_name = _("Hashtag")
+        verbose_name_plural = _("Hashtags")
 
     def __str__(self):
         return f"{self.name}"
@@ -58,8 +60,8 @@ class Post(models.Model):
     type_of_post = models.ManyToManyField(HashTag, related_name='tagged_posts', through='PostHashTag') #using '' to say thats its defined below this model or else itll throw an error
 
     class Meta:
-        verbose_name = "Post"
-        verbose_name_plural = "Posts"
+        verbose_name = _("Post")
+        verbose_name_plural = _("Posts")
         indexes = [
             models.Index(fields=['created_at']),
         ]
@@ -92,8 +94,8 @@ class MediaUpload(models.Model):
 
     class Meta:
         ordering = ['upload_order']
-        verbose_name = "Media Upload"
-        verbose_name_plural = "Media Uploads"
+        verbose_name = _("Media Upload")
+        verbose_name_plural = _("Media Uploads")
 
     def __str__(self):
         return f"Media for Post #{self.post.id}"
@@ -104,8 +106,8 @@ class PostHashTag(models.Model):
     hashtag = models.ForeignKey(HashTag, on_delete=models.CASCADE)
 
     class Meta:
-        verbose_name = "PostHashTag"
-        verbose_name_plural = "PostHashTags"
+        verbose_name = _("PostHashTag")
+        verbose_name_plural = _("PostHashTags")
         constraints = [
             models.UniqueConstraint(fields=['post', 'hashtag'], name='unique_post_hashtag')
         ]
@@ -124,8 +126,8 @@ class Like(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='like_on_post')
 
     class Meta:
-        verbose_name = "Like"
-        verbose_name_plural = "Likes"
+        verbose_name = _("Like")
+        verbose_name_plural = _("Likes")
         constraints = [
             models.UniqueConstraint(fields=['liked_by', 'post'], name='unique_liked_by_post')
         ]
@@ -147,8 +149,8 @@ class Comment(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comment_on_post')
 
     class Meta:
-        verbose_name = "Comment"
-        verbose_name_plural = "Comments"
+        verbose_name = _("Comment")
+        verbose_name_plural = _("Comments")
         indexes = [
             models.Index(fields=['post', 'commented_at']),
         ]
@@ -167,8 +169,8 @@ class CommentLike(models.Model):
     comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='like_on_comment')
 
     class Meta:
-        verbose_name = "CommentLike"
-        verbose_name_plural = "CommentLikes"
+        verbose_name = _("CommentLike")
+        verbose_name_plural = _("CommentLikes")
         constraints = [
             models.UniqueConstraint(fields=['liked_by', 'comment'], name='unique_liked_by_comment')
         ]
@@ -181,5 +183,60 @@ class CommentLike(models.Model):
         return f"{self.liked_by.username} liked comment #{self.comment.id} on post {self.comment.post.id}"
 
 
+class FriendRequest(models.Model):
+    class RequestStatus(models.TextChoices):
+        PENDING = 'pending', _('Pending')
+        ACCEPTED = 'accepted', _('Accepted')
+        REJECTED = 'rejected', _('Rejected')
+        DELETED = 'deleted', _('Deleted by sender')
+
+    from_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friend_requests_sent',
+        help_text=_("The user who sent the friend request.")
+    )
+    to_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friend_requests_received',
+        help_text=_("The user who received the friend request.")
+    )
+    status = models.CharField(max_length=10, choices=RequestStatus.choices, default=RequestStatus.PENDING,
+        help_text=_("The current status of the friend request.")
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, help_text=_("The time when the friend request was created."))
+    responded_at = models.DateTimeField(null=True, blank=True, help_text=_("The time when the friend request was accepted."))
+
+    class Meta:
+        verbose_name = _("Friend Request")
+        verbose_name_plural = _("Friend Requests")
+        constraints = [
+            models.UniqueConstraint(fields=['from_user', 'to_user'], name='unique_friend_request'),
+            models.CheckConstraint(check=~models.Q(from_user=models.F('to_user')), name='no_self_request'), #blocking friend request to self
+        ]
+
+    def clean(self):
+        if self.from_user == self.to_user:
+            raise ValidationError(_("You cannot send a friend request to yourself."))
+
+    def __str__(self):
+        return f"{self.from_user.username} → {self.to_user.username} - ({self.status})"
+
+
 class Friend(models.Model):
-    pass
+    user1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name='first_user_in_the_friendship')
+    user2 = models.ForeignKey(User, on_delete=models.CASCADE, related_name='second_user_in_the_friendship')
+
+    created_at = models.DateTimeField(auto_now_add=True) #for db
+    accepted_at = models.DateTimeField(auto_now_add=True) #for ui, if batch friend create, data might be different
+
+    is_blocked = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user1', 'user2'], name='unique_friendship'),
+            models.CheckConstraint(check=~models.Q(user1=models.F('user2')), name='no_self_friendship'),
+        ]
+
+    def clean(self):
+        if self.user1 == self.user2:
+            raise ValidationError(_("You cannot have a friendship relationship with yourself."))
+
+    def __str__(self):
+        return f"{self.user1.username} ↔ {self.user2.username}"
