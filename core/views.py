@@ -1,5 +1,5 @@
-from core.serializers import HashTagRetrieveCreateUpdateSerializer, PostResponseCreateSerializer, PostResponseUpdateSerializer
-from core.models import CurrentEmotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment
+from core.serializers import EmotionCreateRetrieveUpdateSerializer, HashTagRetrieveCreateUpdateSerializer, PostResponseCreateSerializer, PostUpdateSerializer, FriendRequestCreateSerializer, FriendRequestResponseSerializer, FriendResponseSerializer
+from core.models import Emotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment, FriendRequest, Friend
 from core.paginations import DefaultPagination
 from core.permissions import OwnsObjectOrAdmin
 from core.filters import PostFilter
@@ -8,18 +8,238 @@ from myproject.utils import api_response
 from rest_framework import generics, status, filters
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from rest_framework.exceptions import ValidationError, PermissionDenied
+from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound
 from rest_framework.parsers import FormParser, MultiPartParser
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 
 import cloudinary
+
+
+class EmotionListCreateAPI(generics.ListCreateAPIView):
+    queryset = Emotion.objects.all()
+    serializer_class = EmotionCreateRetrieveUpdateSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUser]
+    parser_classes = [FormParser, MultiPartParser]
+    pagination_class = DefaultPagination
+    http_method_names = ['get', 'post']
+
+    def create(self, request, *args, **kwargs):
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            try:
+                with transaction.atomic():
+                    serializer.save()
+            except IntegrityError:
+                return api_response(
+                    is_success=False,
+                    error_message="Emotion with this name already exists.",
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Emotion created successfully.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_201_CREATED
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except ValidationError as ve:
+            return api_response(
+                is_success=False,
+                error_message=ve.detail,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def post(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+
+    def list(self, request, *args, **kwargs):
+        try:
+            response = super().list(request, *args, **kwargs)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Successfully retrieved emotions.",
+                    "data": response.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def get(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+
+
+class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUser]
+    serializer_class = EmotionCreateRetrieveUpdateSerializer
+    queryset = Emotion.objects.all()
+    parser_classes = [FormParser, MultiPartParser]
+    pagination_class = DefaultPagination
+    http_method_names = ['get', 'patch', 'delete']
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Successfully retrieved emotion.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except Http404:
+            return api_response(
+                is_success=False,
+                error_message="Emotion not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def get(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+
+    def partial_update(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            if not serializer.is_valid():
+                return api_response(
+                    is_success=False,
+                    error_message=serializer.errors,
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+            serializer.save()
+
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Emotion updated successfully.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except Http404:
+            return api_response(
+                is_success=False,
+                error_message="Emotion not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            print(str(e))
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def patch(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            instance.delete()
+            return api_response(
+                is_success=True,
+                result={"message": f"Emotion deleted successfully."},
+                status_code=status.HTTP_200_OK
+            )
+
+        except Http404:
+            return api_response(
+                is_success=False,
+                error_message="Emotion not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=f"Failed to delete emotion. {str(e)}",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def delete(self, request, *args, **kwargs):
+        return self.destroy(request, *args, **kwargs)
+
+
 
 
 class HashTagListCreateAPI(generics.ListCreateAPIView):
@@ -50,6 +270,7 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
                     error_message="Hashtag with this name already exists.",
                     status_code=status.HTTP_400_BAD_REQUEST
                 )
+
             return api_response(
                 is_success=True,
                 result={
@@ -64,6 +285,13 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
                 is_success=False,
                 error_message=ve.detail,
                 status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
             )
 
         except Exception as e:
@@ -169,6 +397,13 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_404_NOT_FOUND
             )
 
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -189,7 +424,8 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
         tags=["HashTag"]
     )
     def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
+        return super().retrieve(request, *args, **kwargs)
+
 
     def partial_update(self, request, *args, **kwargs):
         try:
@@ -201,7 +437,6 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
                     error_message=serializer.errors,
                     status_code=status.HTTP_400_BAD_REQUEST
                 )
-
             serializer.save()
 
             return api_response(
@@ -231,6 +466,7 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
             return api_response(
                 is_success=False,
                 error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
@@ -250,7 +486,7 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
         tags=["HashTag"]
     )
     def patch(self, request, *args, **kwargs):
-        return super().patch(request, *args, **kwargs)
+        return super().partial_update(request, *args, **kwargs)
 
 
     def destroy(self, request, *args, **kwargs):
@@ -295,7 +531,7 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
         tags=["HashTag"]
     )
     def delete(self, request, *args, **kwargs):
-        return self.delete(request, *args, **kwargs)
+        return self.destroy(request, *args, **kwargs)
 
 
 
@@ -436,7 +672,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
 class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = []
-    serializer_class = PostResponseUpdateSerializer
+    serializer_class = PostUpdateSerializer
     queryset = Post.objects.all()
     parser_classes = [FormParser, MultiPartParser]
     http_method_names = ['get', 'patch', 'delete']
@@ -466,6 +702,13 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_404_NOT_FOUND
             )
 
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -487,7 +730,6 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
                     error_message=serializer.errors,
                     status_code=status.HTTP_400_BAD_REQUEST
                 )
-
             serializer.save()
 
             return api_response(
@@ -559,6 +801,7 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
         return self.destroy(request, *args, **kwargs)
 
 
+
 class MediaDeleteAPI(generics.DestroyAPIView):
     queryset = MediaUpload.objects.all()
     permission_classes = [IsAuthenticated, OwnsObjectOrAdmin]
@@ -610,3 +853,247 @@ class MediaDeleteAPI(generics.DestroyAPIView):
 
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
+
+
+
+class FriendRequestListCreateAPI(generics.ListCreateAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = FriendRequestCreateSerializer
+    queryset = FriendRequest.objects.all()
+    pagination_class = DefaultPagination
+    http_method_names = ['get', 'post']
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = None
+    ordering_fields = ['created_at', 'responded_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        user = self.request.user
+        return FriendRequest.objects.filter(
+            to_user=user, status=FriendRequest.RequestStatusEnum.PENDING
+        ).select_related('from_user') #optimizing lookup in case we need info about the sender
+
+    def create(self, request, *args, **kwargs):
+        try:
+            serializer = self.get_serializer(data=request.data, context={'request': request})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Friend request sent successfully.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_201_CREATED
+            )
+
+        except ValidationError as ve:
+            return api_response(
+                is_success=False,
+                error_message=ve.detail,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def post(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+
+    def list(self, request, *args, **kwargs):
+        try:
+            response = super().list(request, *args, **kwargs)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Successfully retrieved friend requests.",
+                    "data": response.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def get(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+
+
+class FriendRequestResponseAPI(generics.UpdateAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = FriendRequestResponseSerializer
+    queryset = FriendRequest.objects.all()
+    http_method_names = ['patch']
+
+    def get_object(self):
+        try:
+            return super().get_object()
+        except Http404:
+            raise NotFound("This friend request doesn't exist.")
+
+    def partial_update(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            if not serializer.is_valid():
+                return api_response(
+                    is_success=False,
+                    error_message=serializer.errors,
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+
+            serializer.save()
+
+            return api_response(
+                is_success=True,
+                result={
+                    "message": f"Friend request {serializer.data['status']}.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except NotFound:
+            return api_response(
+                is_success=False,
+                error_message="This friend request doesn't exist.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except ValidationError as ve:
+            return api_response(
+                is_success=False,
+                error_message=ve.detail,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def patch(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
+
+
+class FriendRequestDeleteAPI(generics.DestroyAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    queryset = FriendRequest.objects.all()
+    http_method_names = ['delete']
+
+    def perform_destroy(self, instance):
+        instance.delete()
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+
+            #only allowing sender or receiver to delete it
+            if request.user != instance.from_user and request.user != instance.to_user:
+                raise PermissionDenied("You do not have permission to delete this friend request.")
+
+            self.perform_destroy(instance)
+
+            return api_response(
+                is_success=True,
+                result={"message": "Friend request deleted."},
+                status_code=status.HTTP_204_NO_CONTENT
+            )
+
+        except PermissionDenied as pe:
+            return api_response(
+                is_success=False,
+                error_message=str(pe),
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def delete(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
+
+
+
+class FriendResponseAPI(generics.ListAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = FriendResponseSerializer
+    pagination_class = DefaultPagination
+    http_method_names = ['get']
+
+    def get_queryset(self):
+        user = self.request.user
+        return Friend.objects.filter(
+            Q(user1=user) | Q(user2=user)
+        ).select_related('user1', 'user2')
+
+    def list(self, request, *args, **kwargs):
+        try:
+            response = super().list(request, *args, **kwargs)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Successfully retrieved friends list.",
+                    "data": response.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except PermissionDenied:
+            return api_response(
+                is_success=False,
+                error_message="You do not have permission to perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def get(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)

@@ -7,18 +7,18 @@ from core.managers import PostManager
 from rest_framework.exceptions import ValidationError
 
 
-class CurrentEmotion(models.Model):
-    emotion_emoji_name = models.CharField(max_length=20)
-    emotion_emoji_path = models.CharField(max_length=255, null=True, blank=True, help_text=_("The path to emotion emoji in object storage."))
-    current_emoji_url = models.URLField(max_length=2048, null=True, blank=True, help_text=_("Current presigned url for the emoji."))
-    emoji_url_expiry_time = models.DateTimeField(null=True, blank=True, help_text=_("Expiration time of the current url."))
+class Emotion(models.Model):
+    emotion_emoji_name = models.CharField(max_length=20, unique=True)
+    emotion_public_id = models.CharField(help_text=_("Public id of the emoji"))
 
+    upload_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = _("CurrentEmotion")
-        verbose_name_plural = _("CurrentEmotions")
+        ordering = ["-upload_order"]
+        verbose_name = _("Emotion")
+        verbose_name_plural = _("Emotions")
 
     def __str__(self):
         return self.emotion_emoji_name
@@ -184,7 +184,7 @@ class CommentLike(models.Model):
 
 
 class FriendRequest(models.Model):
-    class RequestStatus(models.TextChoices):
+    class RequestStatusEnum(models.TextChoices):
         PENDING = 'pending', _('Pending')
         ACCEPTED = 'accepted', _('Accepted')
         REJECTED = 'rejected', _('Rejected')
@@ -196,7 +196,7 @@ class FriendRequest(models.Model):
     to_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friend_requests_received',
         help_text=_("The user who received the friend request.")
     )
-    status = models.CharField(max_length=10, choices=RequestStatus.choices, default=RequestStatus.PENDING,
+    status = models.CharField(max_length=10, choices=RequestStatusEnum.choices, default=RequestStatusEnum.PENDING,
         help_text=_("The current status of the friend request.")
     )
 
