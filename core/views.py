@@ -55,13 +55,6 @@ class EmotionListCreateAPI(generics.ListCreateAPIView):
                 status_code=status.HTTP_201_CREATED
             )
 
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
         except ValidationError as ve:
             return api_response(
                 is_success=False,
@@ -90,13 +83,6 @@ class EmotionListCreateAPI(generics.ListCreateAPIView):
                     "data": response.data
                 },
                 status_code=status.HTTP_200_OK
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
             )
 
         except Exception as e:
@@ -133,20 +119,6 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_200_OK
             )
 
-        except Http404:
-            return api_response(
-                is_success=False,
-                error_message="Emotion not found.",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -179,20 +151,6 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_200_OK
             )
 
-        except Http404:
-            return api_response(
-                is_success=False,
-                error_message="Emotion not found.",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
         except Exception as e:
             print(str(e))
             return api_response(
@@ -213,20 +171,6 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
                 is_success=True,
                 result={"message": f"Emotion deleted successfully."},
                 status_code=status.HTTP_200_OK
-            )
-
-        except Http404:
-            return api_response(
-                is_success=False,
-                error_message="Emotion not found.",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
             )
 
         except Exception as e:
@@ -287,13 +231,6 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
 
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -328,13 +265,6 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
                     "data": response.data
                 },
                 status_code=status.HTTP_200_OK
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
             )
 
         except Exception as e:
@@ -390,20 +320,6 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_200_OK
             )
 
-        except Http404:
-            return api_response(
-                is_success=False,
-                error_message="Hashtag not found.",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -448,20 +364,6 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_200_OK
             )
 
-        except Http404:
-            return api_response(
-                is_success=False,
-                error_message="Hashtag not found.",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -497,20 +399,6 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
                 is_success=True,
                 result={"message": f"Hashtag deleted successfully."},
                 status_code=status.HTTP_200_OK
-            )
-
-        except Http404:
-            return api_response(
-                is_success=False,
-                error_message="Hashtag not found.",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
             )
 
         except Exception as e:
@@ -635,13 +523,6 @@ class PostListCreateAPI(generics.ListCreateAPIView):
                 status_code=status.HTTP_200_OK
             )
 
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -695,20 +576,6 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_200_OK
             )
 
-        except Http404:
-            return api_response(
-                is_success=False,
-                error_message="Post not found.",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -741,20 +608,6 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_200_OK
             )
 
-        except Http404:
-            return api_response(
-                is_success=False,
-                error_message="Post not found.",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        # except PermissionDenied:
-        #     return api_response(
-        #         is_success=False,
-        #         error_message="You do not have permission to perform this action.",
-        #         status_code=status.HTTP_403_FORBIDDEN
-        #     )
-
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -774,20 +627,6 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
                 is_success=True,
                 result="Successfully deleted post.",
                 status_code=status.HTTP_200_OK
-            )
-
-        except Http404:
-            return api_response(
-                is_success=False,
-                error_message="Post not found.",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
             )
 
         except Exception as e:
@@ -819,7 +658,7 @@ class MediaDeleteAPI(generics.DestroyAPIView):
         except Http404: #handeling 404 from get_object_or_404
             return api_response(
                 is_success=False,
-                error_message="Media doesn't belong to the post.",
+                error_message="Media not found or doesn't belong to the post.",
                 status_code=status.HTTP_404_NOT_FOUND
             )
 
@@ -835,13 +674,6 @@ class MediaDeleteAPI(generics.DestroyAPIView):
                 is_success=True,
                 result="Media successfully deleted",
                 status_code=status.HTTP_200_OK
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
             )
 
         except Exception as e:
@@ -895,13 +727,6 @@ class FriendRequestListCreateAPI(generics.ListCreateAPIView):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
 
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -923,13 +748,6 @@ class FriendRequestListCreateAPI(generics.ListCreateAPIView):
                     "data": response.data
                 },
                 status_code=status.HTTP_200_OK
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
             )
 
         except Exception as e:
@@ -977,13 +795,6 @@ class FriendRequestResponseAPI(generics.UpdateAPIView):
                     "data": serializer.data
                 },
                 status_code=status.HTTP_200_OK
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
             )
 
         except NotFound:
@@ -1037,13 +848,6 @@ class FriendRequestDeleteAPI(generics.DestroyAPIView):
                 status_code=status.HTTP_204_NO_CONTENT
             )
 
-        except PermissionDenied as pe:
-            return api_response(
-                is_success=False,
-                error_message=str(pe),
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
         except Exception as e:
             return api_response(
                 is_success=False,
@@ -1079,13 +883,6 @@ class FriendResponseAPI(generics.ListAPIView):
                     "data": response.data
                 },
                 status_code=status.HTTP_200_OK
-            )
-
-        except PermissionDenied:
-            return api_response(
-                is_success=False,
-                error_message="You do not have permission to perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN
             )
 
         except Exception as e:
