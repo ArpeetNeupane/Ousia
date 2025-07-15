@@ -166,7 +166,7 @@ REST_FRAMEWORK = {
         'login': '5/m', #5 requests per minute
         'update_password': '1/h' #1 request per 1 hour
     },
-    'EXCEPTION_HANDLER': 'myproject.utils.custom_exception_handler',
+    'EXCEPTION_HANDLER': 'myproject.exceptions.custom_exception_handler',
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
     ],
