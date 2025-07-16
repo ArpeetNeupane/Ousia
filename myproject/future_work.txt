@@ -107,6 +107,6 @@ by user, hashtags, or date range. ✅
 thread.
 
 9. Data Sanitization: Sanitize user inputs (especially captions and comments) to prevent cross-site scripting (XSS) attacks. Consider using a 
-library like bleach to allow only a safe subset of HTML tags.
+library like bleach to allow only a safe subset of HTML tags. ✅xss doesnt matter for mobile app.
 
 10. tests - not api tests but django tests

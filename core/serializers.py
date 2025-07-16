@@ -1,5 +1,5 @@
 from core import models
-from core.models import Emotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment, FriendRequest, Friend
+from core.models import Emotion, UserEmotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment, FriendRequest, Friend
 from core.mixins import MediaValidationMixin
 from core.service import PostCreateService, PostUpdateService
 from accounts.models import User
@@ -66,6 +66,18 @@ class EmotionCreateRetrieveUpdateSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+
+class UserEmotionSerializer(serializers.ModelSerializer):
+    emotion_name = serializers.CharField(source='emotion.emotion_emoji_name', read_only=True)
+    emotion_id = serializers.PrimaryKeyRelatedField(
+        queryset=Emotion.objects.all(), source='emotion', write_only=True
+    )
+
+    class Meta:
+        model = UserEmotion
+        fields = ['id', 'emotion_id', 'emotion_name', 'noted_at']
+        read_only_fields = ['id', 'emotion_name', 'noted_at']
 
 
 class HashTagRetrieveCreateUpdateSerializer(serializers.ModelSerializer):

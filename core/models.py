@@ -24,6 +24,20 @@ class Emotion(models.Model):
         return self.emotion_emoji_name
 
 
+class UserEmotion(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="emotions")
+    emotion = models.ForeignKey("Emotion", on_delete=models.CASCADE, related_name="user_emotions")
+    noted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-noted_at']
+        verbose_name = _("User Emotion")
+        verbose_name_plural = _("User Emotions")
+
+    def __str__(self):
+        return f"{self.user.username} felt {self.emotion.emotion_emoji_name} at {self.noted_at}"
+
+
 class HashTag(models.Model):
     name = models.CharField(max_length=50, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)

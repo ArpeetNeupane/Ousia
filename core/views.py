@@ -1,5 +1,5 @@
-from core.serializers import EmotionCreateRetrieveUpdateSerializer, HashTagRetrieveCreateUpdateSerializer, PostResponseCreateSerializer, PostUpdateSerializer, FriendRequestCreateSerializer, FriendRequestResponseSerializer, FriendResponseSerializer
-from core.models import Emotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment, FriendRequest, Friend
+from core.serializers import EmotionCreateRetrieveUpdateSerializer, UserEmotionSerializer, HashTagRetrieveCreateUpdateSerializer, PostResponseCreateSerializer, PostUpdateSerializer, FriendRequestCreateSerializer, FriendRequestResponseSerializer, FriendResponseSerializer
+from core.models import Emotion, UserEmotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment, FriendRequest, Friend
 from core.paginations import DefaultPagination
 from core.permissions import OwnsObjectOrAdmin
 from core.filters import PostFilter
@@ -17,10 +17,12 @@ from drf_yasg import openapi
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import Http404
+from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 
 import cloudinary
+from datetime import timedelta
 
 
 class EmotionListCreateAPI(generics.ListCreateAPIView):
@@ -182,6 +184,24 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
 
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
+
+
+
+
+class UserEmotionCreateAPIView(generics.CreateAPIView):
+    queryset = UserEmotion.objects.all()
+    serializer_class = UserEmotionSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+
+        last_emotion = UserEmotion.objects.filter(user=user).order_by('-noted_at').first()
+        if last_emotion and timezone.now() - last_emotion.noted_at < timedelta(hours=1):
+            raise ValidationError("You can only submit one emotion per hour. Please wait before submitting again.")
+
+        serializer.save(user=user)
 
 
 
@@ -769,6 +789,7 @@ class FriendRequestResponseAPI(generics.UpdateAPIView):
     queryset = FriendRequest.objects.all()
     http_method_names = ['patch']
 
+    #redundant but keeping for now
     def get_object(self):
         try:
             return super().get_object()
@@ -801,7 +822,7 @@ class FriendRequestResponseAPI(generics.UpdateAPIView):
             return api_response(
                 is_success=False,
                 error_message="This friend request doesn't exist.",
-                status_code=status.HTTP_403_FORBIDDEN
+                status_code=status.HTTP_404_NOT_FOUND
             )
 
         except ValidationError as ve:
