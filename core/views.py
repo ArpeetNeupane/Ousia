@@ -1,4 +1,4 @@
-from core.serializers import EmotionCreateRetrieveUpdateSerializer, UserEmotionSerializer, HashTagRetrieveCreateUpdateSerializer, PostResponseCreateSerializer, PostUpdateSerializer, FriendRequestCreateSerializer, FriendRequestResponseSerializer, FriendResponseSerializer
+from core.serializers import EmotionCreateRetrieveUpdateSerializer, UserEmotionSerializer, HashTagRetrieveCreateUpdateSerializer, PostResponseCreateSerializer, PostUpdateSerializer, FriendRequestCreateSerializer, FriendRequestResponseSerializer, FriendResponseSerializer, FriendSerializer
 from core.models import Emotion, UserEmotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment, FriendRequest, Friend
 from core.paginations import DefaultPagination
 from core.permissions import OwnsObjectOrAdmin
@@ -288,7 +288,6 @@ class UserEmotionCreateAPIView(generics.CreateAPIView):
         last_emotion = UserEmotion.objects.filter(user=user).order_by('-noted_at').first()
         if last_emotion and timezone.now() - last_emotion.noted_at < timedelta(hours=1):
             raise ValidationError("You can only submit one emotion per hour. Please wait before submitting again.")
-
         serializer.save(user=user)
 
     @swagger_auto_schema(
@@ -318,7 +317,7 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method == 'POST':
-            return [IsAdminUser()]
+            return [IsAuthenticated()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -1003,7 +1002,7 @@ class FriendRequestDeleteAPI(generics.DestroyAPIView):
             return api_response(
                 is_success=True,
                 result={"message": "Friend request deleted."},
-                status_code=status.HTTP_204_NO_CONTENT
+                status_code=status.HTTP_200_OK
             )
 
         except Exception as e:
@@ -1032,7 +1031,7 @@ class FriendRequestDeleteAPI(generics.DestroyAPIView):
 class FriendListAPI(generics.ListAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
-    serializer_class = FriendResponseSerializer
+    serializer_class = FriendSerializer
     pagination_class = DefaultPagination
     http_method_names = ['get']
 

@@ -235,7 +235,7 @@ class CommentUpdateSerializer(serializers.ModelSerializer):
 
 
 class FriendRequestCreateSerializer(serializers.ModelSerializer):
-    # not Charfield like model to ensure only valid choices are accepted when serializing or deserializing data
+    #not Charfield like model to ensure only valid choices are accepted when serializing or deserializing data
     status = serializers.ChoiceField(choices=FriendRequest.RequestStatusEnum.choices, read_only=True)
     from_user = serializers.SlugRelatedField(read_only=True, slug_field='username')
     to_user = serializers.SlugRelatedField(read_only=True, slug_field='username')
@@ -253,45 +253,34 @@ class FriendRequestCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         request_user = self.context['request'].user
-        to_user = data.get('to_username') #could go with data['to_username'] as it's required and we're sure it exists
+        to_user = data['to_username']
 
-        if not to_user:
-            raise serializers.ValidationError(
-                {"to_username": "This field is required."}
-            )
-
-        #blocking friend request to self
         if request_user == to_user:
-            raise serializers.ValidationError(
-                {"friend_request": "You cannot send a friend request to yourself."}
-            )
+            raise serializers.ValidationError({
+                "friend_request": "You cannot send a friend request to yourself."
+            })
 
-        #checking if friend request already exists between two users
-        if FriendRequest.objects.filter(
-            from_user=request_user,
-            to_user=to_user,
-            status=FriendRequest.RequestStatusEnum.PENDING
-        ).exists():
-            raise serializers.ValidationError(
-                {"friend_request": f"You have already sent a friend request to {to_user}"}
-            )
-        if FriendRequest.objects.filter(
-            from_user=to_user,
-            to_user=request_user,
-            status=FriendRequest.RequestStatusEnum.PENDING
-        ).exists():
-            raise serializers.ValidationError(
-                {"friend_request": f"You already have a pending friend request from {to_user}"}
-            )
-
-        #checking if the users are already friends
+        #checking if users are already friends
         if Friend.objects.filter(
-            Q(user1=request_user, user2=to_user) |
-            Q(user1=to_user, user2=request_user)
+            Q(user1=request_user, user2=to_user) | Q(user1=to_user, user2=request_user)
         ).exists():
-            raise serializers.ValidationError(
-                {"friend_request": f"You are already friends with {to_user}"}
-            )
+            raise serializers.ValidationError({
+                "friend_request": f"You are already friends with {to_user}."
+            })
+
+        #checking for duplicate or cross friend requests
+        pending_requests = FriendRequest.objects.filter(
+            Q(from_user=request_user, to_user=to_user) |
+            Q(from_user=to_user, to_user=request_user)
+        ).filter(status=FriendRequest.RequestStatusEnum.PENDING)
+
+        if pending_requests.exists():
+            #determining direction of the request to show better message
+            if pending_requests.filter(from_user=request_user).exists():
+                message = f"You have already sent a friend request to {to_user}."
+            else:
+                message = f"You already have a pending friend request from {to_user}."
+            raise serializers.ValidationError({"friend_request": message})
 
         data['to_user'] = to_user
         data.pop('to_username')
@@ -306,7 +295,8 @@ class FriendRequestCreateSerializer(serializers.ModelSerializer):
 class FriendRequestResponseSerializer(serializers.ModelSerializer):
     status = serializers.ChoiceField(choices=[
         FriendRequest.RequestStatusEnum.ACCEPTED,
-        FriendRequest.RequestStatusEnum.REJECTED
+        FriendRequest.RequestStatusEnum.REJECTED,
+        FriendRequest.RequestStatusEnum.DELETED
     ])
 
     class Meta:
@@ -315,17 +305,27 @@ class FriendRequestResponseSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         request = self.context['request']
-        friend_request = self.instance
+        user = request.user
+        new_status = data.get('status')
 
-        if request.user != friend_request.to_user:
-            raise serializers.ValidationError(
-                {"accept_request": f"You are not allowed to respond to this friend request as you weren't the one to initiate it."}
-            )
-
-        if friend_request.status != FriendRequest.RequestStatusEnum.PENDING:
+        if self.instance.status != FriendRequest.RequestStatusEnum.PENDING:
             raise serializers.ValidationError(
                 {"accept_request": f"This friend request has already been responded to."}
             )
+
+        #if receiver is responding (accept/reject)
+        if user == self.instance.to_user: #self means current serializer, self.instance is current serializer's model
+            if new_status not in [FriendRequest.RequestStatusEnum.ACCEPTED, FriendRequest.RequestStatusEnum.REJECTED]:
+                raise serializers.ValidationError("You can only accept or reject the request.")
+
+        #if sender is cancelling the request
+        elif user == self.instance.from_user:
+            if new_status != FriendRequest.RequestStatusEnum.DELETED:
+                raise serializers.ValidationError("You can only cancel (delete) the request you sent.") #only allowing the sender to delete the request, no other choice
+
+        else:
+            if not user.is_staff:
+                raise serializers.ValidationError("You are not allowed to update this friend request.")
 
         return data
 
@@ -343,12 +343,12 @@ class FriendRequestResponseSerializer(serializers.ModelSerializer):
             from_user = instance.from_user
             to_user = instance.to_user
 
-            #preventing duplicate friendships
-            if Friend.objects.filter(
-                Q(user1=to_user, user2=from_user) |
-                Q(user1=from_user, user2=to_user)
+            #sorting users in asc order of id to ensure canonical order in db level as well
+            user1, user2 = sorted([from_user, to_user], key=lambda u: u.id)
+            if not Friend.objects.filter(
+                Q(user1=user1, user2=user2)
             ).exists():
-                Friend.objects.create(user1=from_user, user2=to_user)
+                Friend.objects.create(user1=user1, user2=user2)
         instance.save()
         return instance
 
@@ -367,3 +367,30 @@ class FriendResponseSerializer(serializers.ModelSerializer):
             return obj.user2.username
         else:
             return obj.user1.username
+
+
+class FriendSerializer(serializers.ModelSerializer):
+    user1 = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    user2 = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+
+    class Meta:
+        model = Friend
+        fields = ['id', 'user1', 'user2', 'created_at', 'accepted_at', 'is_blocked']
+        read_only_fields = ['id', 'created_at', 'accepted_at']
+
+    def validate(self, data):
+        user1 = data.get('user1')
+        user2 = data.get('user2')
+
+        #blocking self-friendship
+        if user1 == user2:
+            raise serializers.ValidationError("You cannot create a friendship with yourself.")
+
+        #ordering consistently to match DB UniqueConstraint
+        user_pair = sorted([user1.id, user2.id])
+        if Friend.objects.filter(
+            Q(user1_id=user_pair[0], user2_id=user_pair[1]) |
+            Q(user1_id=user_pair[1], user2_id=user_pair[0])
+        ).exists():
+            raise serializers.ValidationError("Friendship already exists between these users.")
+        return data

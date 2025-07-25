@@ -221,7 +221,6 @@ class FriendRequest(models.Model):
         verbose_name = _("Friend Request")
         verbose_name_plural = _("Friend Requests")
         constraints = [
-            models.UniqueConstraint(fields=['from_user', 'to_user'], name='unique_friend_request'),
             models.CheckConstraint(check=~models.Q(from_user=models.F('to_user')), name='no_self_request'), #blocking friend request to self
         ]
 
