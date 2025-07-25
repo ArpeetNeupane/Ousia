@@ -30,10 +30,13 @@ class EmotionListCreateAPI(generics.ListCreateAPIView):
     queryset = Emotion.objects.all()
     serializer_class = EmotionCreateRetrieveUpdateSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAdminUser]
+    permission_classes = []
     parser_classes = [FormParser, MultiPartParser]
     pagination_class = DefaultPagination
     http_method_names = ['get', 'post']
+
+    def get_permissions(self):
+        return [IsAdminUser()] if self.request.method == 'POST' else [IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
         try:
@@ -85,7 +88,7 @@ class EmotionListCreateAPI(generics.ListCreateAPIView):
         tags=["Emotion"]
     )
     def post(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        return self.create(request, *args, **kwargs)
 
 
     def list(self, request, *args, **kwargs):
@@ -121,18 +124,21 @@ class EmotionListCreateAPI(generics.ListCreateAPIView):
         tags=["Emotion"]
     )
     def get(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        return self.list(request, *args, **kwargs)
 
 
 
 class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAdminUser]
+    permission_classes = []
     serializer_class = EmotionCreateRetrieveUpdateSerializer
     queryset = Emotion.objects.all()
     parser_classes = [FormParser, MultiPartParser]
     pagination_class = DefaultPagination
     http_method_names = ['get', 'patch', 'delete']
+
+    def get_permissions(self):
+        return [IsAuthenticated()] if self.request.method == 'GET' else [IsAdminUser()]
 
     def retrieve(self, request, *args, **kwargs):
         try:
@@ -166,7 +172,7 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
         tags=["Emotion"]
     )
     def get(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
+        return self.retrieve(request, *args, **kwargs)
 
 
     def partial_update(self, request, *args, **kwargs):
@@ -200,7 +206,29 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
 
     @swagger_auto_schema(
         operation_description="Partially update an emotion.",
-        request_body=EmotionCreateRetrieveUpdateSerializer,
+        manual_parameters=[
+            openapi.Parameter(
+                name="id",
+                in_=openapi.IN_FORM,
+                type=openapi.TYPE_INTEGER,
+                required=True,
+                description="ID of the emotion to update"
+            ),
+            openapi.Parameter(
+                name="emotion_emoji_name",
+                in_=openapi.IN_FORM,
+                type=openapi.TYPE_STRING,
+                required=False,
+                description="Optional emoji name"
+            ),
+            openapi.Parameter(
+                name="emotion_image",
+                in_=openapi.IN_FORM,
+                type=openapi.TYPE_FILE,
+                required=False,
+                description="Optional image upload"
+            ),
+        ],
         responses={
             200: openapi.Response("Emotion updated successfully.", EmotionCreateRetrieveUpdateSerializer),
             400: "Bad request - validation failed.",
@@ -209,10 +237,10 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
             404: "Emotion not found.",
             500: "Internal server error.",
         },
-        tags = ["Emotion"]
+        tags=["Emotion"]
     )
     def patch(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
+        return self.partial_update(request, *args, **kwargs)
 
 
     def destroy(self, request, *args, **kwargs):
@@ -276,7 +304,7 @@ class UserEmotionCreateAPIView(generics.CreateAPIView):
         tags=["User Emotion"]
     )
     def post(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        return self.create(request, *args, **kwargs)
 
 
 
@@ -435,7 +463,7 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
         tags=["HashTag"]
     )
     def get(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
+        return self.retrieve(request, *args, **kwargs)
 
 
     def partial_update(self, request, *args, **kwargs):
@@ -483,7 +511,7 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
         tags=["HashTag"]
     )
     def patch(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
+        return self.partial_update(request, *args, **kwargs)
 
 
     def destroy(self, request, *args, **kwargs):
@@ -531,6 +559,9 @@ class PostListCreateAPI(generics.ListCreateAPIView):
     ordering_fields = ['created_at', 'updated_at', 'post_like_count', 'post_comment_count']
     ordering = ['-created_at'] #default ordering
 
+    def get_permissions(self):
+        return [IsAuthenticated()]
+
     def create(self, request, *args, **kwargs):
         try:
             serializer = self.get_serializer(data=request.data)
@@ -573,7 +604,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
         consumes=["multipart/form-data"]
     )
     def post(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        return self.create(request, *args, **kwargs)
 
 
     def list(self, request, *args, **kwargs):
@@ -611,7 +642,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
         tags=["Post"],
     )
     def get(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        return self.list(request, *args, **kwargs)
 
 
 
@@ -649,7 +680,7 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
             )
 
     def get(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
+        return self.retrieve(request, *args, **kwargs)
 
 
     def partial_update(self, request, *args, **kwargs):
@@ -681,7 +712,7 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
             )
 
     def patch(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
+        return self.partial_update(request, *args, **kwargs)
 
 
     def destroy(self, request, *args, **kwargs):
@@ -826,7 +857,7 @@ class FriendRequestListCreateAPI(generics.ListCreateAPIView):
         tags=["Friend Request"]
     )
     def post(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        return self.create(request, *args, **kwargs)
 
 
     def list(self, request, *args, **kwargs):
@@ -868,7 +899,7 @@ class FriendRequestListCreateAPI(generics.ListCreateAPIView):
         tags=["Friend Request"]
     )
     def get(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        return self.list(request, *args, **kwargs)
 
 
 
@@ -946,7 +977,7 @@ class FriendRequestResponseAPI(generics.UpdateAPIView):
         tags=["Friend Request"]
     )
     def patch(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
+        return self.partial_update(request, *args, **kwargs)
 
 
 
@@ -994,7 +1025,7 @@ class FriendRequestDeleteAPI(generics.DestroyAPIView):
         tags=["Friend Request"]
     )
     def delete(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+        return self.destroy(request, *args, **kwargs)
 
 
 
@@ -1043,4 +1074,4 @@ class FriendListAPI(generics.ListAPIView):
         tags=["Friend"]
     )
     def get(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        return self.list(request, *args, **kwargs)

@@ -110,3 +110,7 @@ thread.
 library like bleach to allow only a safe subset of HTML tags. ✅xss doesnt matter for mobile app.
 
 10. tests - not api tests but django tests
+
+
+# emotion update delete garda clean vaira xaina test required
+# post delete ma delete vairaxina probably test, update ma hunxa hola

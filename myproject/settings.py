@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from datetime import timedelta
 from pathlib import Path
+import cloudinary
 
 from decouple import config #is a method that allows you to read values from your .env file
 
@@ -220,3 +221,9 @@ MAX_IMAGE_WIDTH = 2500
 MAX_IMAGE_HEIGHT = 1500
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.mkv'}
+
+cloudinary.config(
+    cloud_name=config("CLOUDINARY_CLOUD_NAME"),
+    api_key=config("CLOUDINARY_API_KEY"),
+    api_secret=config("CLOUDINARY_API_SECRET")
+)
