@@ -119,7 +119,6 @@ class HashTagRetrieveCreateUpdateSerializer(serializers.ModelSerializer):
 
 class MediaUploadSerializer(serializers.ModelSerializer):
     media_url = serializers.SerializerMethodField(read_only=True)
-
     class Meta:
         model = MediaUpload
         fields = ['id', 'public_id', 'is_video', 'upload_order', 'media_url']
@@ -357,6 +356,7 @@ class FriendRequestResponseSerializer(serializers.ModelSerializer):
 class FriendResponseSerializer(serializers.ModelSerializer):
     friend = serializers.SerializerMethodField()
     class Meta:
+        model = Friend
         fields = ['id', 'friend', 'accepted_at', 'is_blocked']
         read_only_fields = ['id', 'friend', 'accepted_at', 'is_blocked']
 

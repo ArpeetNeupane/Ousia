@@ -25,6 +25,7 @@ import cloudinary
 from datetime import timedelta
 
 
+
 class EmotionListCreateAPI(generics.ListCreateAPIView):
     queryset = Emotion.objects.all()
     serializer_class = EmotionCreateRetrieveUpdateSerializer
@@ -71,6 +72,18 @@ class EmotionListCreateAPI(generics.ListCreateAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Create a new emotion. Only accessible to admins.",
+        request_body=EmotionCreateRetrieveUpdateSerializer,
+        responses={
+            201: openapi.Response(description="Emotion created successfully."),
+            400: openapi.Response(description="Validation error or duplicate emotion."),
+            401: openapi.Response(description="Authentication credentials were not provided or are invalid."),
+            403: openapi.Response(description="You do not have permission to perform this action."),
+            500: openapi.Response(description="Internal server error.")
+        },
+        tags=["Emotion"]
+    )
     def post(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
 
@@ -94,6 +107,19 @@ class EmotionListCreateAPI(generics.ListCreateAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Retrieve the list of all emotions.",
+        responses={
+            200: openapi.Response(
+                description="Successfully retrieved paginated data.",
+                schema=EmotionCreateRetrieveUpdateSerializer(many=True),
+            ),
+            401: openapi.Response(description="Authentication credentials were not provided or are invalid."),
+            403: openapi.Response(description="You do not have permission to perform this action."),
+            500: openapi.Response(description="Internal server error.")
+        },
+        tags=["Emotion"]
+    )
     def get(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
@@ -128,6 +154,17 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Retrieve an emotion by ID.",
+        responses={
+            200: openapi.Response("Successfully retrieved emotion.", EmotionCreateRetrieveUpdateSerializer),
+            401: "Unauthorized - JWT token missing or invalid.",
+            403: "Forbidden - Admin access required.",
+            404: "Emotion not found.",
+            500: "Internal server error.",
+        },
+        tags=["Emotion"]
+    )
     def get(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
@@ -161,6 +198,19 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Partially update an emotion.",
+        request_body=EmotionCreateRetrieveUpdateSerializer,
+        responses={
+            200: openapi.Response("Emotion updated successfully.", EmotionCreateRetrieveUpdateSerializer),
+            400: "Bad request - validation failed.",
+            401: "Unauthorized - JWT token missing or invalid.",
+            403: "Forbidden - Admin access required.",
+            404: "Emotion not found.",
+            500: "Internal server error.",
+        },
+        tags = ["Emotion"]
+    )
     def patch(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
 
@@ -182,9 +232,19 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Delete an emotion by ID.",
+        responses={
+            200: "Emotion deleted successfully.",
+            401: "Unauthorized - JWT token missing or invalid.",
+            403: "Forbidden - Admin access required.",
+            404: "Emotion not found.",
+            500: "Internal server error.",
+        },
+        tags=["Emotion"]
+    )
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
-
 
 
 
@@ -203,6 +263,20 @@ class UserEmotionCreateAPIView(generics.CreateAPIView):
 
         serializer.save(user=user)
 
+    @swagger_auto_schema(
+        operation_description="Create a new user emotion entry. User can submit only one emotion per hour.",
+        request_body=UserEmotionSerializer,
+        responses={
+            201: openapi.Response(description="User emotion created successfully.", schema=UserEmotionSerializer),
+            400: openapi.Response(description="Validation error, e.g., submitting too frequently."),
+            401: openapi.Response(description="Authentication credentials were not provided or are invalid."),
+            403: openapi.Response(description="You do not have permission to perform this action."),
+            500: openapi.Response(description="Internal server error."),
+        },
+        tags=["User Emotion"]
+    )
+    def post(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
 
 
 
@@ -262,11 +336,10 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
         operation_description="Create a new hashtag.",
         request_body=HashTagRetrieveCreateUpdateSerializer,
         responses={
-            201: openapi.Response(
-                description="Successfully created a hashtag.",
-                schema=HashTagRetrieveCreateUpdateSerializer,
-            ),
+            201: openapi.Response(description="Hashtag created successfully."),
             400: openapi.Response(description="Invalid data."),
+            401: openapi.Response(description="Unauthorized."),
+            403: openapi.Response(description="Permission Denied."),
             500: openapi.Response(description="Internal server error."),
         },
         tags=["HashTag"],
@@ -354,6 +427,8 @@ class HashTagRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
                 description="Hashtag retrieved successfully",
                 schema=HashTagRetrieveCreateUpdateSerializer()
             ),
+            401: 'Not Authorized',
+            403: 'Permission Denied',
             404: 'Hashtag not found',
             500: 'Internal Server Error.'
         },
@@ -485,47 +560,17 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             )
 
     @swagger_auto_schema(
-        operation_description="Create a new post with multiple media files.",
+        operation_description="Create a new post. For multiple files, use the same 'media' parameter name multiple times.",
         manual_parameters=[
-            openapi.Parameter(
-                'caption',
-                openapi.IN_FORM,
-                description="Post caption.",
-                type=openapi.TYPE_STRING,
-                required=True
-            ),
-            openapi.Parameter(
-                'visibility',
-                openapi.IN_FORM,
-                description="Post visibility.",
-                type=openapi.TYPE_STRING,
-                enum=['public', 'private', 'friends_only'],
-                required=False
-            ),
-            openapi.Parameter(
-                'type_of_post',
-                openapi.IN_FORM,
-                description="Hashtag names.",
-                type=openapi.TYPE_STRING,
-                required=False
-            ),
-            openapi.Parameter(
-                'media',
-                openapi.IN_FORM,
-                description="Media files (can upload multiple).",
-                type=openapi.TYPE_FILE,
-                required=False
-            ),
+            openapi.Parameter('caption', openapi.IN_FORM, type=openapi.TYPE_STRING, required=True),
+            openapi.Parameter('visibility', openapi.IN_FORM, type=openapi.TYPE_STRING, 
+                            enum=['public', 'private', 'friends_only'], required=False),
+            openapi.Parameter('type_of_post', openapi.IN_FORM, type=openapi.TYPE_STRING, required=False),
+            openapi.Parameter('media', openapi.IN_FORM, type=openapi.TYPE_FILE, required=False),
         ],
-        responses={
-            201: openapi.Response(
-                description="Successfully created a post.",
-                schema=PostResponseCreateSerializer,
-            ),
-            400: openapi.Response(description="Invalid data."),
-            500: openapi.Response(description="Internal server error."),
-        },
-        tags=["Post"]
+        responses={201: PostResponseCreateSerializer},
+        tags=["Post"],
+        consumes=["multipart/form-data"]
     )
     def post(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
@@ -703,6 +748,18 @@ class MediaDeleteAPI(generics.DestroyAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Deletes a specific media file belonging to a post. Only the owner or an admin can perform this action.",
+        responses={
+            200: openapi.Response(description="Media successfully deleted"),
+            400: openapi.Response(description="Bad Request"),
+            401: openapi.Response(description="Unauthorized - Authentication credentials were not provided or invalid."),
+            403: openapi.Response(description="Forbidden - You do not have permission to delete this media."),
+            404: openapi.Response(description="Media not found or doesn't belong to the post."),
+            500: openapi.Response(description="Failed to delete media due to server error."),
+        },
+        tags=["Post"]
+    )
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
 
@@ -754,6 +811,20 @@ class FriendRequestListCreateAPI(generics.ListCreateAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Send a friend request to another user by specifying their user ID.",
+        request_body=FriendRequestCreateSerializer,
+        responses={
+            201: openapi.Response(
+                description="Friend request sent successfully.",
+                schema=FriendRequestCreateSerializer
+            ),
+            400: "Validation error.",
+            401: "Unauthorized",
+            500: "Internal server error"
+        },
+        tags=["Friend Request"]
+    )
     def post(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
 
@@ -777,6 +848,25 @@ class FriendRequestListCreateAPI(generics.ListCreateAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Get a paginated list of friend requests sent to the authenticated user that are still pending.",
+        responses={
+            200: openapi.Response(
+                description="Successfully retrieved friend requests.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "message": openapi.Schema(type=openapi.TYPE_STRING),
+                        "data": openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_OBJECT)),
+                    }
+                )
+            ),
+            401: "Unauthorized",
+            403: "Permission Denied",
+            500: "Internal server error"
+        },
+        tags=["Friend Request"]
+    )
     def get(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
@@ -839,6 +929,22 @@ class FriendRequestResponseAPI(generics.UpdateAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Accept or reject a friend request by updating its status.",
+        request_body=FriendRequestResponseSerializer,
+        responses={
+            200: openapi.Response(
+                description="Friend request response updated.",
+                schema=FriendRequestResponseSerializer
+            ),
+            400: "Validation error",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            404: "Friend request not found",
+            500: "Internal server error"
+        },
+        tags=["Friend Request"]
+    )
     def patch(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
 
@@ -876,12 +982,23 @@ class FriendRequestDeleteAPI(generics.DestroyAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Deletes a friend request. Only the sender or recipient can delete it.",
+        responses={
+            204: "Friend request deleted successfully.",
+            401: "Unauthorized",
+            403: "Permission denied",
+            404: "Friend request not found",
+            500: "Internal server error"
+        },
+        tags=["Friend Request"]
+    )
     def delete(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
 
 
-class FriendResponseAPI(generics.ListAPIView):
+class FriendListAPI(generics.ListAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
     serializer_class = FriendResponseSerializer
@@ -913,5 +1030,17 @@ class FriendResponseAPI(generics.ListAPIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Returns a paginated list of all friends for the authenticated user.",
+        responses={
+            200: openapi.Response(
+                description="Successfully retrieved friends list.",
+                schema=FriendResponseSerializer(many=True)
+            ),
+            401: "Unauthorized",
+            500: "Internal server error"
+        },
+        tags=["Friend"]
+    )
     def get(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)

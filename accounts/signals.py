@@ -19,7 +19,7 @@ def create_or_update_profile(sender, instance, created, **kwargs):
         profile.save()
 
 
-#if Profile is updated, update synced fields of User(email, phone_numver and username)
+#if Profile is updated, update synced fields of User(email, phone_number and username)
 @receiver(post_save, sender=Profile)
 def sync_profile_to_user(sender, instance, **kwargs):
     user = instance.user

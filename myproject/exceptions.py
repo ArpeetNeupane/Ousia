@@ -8,7 +8,7 @@ def custom_exception_handler(exc, context):
     if isinstance(exc, Throttled):
         return api_response(
             is_success=False,
-            error_message="Too many requests. Please wait for some time before trying again.",
+            error_message="Please wait for some time before trying again.",
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         )
 

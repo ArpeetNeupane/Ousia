@@ -114,8 +114,12 @@ class UserPasswordUpdateSerializer(serializers.Serializer):
         return value
 
     def validate(self, data):
+        current_password = data.get("current_password")
         new_password = data.get("new_password")
         confirm_new_password = data.get("confirm_new_password")
+
+        if new_password == current_password:
+            raise serializers.ValidationError({"current_password": "New password cannot be the same as current password."})
 
         if new_password != confirm_new_password:
             raise serializers.ValidationError({"new_password": "New passwords do not match."})
