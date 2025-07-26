@@ -1,18 +1,18 @@
-# 📱 Ousia – A Privacy-First Social Media App
+📱 Ousia – A Privacy-First Social Media App
 
-> 🧠 Powered by Sentiment Analysis · 🎓 Final Year Project · 🔒 Child Protection Focus
+🧠 Powered by Sentiment Analysis · 🎓 Final Year Project · 🔒 Child Protection Focus
 
 ---
 
-## 🌟 Overview
+🌟 Overview
 
-**Ousia** is a mobile-first social media platform designed to **foster safe digital communication**, especially for underage users. Leveraging **AI-powered sentiment analysis**, it automatically detects and blocks **hate speech**, **NSFW content**, and **toxicity** in real-time, ensuring a **positive online environment**.
+Ousia is a mobile-first social media platform designed to foster safe digital communication, especially for underage users. Leveraging AI-powered sentiment analysis, it automatically detects and blocks hate speech, NSFW content, and toxicity in real-time, ensuring a positive online environment.
 
 This project was built as part of my **Final Year Project** to address the growing concern of children’s exposure to harmful content online.
 
 ---
 
-## 🚀 Features
+🚀 Features
 
 - ✨ Real-time sentiment analysis using ML models
 - 🧼 Automatic filtering of hate/NSFW content
@@ -26,25 +26,23 @@ This project was built as part of my **Final Year Project** to address the growi
 
 ---
 
-## 🛠️ Tech Stack
+🛠️ Tech Stack
 
-| Layer         | Tech Used |
-|---------------|-----------|
-| **Frontend**  | Flutter   |
-| **Backend**   | Django + Django REST Framework |
-| **AI/ML**     | Still in development so not sure yet. |
-| **Database**  | PostgreSQL |
-| **Storage**   | Cloudinary |
-| **Containerization** | Docker + docker-compose |
-| **Auth**      | JWT with Argon2 hashing |
-| **Docs**      | Swagger (drf-yasg) |
+| Layer              | Tech Used                             |
+|--------------------|---------------------------------------|
+| Frontend           | Flutter                               |
+| Backend            | Django + Django REST Framework        |
+| AI/ML              | Still in development so not sure yet. |
+| Database           | PostgreSQL                            |
+| Storage            | Cloudinary                            |
+| Containerization   | Docker + docker-compose               |
+| Auth               | JWT with Argon2 hashing               |
+| Docs               | Swagger (drf-yasg)                    |
 
 ---
 
-## 📦 Folder Structure
+📦 Folder Structure
 
-```bash
-.
 ├── accounts/              # User authentication, JWT, password hashing
 ├── core/                  # Social features (posts, comments, friendships)
 ├── communication/         # Real time chat functionality using Django channels
