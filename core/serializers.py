@@ -1,5 +1,16 @@
 from core import models
-from core.models import Emotion, UserEmotion, HashTag, Post, MediaUpload, PostHashTag, Like, Comment, FriendRequest, Friend
+from core.models import (
+    Emotion,
+    UserEmotion,
+    HashTag,
+    Post,
+    MediaUpload,
+    PostHashTag,
+    Like,
+    Comment,
+    FriendRequest,
+    Friend
+)
 from core.mixins import MediaValidationMixin
 from core.service import PostCreateService, PostUpdateService
 from accounts.models import User
