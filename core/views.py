@@ -308,7 +308,7 @@ class UserEmotionCreateAPIView(generics.CreateAPIView):
 
         last_emotion = UserEmotion.objects.filter(user=user).order_by('-noted_at').first()
         if last_emotion and timezone.now() - last_emotion.noted_at < timedelta(hours=1):
-            raise ValidationError("You can only submit one emotion per hour. Please wait before submitting again.")
+            raise ValidationError("You can only choose another mood after an hour. Please wait before submitting again.")
         serializer.save(user=user)
 
     @swagger_auto_schema(

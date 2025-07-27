@@ -37,7 +37,8 @@ AUTH_USER_MODEL = 'accounts.User'
 
 INSTALLED_APPS = [
     #third-party apps
-    # "daphne",
+    "daphne",
+    "channels",
     "rest_framework",
     "rest_framework_simplejwt",
     'rest_framework_simplejwt.token_blacklist',
@@ -49,6 +50,7 @@ INSTALLED_APPS = [
     #project apps
     "accounts.apps.AccountsConfig",
     "core",
+    "communication",
 
     "django.contrib.admin",
     "django.contrib.auth",
@@ -86,6 +88,17 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "myproject.wsgi.application"
+
+ASGI_APPLICATION = "myproject.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [('127.0.0.1', 6379)]
+        },
+    },
+}
 
 
 # Database
