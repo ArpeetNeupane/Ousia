@@ -199,3 +199,66 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 instance.pfp_public_id = result.get("public_id")
 
             return super().update(instance, validated_data)
+
+
+class ProfileAdminUpdateSerializer(serializers.ModelSerializer):
+    pfp = serializers.ImageField(write_only=True, required=False)
+    pfp_url = serializers.SerializerMethodField(read_only=True)
+    class Meta:
+        model = Profile
+        fields = [
+            'id', 'synced_username', 'synced_email', 'synced_phone_number', 'bio', 'address', 'birth_date',
+            'created_at', 'updated_at', 'pfp_public_id', 'pfp_url', 'pfp'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'pfp_public_id', 'pfp_url']
+
+    def get_pfp_url(self, obj):
+        if not obj.pfp_public_id:
+            return None
+        url, _ = cloudinary_url(obj.pfp_public_id, resource_type="image")
+        return url
+
+    def validate_pfp(self, data):
+        max_size_mb = getattr(settings, 'MAX_IMAGE_SIZE_MB', 6) * 1024 * 1024
+        if data.size > max_size_mb:
+            raise serializers.ValidationError(
+                {"pfp": "Max size of profile picture should be less than 6 MB."}
+            )
+
+        #checking image dimensions
+        width,height =  get_image_dimensions(data)
+        max_width = getattr(settings, 'MAX_IMAGE_WIDTH', 2500)
+        max_height = getattr(settings, 'MAX_IMAGE_HEIGHT', 1500)
+        if width > max_width or height > max_height:
+            raise serializers.ValidationError(
+                {"pfp": "Profile picture dimension should not exceed 2500x1500px."}
+            )
+
+        #checking allowed extensions
+        ext = os.path.splitext(data.name)[1].lower()
+        allowed_exts = [".jpg", ".jpeg", ".png", ".webp"]
+        if ext not in allowed_exts:
+            raise serializers.ValidationError(
+                {"pfp": f"Unsupported file extension '{ext}'. Allowed: {', '.join(allowed_exts)}"}
+            )
+
+        #checking MIME type. ImageField already checks but doubling down
+        mime_type = data.content_type
+        if not mime_type.startswith("image/"):
+            raise serializers.ValidationError("Uploaded file is not an image.")
+
+        return data
+
+    def update(self, instance, validated_data):
+        with transaction.atomic():
+            for field in ['synced_username', 'synced_email', 'synced_phone_number', 'bio', 'address', 'birth_date']:
+                value = validated_data.get(field, None)
+                if value == "":
+                    validated_data.pop(field)
+
+            image = validated_data.pop('pfp', None)
+            if image:
+                result = cloudinary_upload(image)
+                instance.pfp_public_id = result.get("public_id")
+
+            return super().update(instance, validated_data)

@@ -1,6 +1,4 @@
 from django.db import models
-from django.contrib.auth import get_user_model
-from django.utils import timezone
 from django.core.exceptions import ValidationError
 
 import uuid
@@ -9,18 +7,17 @@ from accounts.models import User
 from communication.managers import ChatManager
 
 
-
 class Conversation(models.Model):
     """This model represents a conversation between users"""
     id = models.UUIDField(primary_key=True, editable=False, default=uuid.uuid4)
     participants = models.ManyToManyField(User, related_name='conversations')
     is_group = models.BooleanField(default=False)
-    group_name = models.CharField(max_length=100, blank=False, null=False)
+    group_name = models.CharField(max_length=100, null=True, blank=True)
     group_admin = models.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 
         null=True, 
-        blank=False, #the one who creates the group will be the admin
+        blank=True, #the one who creates the group will be the admin
         related_name='group_admin'
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -29,6 +26,8 @@ class Conversation(models.Model):
 
     class Meta:
         ordering = ['-updated_at']
+        verbose_name = 'Conversation'
+        verbose_name_plural = 'Conversations'
 
     objects = ChatManager()
 
@@ -49,6 +48,10 @@ class Conversation(models.Model):
             raise ValidationError("Group name should not be set for 1-on-1 conversations.")
         if not self.is_group and self.participants.count() > 2:
             raise ValidationError("1-on-1 conversations cannot have more than 2 participants.")
+
+    def make_group_admin(self, user):
+        if self.is_group and not self.group_admin:
+            self.group_admin = user
 
     def get_other_participant(self, user):
         """This function is used to get the other participant in a 1-on-1 conversation"""
@@ -133,7 +136,6 @@ class Conversation(models.Model):
         self.save()
 
 
-
 class Message(models.Model):
     "This class represents a message in a conversation."
     class MessageTypes(models.TextChoices):
@@ -166,6 +168,8 @@ class Message(models.Model):
 
     class Meta:
         ordering = ['created_at']
+        verbose_name = 'Message'
+        verbose_name_plural = 'Messages'
 
     def __str__(self):
         sender_name = getattr(self.sender, 'username', 'Unknown')

@@ -8,7 +8,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
 
 from accounts.models import Profile
-from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer
+from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer
 from accounts.permissions import IsAuthenticatedOrAdmin
 from myproject.utils import api_response, blacklist_user_tokens
 
@@ -185,7 +185,6 @@ class ProfileUpdateAPI(generics.UpdateAPIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'update_username'
     http_method_names = ["patch"]
-    lookup_field = 'user_id'
 
     def get_object(self):
         user_id_param = self.kwargs.get("user_id")
@@ -275,7 +274,7 @@ class ProfileUpdateAPI(generics.UpdateAPIView):
 class ProfileAdminUpdateAPI(generics.UpdateAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticatedOrAdmin]
-    serializer_class = ProfileUpdateSerializer
+    serializer_class = ProfileAdminUpdateSerializer
     parser_classes = [FormParser, MultiPartParser]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'update_username'
