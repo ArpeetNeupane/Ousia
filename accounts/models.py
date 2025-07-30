@@ -23,6 +23,10 @@ class UserManager(BaseUserManager):
         if not phone_number:
             raise ValueError("A phone number must be set.")
 
+        if role == RoleEnum.ADMIN:
+            extra_fields.setdefault("is_admin", True)
+            extra_fields.setdefault("is_staff", True)
+
         email = self.normalize_email(email) #normalize_email is a helper method on the manager itself so you dont need to call model
         username = self.model.normalize_username(username) #normalize_username is a custom method
         user = self.model(username=username, email=email, phone_number=phone_number, role=role, **extra_fields)
