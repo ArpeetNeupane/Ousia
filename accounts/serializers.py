@@ -8,7 +8,7 @@ from django.conf import settings
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from accounts.models import User, Profile
+from accounts.models import User, Profile, RoleEnum
 
 from cloudinary.utils import cloudinary_url
 from cloudinary.uploader import upload as cloudinary_upload
@@ -35,6 +35,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         password = data['password']
         confirm_password = data["confirm_password"]
         phone_number = data['phone_number']
+        role = data['role']
 
         if not phone_number.isdigit():
             raise serializers.ValidationError(
@@ -44,7 +45,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"phone_number": "Phone number must have at least 10 digits."}
             )
-
+        existing_superuser = User.objects.filter(role=RoleEnum.SUPERUSER).exists()
+        if role==RoleEnum.SUPERUSER and existing_superuser:
+            raise serializers.ValidationError(
+                {"existing_role": "A superuser already exists."}
+            )
         try:
             validate_password(password)
         except ValidationError as e:
