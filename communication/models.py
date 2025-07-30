@@ -7,10 +7,18 @@ from accounts.models import User
 from communication.managers import ChatManager
 
 
+class ConversationParticipant(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    conversation = models.ForeignKey('Conversation', on_delete=models.CASCADE)
+    deleted_for_user = models.BooleanField(default=False)
+    class Meta:
+        unique_together = ('user', 'conversation')
+
+
 class Conversation(models.Model):
     """This model represents a conversation between users"""
     id = models.UUIDField(primary_key=True, editable=False, default=uuid.uuid4)
-    participants = models.ManyToManyField(User, related_name='conversations')
+    participants = models.ManyToManyField(User, through='ConversationParticipant')
     is_group = models.BooleanField(default=False)
     group_name = models.CharField(max_length=100, null=True, blank=True)
     group_admin = models.ForeignKey(
