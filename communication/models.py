@@ -13,6 +13,8 @@ class ConversationParticipant(models.Model):
     deleted_for_user = models.BooleanField(default=False)
     class Meta:
         unique_together = ('user', 'conversation')
+        verbose_name = 'Conversation Participant'
+        verbose_name_plural = 'Conversation Participants'
 
 
 class Conversation(models.Model):
@@ -140,8 +142,9 @@ class Conversation(models.Model):
             self.save()
 
     def soft_delete(self):
-        self.is_deleted = True
-        self.save()
+        if not self.is_deleted: #idempotent
+            self.is_deleted = True
+            self.save()
 
 
 class Message(models.Model):

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from communication.models import Conversation
+from communication.models import Conversation, ConversationParticipant
 
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
@@ -8,3 +8,5 @@ class ConversationAdmin(admin.ModelAdmin):
     search_fields = ['group_name', 'group_admin__username']
     list_filter = ['is_group', 'is_deleted']
     readonly_fields = ['id', 'created_at', 'updated_at']
+
+admin.site.register(ConversationParticipant)

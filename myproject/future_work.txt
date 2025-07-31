@@ -112,7 +112,19 @@ library like bleach to allow only a safe subset of HTML tags. ✅xss doesnt matt
 10. tests - not api tests but django tests
 
 
+
 # emotion update delete garda clean vaira xaina test required
+
 # post delete ma delete vairaxina probably test, update ma hunxa hola
+
 # test soft delete of post
+
 # search for any user filter
+
+# in conversation, there is a check in convo create that if the convo with the other user exists, return the convo id instead
+# and imma add a feature that if the convo was deleted_for_user and user creates a convo with the same person or searches in the filter
+# bar like in messenger, so dont forget to add a feature in messages that does the same shit, soft deletes the message for one user
+# so that for the one who deleted the convo, it seems like its a new chat, but for the other user who kept it, it will seem like the
+# conversation is continuing ✅for conversation left for message
+
+# refactor into a service class image upload logic

@@ -16,7 +16,7 @@ This project is currently maintained by a solo developer. While contributions ar
 ## 🛠️ How to Contribute
 
 ### 🐞 Report Bugs
-1. Open an [issue](https://github.com/your-username/sentinote/issues)
+1. Open an [issue](https://github.com/ArpeetNeupane/ousia/issues)
 2. Use the **Bug Report** template
 3. Include:
    - Clear steps to reproduce

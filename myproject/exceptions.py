@@ -1,5 +1,5 @@
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied, NotAuthenticated, Throttled
+from rest_framework.exceptions import PermissionDenied, NotAuthenticated, Throttled, NotFound
 from rest_framework.views import exception_handler
 
 from myproject.utils import api_response
@@ -17,6 +17,13 @@ def custom_exception_handler(exc, context):
             is_success=False,
             error_message=str(exc),
             status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+    if isinstance(exc, NotFound):
+        return api_response(
+            is_success=False,
+            error_message="Object not found.",
+            status_code=status.HTTP_404_NOT_FOUND,
         )
 
     response = exception_handler(exc, context)

@@ -2,7 +2,8 @@ from django.db import transaction
 
 from accounts.serializers import UserSerializer
 
-from accounts.models import User
+from accounts.models import User, Profile
+from accounts.serializers import ProfilePictureSerializer
 from communication.service import check_for_existing_one_on_one_conversation
 from communication.models import Conversation, Message
 
@@ -11,10 +12,19 @@ from rest_framework import serializers
 
 class ConversationResponseSerializer(serializers.ModelSerializer):
     participants = UserSerializer(many=True, read_only=True)
+    pfp_info = serializers.SerializerMethodField()
     class Meta:
         model=Conversation
-        fields = ['id', 'participants', 'is_group', 'group_name', 'group_admin', 'created_at', 'updated_at', 'is_deleted']
+        fields = ['id', 'participants', 'pfp_info', 'is_group', 'group_name', 'group_admin', 'created_at', 'updated_at', 'is_deleted']
         read_only_fields = ['id', 'is_group', 'group_admin', 'created_at', 'updated_at', 'is_deleted']
+
+    def get_pfp_info(self, obj):
+        current_user = self.context['request'].user
+        other_participants = obj.participants.exclude(id=current_user.id)
+        profiles = Profile.objects.select_related('user').filter(
+            user__in=other_participants
+        )
+        return ProfilePictureSerializer(profiles, many=True).data
 
 
 class ConversationCreateSerializer(serializers.ModelSerializer):

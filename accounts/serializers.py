@@ -143,6 +143,20 @@ class UserPasswordUpdateSerializer(serializers.Serializer):
         return instance
 
 
+class ProfilePictureSerializer(serializers.ModelSerializer):
+    pfp_url = serializers.SerializerMethodField(read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    class Meta:
+        model=Profile
+        fields = ['pfp_url', 'username']
+
+    def get_pfp_url(self, obj):
+        if not obj.pfp_public_id:
+            return None
+        url, _ = cloudinary_url(obj.pfp_public_id, resource_type="image")
+        return url
+
+
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     pfp = serializers.ImageField(write_only=True, required=False)
     pfp_url = serializers.SerializerMethodField(read_only=True)
