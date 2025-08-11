@@ -6,10 +6,11 @@ from rest_framework import generics
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 from accounts.models import Profile
 from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer
-from accounts.permissions import IsAuthenticatedOrAdmin
+from accounts.permissions import IsAuthenticatedOrAdmin, IsOwnerOfProfile
 from myproject.utils import api_response, blacklist_user_tokens
 
 from drf_yasg.utils import swagger_auto_schema
@@ -126,7 +127,7 @@ class LoginView(APIView):
 class UserPasswordUpdateAPI(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'update_password'
-    permission_classes = [IsAuthenticatedOrAdmin]
+    permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
     @swagger_auto_schema(
@@ -179,7 +180,7 @@ class UserPasswordUpdateAPI(APIView):
 
 class ProfileUpdateAPI(generics.UpdateAPIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticatedOrAdmin]
+    permission_classes = [IsOwnerOfProfile]
     serializer_class = ProfileUpdateSerializer
     parser_classes = [FormParser, MultiPartParser]
     throttle_classes = [ScopedRateThrottle]
@@ -273,7 +274,7 @@ class ProfileUpdateAPI(generics.UpdateAPIView):
 
 class ProfileAdminUpdateAPI(generics.UpdateAPIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticatedOrAdmin]
+    permission_classes = [IsAdminUser]
     serializer_class = ProfileAdminUpdateSerializer
     parser_classes = [FormParser, MultiPartParser]
     throttle_classes = [ScopedRateThrottle]
