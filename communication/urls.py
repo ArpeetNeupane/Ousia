@@ -6,7 +6,10 @@ from communication.views import (
     ConversationRetrieveAPI, 
     ConversationUpdateAPI, 
     ConversationSoftDBDeleteAPI,
-    ConversationSoftDeleteForUserAPI
+    ConversationSoftDeleteForUserAPI,
+    AddParticipantAPI,
+    RemoveParticipantAPI,
+    LeaveGroupAPI
 )
 
 urlpatterns = [
@@ -16,4 +19,7 @@ urlpatterns = [
     path('conversation-update/<uuid:id>/', ConversationUpdateAPI.as_view(), name='conversation_update'),
     path('conversation-delete/<uuid:id>/', ConversationSoftDBDeleteAPI.as_view(), name='conversation_soft_db_delete'),
     path('conversation-soft-delete-for-user/<uuid:id>/', ConversationSoftDeleteForUserAPI.as_view(), name='conversation_soft_delete_for_user'),
+    path('add_participant/<uuid:id>/', AddParticipantAPI.as_view(), name='add-participant'),
+    path('remove_participant/<uuid:id>/', RemoveParticipantAPI.as_view(), name='remove-participant'),
+    path('leave_group/<uuid:id>/', LeaveGroupAPI.as_view(), name='leave-group'),
 ]

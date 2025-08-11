@@ -1,3 +1,5 @@
+from accounts.models import User
+
 from communication.models import Conversation, ConversationParticipant, Message
 from communication.serializers import (
     ConversationResponseSerializer,
@@ -6,11 +8,12 @@ from communication.serializers import (
     MessageResponseSerializer
 )
 from communication.paginations import CommunicationPagination
-from communication.permissions import BelongsToConversation
+from communication.permissions import BelongsToConversation, IsAdminOfConversation
 from communication.filters import ConversationFilter
 from myproject.utils import api_response
 
 from rest_framework import generics, status
+from rest_framework.views import APIView
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
@@ -20,6 +23,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
+
+from django.shortcuts import get_object_or_404
 
 
 class ConversationListAPI(generics.ListAPIView):
@@ -279,8 +284,12 @@ class ConversationUpdateAPI(generics.UpdateAPIView):
 
 class ConversationSoftDBDeleteAPI(generics.DestroyAPIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminOfConversation]
     lookup_field = 'id'
+
+    def get_queryset(self):
+        user = self.request.user
+        return Conversation.objects.filter(participants=user, is_deleted=False)
 
     def destroy(self, request, *args, **kwargs):
         try:
@@ -324,7 +333,7 @@ class ConversationSoftDeleteForUserAPI(generics.DestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Conversation.objects.filter(participants=user)
+        return Conversation.objects.filter(participants=user, is_deleted=False)
 
     def perform_destroy(self, instance):
         user = self.request.user
@@ -337,7 +346,7 @@ class ConversationSoftDeleteForUserAPI(generics.DestroyAPIView):
         try:
             link = ConversationParticipant.objects.get(user=user, conversation=instance)
         except ConversationParticipant.DoesNotExist:
-            raise PermissionError(f"{user} is not a participant.")
+            raise PermissionDenied(f"{user} is not a participant.")
 
         if instance.is_group:
             if instance.group_admin == user:
@@ -367,3 +376,207 @@ class ConversationSoftDeleteForUserAPI(generics.DestroyAPIView):
                 error_message=str(e),
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @swagger_auto_schema(
+        operation_description="Soft deletes the conversation for the authenticated user. "
+                                "For 1-1 chats and group participants (not admins), this marks the conversation as deleted for that user only. "
+                                "Group admins must either delete the group or transfer admin before deleting for themselves.",
+        responses={
+            200: openapi.Response(description="Conversation successfully deleted for user."),
+            400: openapi.Response(description="Validation error."),
+            403: openapi.Response(description="Forbidden - you do not have permission."),
+            404: openapi.Response(description="Conversation not found."),
+            500: openapi.Response(description="Internal server error.")
+        },
+        tags=["Conversation"]
+    )
+    def delete(self, request, *args, **kwargs):
+        return self.destroy(request, *args, **kwargs)
+
+
+class AddParticipantAPI(APIView):
+    permission_classes = [IsAuthenticated, BelongsToConversation]
+
+    def get_object(self):
+        return get_object_or_404(Conversation, id=self.kwargs["id"])
+
+    @swagger_auto_schema(
+        operation_description="Add participant to a group chat. Only group chats are allowed. Requires `user_ids` as a list of integers.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["user_ids"],
+            properties={
+                "user_ids": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(type=openapi.TYPE_INTEGER),
+                    description="List of user IDs to add to the conversation."
+                ),
+            },
+        ),
+        responses={
+            200: openapi.Response(
+                description="Participants added successfully",
+                examples={"application/json": {
+                    "is_success": True,
+                    "result": {"message": "Participant/s added successfully."}
+                }},
+            ),
+            400: "Validation error",
+            403: "Permission denied",
+            404: "Conversation or user not found"
+        },
+        tags=["Conversation Utilities"]
+    )
+    def post(self, request, id):
+        conversation = self.get_object()
+
+        if not conversation.is_group: #any user of the group can add another user
+            raise PermissionDenied("Participants can only be added in a group chat.")
+
+        user_ids = request.data.get('user_ids', [])
+        if not user_ids:
+            raise ValidationError("No user IDs were provided.")
+
+        #fetching all requested users
+        users = User.objects.filter(id__in=user_ids)
+
+        if users.count() != len(user_ids):
+            raise ValidationError("One or more user IDs are invalid.")
+
+        existing_users = conversation.participants.filter(id__in=user_ids)
+        new_users = users.exclude(id__in=existing_users.values_list('id', flat=True))
+
+        if not new_users:
+            #if only one user is being added
+            if len(user_ids) == 1:
+                raise ValidationError(f"User '{existing_users.first().username}' is already a participant in this group.")
+            else:
+                raise ValidationError("All provided users are already participants in this group.")
+
+        for user in new_users:
+            conversation.add_participant(user)
+
+        #if single user
+        if len(user_ids) == 1:
+            return api_response(
+                is_success=True,
+                result={"message": f"1 participant added successfully."},
+                status_code=status.HTTP_200_OK
+            )
+
+        #if some participants already exist in the conversation
+        if existing_users.exists():
+            return api_response(
+                is_success=True,
+                result={"message": f"User(s) {', '.join(sorted(existing_users.values_list('username', flat=True)))} already in conversation, other participants added."},
+                status_code=status.HTTP_200_OK
+            )
+
+        return api_response(
+            is_success=True,
+            result={"message": f"{new_users.count()} participant(s) added successfully."},
+            status_code=status.HTTP_200_OK
+        )
+
+
+class RemoveParticipantAPI(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOfConversation]
+
+    def get_object(self):
+        return get_object_or_404(Conversation, id=self.kwargs["id"])
+
+    @swagger_auto_schema(
+        operation_description="Remove participants from a group chat. Only the group admin can remove participants. If removing will leave 1 or 0 participants, confirmation is required.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["user_ids"],
+            properties={
+                "user_ids": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(type=openapi.TYPE_INTEGER),
+                    description="List of user IDs to remove from the conversation."
+                ),
+                "confirmation": openapi.Schema(
+                    type=openapi.TYPE_BOOLEAN,
+                    description="Confirm if removal will delete the conversation."
+                )
+            },
+        ),
+        responses={
+            200: openapi.Response(
+                description="Participants removed successfully",
+                examples={"application/json": {
+                    "is_success": True,
+                    "result": {"message": "Participants removed successfully."}
+                }},
+            ),
+            400: "Validation error",
+            403: "Permission denied",
+            404: "Conversation or user not found"
+        },
+        tags=["Conversation Utilities"]
+    )
+    def post(self, request, id):
+        conversation = self.get_object()
+
+        user_ids = request.data.get('user_ids', [])
+        confirmation = request.data.get('confirmation', False)
+
+        if not user_ids:
+            raise ValidationError("No user IDs were provided.")
+
+        users_to_remove = User.objects.filter(id__in=user_ids)
+        if users_to_remove.count() != len(user_ids):
+            raise ValidationError("One or more user IDs are invalid.")
+        for user in users_to_remove:
+            conversation.remove_participants(user, request.user, confirmation)
+
+        return api_response(
+            is_success=True,
+            result={"message": "Participants removed successfully."},
+            status_code=status.HTTP_200_OK
+        )
+
+
+class LeaveGroupAPI(APIView):
+    permission_classes = [IsAuthenticated, BelongsToConversation]
+
+    def get_object(self):
+        return get_object_or_404(Conversation, id=self.kwargs["id"])
+
+    @swagger_auto_schema(
+        operation_description="Leave a group conversation. If you are the admin, the next participant becomes the admin, or the conversation is deleted if only 1 participant remains.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "confirmation": openapi.Schema(
+                    type=openapi.TYPE_BOOLEAN,
+                    description="Confirm if leaving will delete the conversation."
+                )
+            },
+        ),
+        responses={
+            200: openapi.Response(
+                description="Left group successfully",
+                examples={"application/json": {
+                    "is_success": True,
+                    "result": {"message": "You have left the group."}
+                }},
+            ),
+            400: "Validation error",
+            403: "Permission denied",
+            404: "Conversation not found"
+        },
+        tags=["Conversation Utilities"]
+    )
+    def post(self, request, id):
+        conversation = self.get_object()
+        confirmation = request.data.get('confirmation', False)
+
+        conversation.leave_group(request.user, confirmation)
+
+        return api_response(
+            is_success=True,
+            result={"message": "You have left the group."},
+            status_code=status.HTTP_200_OK
+        )

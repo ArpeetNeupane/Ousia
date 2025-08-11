@@ -4,7 +4,19 @@ from rest_framework.views import exception_handler
 
 from myproject.utils import api_response
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+
+
 def custom_exception_handler(exc, context):
+    #handling Django ValidationError for errors from model methods
+    if isinstance(exc, DjangoValidationError):
+        detail = exc.message_dict if hasattr(exc, 'message_dict') else exc.messages
+        return api_response(
+            is_success=False,
+            error_message=detail,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
     if isinstance(exc, Throttled):
         return api_response(
             is_success=False,

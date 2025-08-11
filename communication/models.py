@@ -16,6 +16,9 @@ class ConversationParticipant(models.Model):
         verbose_name = 'Conversation Participant'
         verbose_name_plural = 'Conversation Participants'
 
+    def __str__(self):
+        return f"{self.user.username} in {self.conversation}"
+
 
 class Conversation(models.Model):
     """This model represents a conversation between users"""
@@ -73,7 +76,8 @@ class Conversation(models.Model):
         """This function is used to add a participant to the conversation"""
         self.participants.add(user)
         if self.participants.count() > 2:
-            self.is_group = True
+            if not self.is_group:
+                self.is_group = True
         self.save()
 
     def remove_participants(self, users_to_remove, admin_user, confirmation=False):
@@ -121,6 +125,7 @@ class Conversation(models.Model):
         if not self.is_group:
             raise ValidationError("Only group conversations support leaving.")
 
+        #regular user can leave group with no problem
         if user != self.group_admin:
             self.participants.remove(user)
             self.save()
