@@ -143,6 +143,13 @@ class UserPasswordUpdateSerializer(serializers.Serializer):
         return instance
 
 
+class ProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=Profile
+        fields=['id', 'synced_username', 'synced_email', 'synced_phone_number', 'bio', 'address', 'birth_date',
+            'created_at', 'updated_at', 'pfp_public_id']
+
+
 class ProfilePictureSerializer(serializers.ModelSerializer):
     pfp_url = serializers.SerializerMethodField(read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)

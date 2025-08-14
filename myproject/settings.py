@@ -29,7 +29,11 @@ SECRET_KEY = config("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=False, cast=bool) #converting to datatype boolean
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOW_CREDENTIALS = True
 
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -46,6 +50,7 @@ INSTALLED_APPS = [
     "cloudinary",
     "cloudinary_storage",
     "django_filters",
+    'corsheaders',
     
     #project apps
     "accounts.apps.AccountsConfig",
@@ -61,6 +66,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -177,9 +183,9 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.ScopedRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'login': '5/m', #5 requests per minute
-        'update_password': '10/h', #1 request per hour
-        'update_username': '10/h', #1 request per hour
+        'login': '100/m', #5 requests per minute
+        'update_password': '100/h', #1 request per hour
+        'update_username': '100/h', #1 request per hour
     },
     'EXCEPTION_HANDLER': 'myproject.exceptions.custom_exception_handler',
     'DEFAULT_FILTER_BACKENDS': [

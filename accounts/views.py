@@ -9,7 +9,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 from accounts.models import Profile
-from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer
+from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer
 from accounts.permissions import IsAuthenticatedOrAdmin, IsOwnerOfProfile
 from myproject.utils import api_response, blacklist_user_tokens
 
@@ -53,6 +53,7 @@ class RegisterView(APIView):
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
+            print(str(e))
             return api_response(
                 is_success=False,
                 error_message=str(e),
@@ -176,6 +177,48 @@ class UserPasswordUpdateAPI(APIView):
                     error_message=str(e),
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
+
+
+class ProfileResponseAPI(generics.RetrieveAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProfileSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Profile data retrieved successfully.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @swagger_auto_schema(
+        operation_description="Retrieve profile data of currently logged in user.",
+        responses={
+            200: openapi.Response("Successfully retrieved profile data.", ProfileSerializer),
+            401: "Unauthorized - JWT token missing or invalid.",
+            403: "Forbidden",
+            404: "Emotion not found.",
+            500: "Internal server error.",
+        },
+        tags=["User"]
+    )
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
 
 
 class ProfileUpdateAPI(generics.UpdateAPIView):
