@@ -15,5 +15,5 @@ class ConversationFilter(django_filters.FilterSet):
     def filter_by_username_or_group(self, queryset, name, value):
         return queryset.filter(
             Q(group_name__icontains=value) |
-            Q(participants_username__icontains=value)
+            Q(participants__username__icontains=value)
         ).distinct()

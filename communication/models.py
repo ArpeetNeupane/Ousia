@@ -6,6 +6,10 @@ import uuid
 from accounts.models import User
 from communication.managers import ChatManager
 
+#######need to include deleted for user filter in manager or filter or view - i think has been done already in view's get queryset
+####ill remove file uploads, reply to, and group logic (if its too much) to make it simpler, message serializer validation is left, first
+#properly test conversation
+
 
 class ConversationParticipant(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

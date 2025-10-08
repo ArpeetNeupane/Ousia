@@ -25,6 +25,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 
 
 class ConversationListAPI(generics.ListAPIView):
@@ -427,6 +428,7 @@ class AddParticipantAPI(APIView):
         },
         tags=["Conversation Utilities"]
     )
+    @transaction.atomic
     def post(self, request, id):
         conversation = self.get_object()
 
@@ -516,6 +518,7 @@ class RemoveParticipantAPI(APIView):
         },
         tags=["Conversation Utilities"]
     )
+    @transaction.atomic
     def post(self, request, id):
         conversation = self.get_object()
 
@@ -569,6 +572,7 @@ class LeaveGroupAPI(APIView):
         },
         tags=["Conversation Utilities"]
     )
+    @transaction.atomic
     def post(self, request, id):
         conversation = self.get_object()
         confirmation = request.data.get('confirmation', False)

@@ -107,7 +107,8 @@ class ConversationUpdateSerializer(serializers.ModelSerializer):
 
         if not is_group and group_name:
             raise serializers.ValidationError("A 1-on-1 conversation cannot have a group name.")
-        group_name = group_name.strip()
+        if group_name is not None:
+            group_name = group_name.strip()
         if not group_name:
             raise serializers.ValidationError("Group name cannot be empty.")
         data['group_name'] = group_name
