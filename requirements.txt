@@ -15,7 +15,7 @@ cryptography==44.0.2
 daphne==4.1.2
 django==5.2
 django-cloudinary-storage==0.3.0
-django-cors-headers==4.7.0
+django-cors-headers==4.9.0
 django-filter==25.1
 djangorestframework==3.16.0
 djangorestframework-simplejwt==5.5.0
@@ -37,6 +37,7 @@ python-decouple==3.8
 python-magic-bin==0.4.14
 pytz==2025.2
 pyyaml==6.0.2
+redis==6.4.0
 requests==2.32.4
 service-identity==24.2.0
 setuptools==80.1.0

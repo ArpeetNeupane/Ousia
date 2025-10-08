@@ -107,7 +107,7 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='user_profile')
     pfp_public_id = models.CharField(max_length=255, null=True, blank=True, help_text=_("Cloudinary public ID for the uploaded profile picture."))
-    bio = models.TextField(blank=True, null=True)
+    bio = models.CharField(max_length=500, blank=True, null=True)
     address = models.CharField(max_length=100, blank=True, null=True)
     birth_date = models.DateField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
