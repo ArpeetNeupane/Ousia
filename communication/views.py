@@ -522,6 +522,9 @@ class RemoveParticipantAPI(APIView):
     def post(self, request, id):
         conversation = self.get_object()
 
+        if not conversation.is_group: #removing participant is only allowed in a group chat
+            raise PermissionDenied("Participants can only be removed in a group chat.")
+
         user_ids = request.data.get('user_ids', [])
         confirmation = request.data.get('confirmation', False)
 
@@ -575,6 +578,10 @@ class LeaveGroupAPI(APIView):
     @transaction.atomic
     def post(self, request, id):
         conversation = self.get_object()
+
+        if not conversation.is_group: #leaving is allowed only in a group chat
+            raise PermissionDenied("Participants can only be leave if it's a group chat.")
+
         confirmation = request.data.get('confirmation', False)
 
         conversation.leave_group(request.user, confirmation)
