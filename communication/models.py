@@ -66,6 +66,11 @@ class Conversation(models.Model):
         if not self.is_group and self.participants.count() > 2:
             raise ValidationError("1-on-1 conversations cannot have more than 2 participants.")
 
+    def save(self, *args, **kwargs):
+        #running full validation before saving to ensure clean() rules are applied
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def make_group_admin(self, user):
         if self.is_group and not self.group_admin:
             self.group_admin = user
@@ -204,6 +209,11 @@ class Message(models.Model):
 
         if self.reply_to and self.reply_to.conversation_id != self.conversation_id:
             raise ValidationError("Reply must be in the same conversation.")
+
+    def save(self, *args, **kwargs):
+        #running full validation before saving to ensure clean() rules are applied
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def soft_delete(self):
         if not self.is_deleted: #this makes it idempotent. without this line, even if a message is marked deleted, it will always trigger a save

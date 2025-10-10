@@ -90,6 +90,11 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
         if len(self.phone_number) < 10:
             raise ValidationError({'phone_number': 'Phone number must have at least 10 digits.'})
 
+    def save(self, *args, **kwargs):
+        #running full validation before saving to ensure clean() rules are applied
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def has_perm(self, perm, obj=None):
         if self.is_superuser:
             return True

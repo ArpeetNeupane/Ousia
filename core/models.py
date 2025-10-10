@@ -251,5 +251,10 @@ class Friend(models.Model):
         if self.user1 == self.user2:
             raise ValidationError(_("You cannot have a friendship relationship with yourself."))
 
+    def save(self, *args, **kwargs):
+        #running full validation before saving to ensure clean() rules are applied
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.user1.username} ↔ {self.user2.username}"
