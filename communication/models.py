@@ -219,4 +219,6 @@ class Message(models.Model):
         if not self.is_deleted: #this makes it idempotent. without this line, even if a message is marked deleted, it will always trigger a save
             self.is_deleted = True
             self.content = "This message was deleted"
-            self.save()
+            super(Message, self).save(update_fields=["is_deleted", "content"])
+            #skipping unnecessary validation like the ones in clean inside soft_delete(),
+            #calling the parent save method directly

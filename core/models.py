@@ -222,11 +222,17 @@ class FriendRequest(models.Model):
         verbose_name_plural = _("Friend Requests")
         constraints = [
             models.CheckConstraint(check=~models.Q(from_user=models.F('to_user')), name='no_self_request'), #blocking friend request to self
+            models.UniqueConstraint(fields=['from_user', 'to_user'], name='unique_friend_request')
         ]
 
     def clean(self):
         if self.from_user == self.to_user:
             raise ValidationError(_("You cannot send a friend request to yourself."))
+
+    def save(self, *args, **kwargs):
+        #running full validation before saving to ensure clean() rules are applied
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.from_user.username} → {self.to_user.username} - ({self.status})"
@@ -250,6 +256,11 @@ class Friend(models.Model):
     def clean(self):
         if self.user1 == self.user2:
             raise ValidationError(_("You cannot have a friendship relationship with yourself."))
+
+        #db level validation for unique friendship
+        #ordering users so (B,A) becomes (A,B)
+        if self.user1.id > self.user2.id:
+            self.user1, self.user2 = self.user2, self.user1
 
     def save(self, *args, **kwargs):
         #running full validation before saving to ensure clean() rules are applied

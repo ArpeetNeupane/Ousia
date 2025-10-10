@@ -374,11 +374,8 @@ class FriendResponseSerializer(serializers.ModelSerializer):
     def get_friend(self, obj):
         #returning the other user in the friendship
         request_user = self.context['request'].user
-        if obj.user1 == request_user:
-            return obj.user2.username
-        else:
-            return obj.user1.username
-
+        friend = obj.user2 if obj.user1 == request_user else obj.user1
+        return {"id": friend.id, "username": friend.username}
 
 class FriendSerializer(serializers.ModelSerializer):
     user1 = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
@@ -397,11 +394,13 @@ class FriendSerializer(serializers.ModelSerializer):
         if user1 == user2:
             raise serializers.ValidationError("You cannot create a friendship with yourself.")
 
-        #ordering consistently to match DB UniqueConstraint
-        user_pair = sorted([user1.id, user2.id])
-        if Friend.objects.filter(
-            Q(user1_id=user_pair[0], user2_id=user_pair[1]) |
-            Q(user1_id=user_pair[1], user2_id=user_pair[0])
-        ).exists():
-            raise serializers.ValidationError("Friendship already exists between these users.")
-        return data
+        # This is not required now as there is direct UniqueCOnstraint + db level validation for friendship check
+        # And, the errors will hit exception handler and show a 400 properly
+        # #ordering consistently to match DB UniqueConstraint
+        # user_pair = sorted([user1.id, user2.id])
+        # if Friend.objects.filter(
+        #     Q(user1_id=user_pair[0], user2_id=user_pair[1]) |
+        #     Q(user1_id=user_pair[1], user2_id=user_pair[0])
+        # ).exists():
+        #     raise serializers.ValidationError("Friendship already exists between these users.")
+        # return data
