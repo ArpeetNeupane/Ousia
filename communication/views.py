@@ -16,7 +16,7 @@ from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.exceptions import ValidationError, PermissionDenied
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -226,7 +226,7 @@ class ConversationRetrieveAPI(generics.RetrieveAPIView):
 
 class ConversationUpdateAPI(generics.UpdateAPIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, BelongsToConversation]
+    permission_classes = [IsAdminUser]
     serializer_class = ConversationUpdateSerializer
     http_method_names = ["patch"]
     lookup_field = 'id'
