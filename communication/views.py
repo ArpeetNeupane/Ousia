@@ -38,8 +38,8 @@ class ConversationListAPI(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        #finding conversations not deleted by a user
-        participant_qs = ConversationParticipant.objects.filter(user=user, deleted_for_user=False)
+        #finding conversations (doesn't matter if deleted by a user or not - returning all)
+        participant_qs = ConversationParticipant.objects.filter(user=user)#was deleted_for_user=False but removed it so that if they search fot a deleted convo to chat again, i'll be retrieved
         #getting list of the convo ids
         conversation_ids = participant_qs.values_list('conversation_id', flat=True)
         #flat=True gives a plain list instead of a list of tuples.
@@ -47,7 +47,7 @@ class ConversationListAPI(generics.ListAPIView):
 
         username = self.request.query_params.get("username")
         if username:
-            queryset = queryset.filter(participants__username__icontains=username).exclude(participants=user)
+            queryset = queryset.filter(participants__username__icontains=username)#.exclude(participants=user)
         return queryset
 
     def list(self, request, *args, **kwargs):
@@ -339,11 +339,6 @@ class ConversationSoftDeleteForUserAPI(generics.DestroyAPIView):
     def perform_destroy(self, instance):
         user = self.request.user
 
-        if instance.is_group:
-            if instance.group_admin == user:
-                instance.soft_delete()
-                return
-
         try:
             link = ConversationParticipant.objects.get(user=user, conversation=instance)
         except ConversationParticipant.DoesNotExist:
@@ -351,7 +346,7 @@ class ConversationSoftDeleteForUserAPI(generics.DestroyAPIView):
 
         if instance.is_group:
             if instance.group_admin == user:
-                raise PermissionDenied("Group admins must delete the group, not leave it. They may delete the conversation for them after the admin role has been passed onto someone else.")
+                raise PermissionDenied("You cannot delete this chat as you're still an admin of the group. Use the 'Leave Group' function instead.")
         link.deleted_for_user = True #just letting the regular user of the group delete the convo for them if they're not admin, this line works for both 1-1 convo and regular participants of a group
         link.save()
 
