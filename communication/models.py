@@ -66,9 +66,10 @@ class Conversation(models.Model):
         if not self.is_group and self.participants.count() > 2:
             raise ValidationError("1-on-1 conversations cannot have more than 2 participants.")
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, clean=True, **kwargs):
         #running full validation before saving to ensure clean() rules are applied
-        self.full_clean()
+        if clean:
+            self.full_clean()
         super().save(*args, **kwargs)
 
     def make_group_admin(self, user):
@@ -84,14 +85,14 @@ class Conversation(models.Model):
     def add_participant(self, user):
         """This function is used to add a participant to the conversation"""
         self.participants.add(user)
-        if self.participants.count() > 2:
+        if self.participants.count() > 2: #redundant but keeping for now
             if not self.is_group:
                 self.is_group = True
-        self.save()
+        self.save(clean=False)
 
     def remove_participants(self, users_to_remove, admin_user, confirmation=False):
         """
-        This function is used by Admin for removal of one or more participants.
+        This function is used by Admin of a group for removal of one or more participants.
         Triggers soft-delete if removal would leave only 1 or 0 participants.
         """
         if not self.is_group:
@@ -127,7 +128,7 @@ class Conversation(models.Model):
         else:
             for user in users_to_remove:
                 self.participants.remove(user)
-            self.save()
+            self.save(clean=False) #otherwise last clean check will be triggered
 
     def leave_group(self, user, confirmation=False):
         """Allows admin to leave, transferring admin or soft-deleting if only one participant."""
@@ -137,7 +138,7 @@ class Conversation(models.Model):
         #regular user can leave group with no problem
         if user != self.group_admin:
             self.participants.remove(user)
-            self.save()
+            self.save(clean=False)
             return
 
         remaining = self.participants.exclude(id=user.id)
@@ -153,7 +154,7 @@ class Conversation(models.Model):
         else:
             self.group_admin = remaining.first()
             self.participants.remove(user)
-            self.save()
+            self.save(clean=False)
 
     def soft_delete(self):
         if not self.is_deleted: #idempotent
