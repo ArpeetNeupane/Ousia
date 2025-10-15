@@ -128,3 +128,21 @@ library like bleach to allow only a safe subset of HTML tags. ✅xss doesnt matt
 # conversation is continuing ✅for conversation left for message
 
 # refactor into a service class image upload logic
+
+
+
+#Coding after break
+
+#error messages needs to be fixed when pk related
+'''
+eg: {
+    "StatusCode": 400,
+    "IsSuccess": false,
+    "ErrorMessage": {
+        "post": [
+            "Invalid pk \"2\" - object does not exist."
+        ]
+    },
+    "Result": null
+}
+'''

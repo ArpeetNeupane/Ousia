@@ -4,6 +4,8 @@ from core.serializers import (
     HashTagRetrieveCreateUpdateSerializer,
     PostResponseCreateSerializer,
     PostUpdateSerializer,
+    LikeRetrieveCreateSerializer,
+    CommentRetrieveCreateSerializer,
     FriendRequestCreateSerializer,
     FriendRequestResponseSerializer,
     FriendResponseSerializer,
@@ -15,7 +17,6 @@ from core.models import (
     HashTag,
     Post,
     MediaUpload,
-    PostHashTag,
     Like,
     Comment,
     FriendRequest,
@@ -816,11 +817,204 @@ class MediaDeleteAPI(generics.DestroyAPIView):
 
 
 
+class LikeListCreateAPI(generics.ListCreateAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = LikeRetrieveCreateSerializer
+    pagination_class = DefaultPagination
+    http_method_names = ['get', 'post']
+
+    def get_queryset(self):
+        queryset = Like.objects.select_related('liked_by', 'post')
+        #also fetching the related User (liked_by) and Post objects in the same SQL query using a JOIN.
+        post_id = self.request.query_params.get('post') #eg: url/like/?post=42
+        if post_id:
+            return queryset.filter(post_id=post_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(liked_by=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        try:
+            response = super().create(request, *args, **kwargs)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Like created successfully.",
+                    "data": response.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except ValidationError as ve:
+            return api_response(
+                is_success=False,
+                error_message=ve.detail,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @swagger_auto_schema(
+        operation_description="Create a like on a post. If the post is already liked by the user, the existing like is returned.",
+        request_body=LikeRetrieveCreateSerializer,
+        responses={
+            200: openapi.Response(
+                description="Like created successfully.",
+                schema=LikeRetrieveCreateSerializer
+            ),
+            400: "Validation error.",
+            401: "Unauthorized",
+            500: "Internal server error"
+        },
+        tags=["Likes"]
+    )
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)
+
+
+    def list(self, request, *args, **kwargs):
+        try:
+            response = super().list(request, *args, **kwargs)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Like retrieved successfully.",
+                    "data": response.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @swagger_auto_schema(
+        operation_description="Retrieve the list of likes for posts.",
+        responses={
+            200: openapi.Response(
+                description="Likes retrieved successfully.",
+                schema=LikeRetrieveCreateSerializer(many=True)
+            ),
+            401: "Unauthorized",
+            500: "Internal server error"
+        },
+        tags=["Likes"]
+    )
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+
+
+class CommentListCreateAPI(generics.ListCreateAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = CommentRetrieveCreateSerializer
+    pagination_class = DefaultPagination
+    http_method_names = ['get', 'post']
+
+    def get_queryset(self):
+        queryset = Comment.objects.select_related('commented_by', 'post')
+        post_id = self.request.query_params.get('post')
+        if post_id:
+            return queryset.filter(post_id=post_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(commented_by=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        try:
+            response = super().create(request, *args, **kwargs)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Comment created successfully.",
+                    "data": response.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        except ValidationError as ve:
+            return api_response(
+                is_success=False,
+                error_message=ve.detail,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @swagger_auto_schema(
+        operation_description="Create a comment on a post.",
+        request_body=CommentRetrieveCreateSerializer,
+        responses={
+            200: openapi.Response(
+                description="Like created successfully.",
+                schema=CommentRetrieveCreateSerializer
+            ),
+            400: "Validation error.",
+            401: "Unauthorized",
+            500: "Internal server error"
+        },
+        tags=["Comments"]
+    )
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)
+
+
+    def list(self, request, *args, **kwargs):
+        try:
+            response = super().list(request, *args, **kwargs)
+            return api_response(
+                is_success=True,
+                result={
+                    "message": "Comments retrieved successfully.",
+                    "data": response.data
+                },
+                status_code=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return api_response(
+                is_success=False,
+                error_message=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @swagger_auto_schema(
+        operation_description="Retrieve the list of comments for posts.",
+        responses={
+            200: openapi.Response(
+                description="Comments retrieved successfully.",
+                schema=CommentRetrieveCreateSerializer(many=True)
+            ),
+            401: "Unauthorized",
+            500: "Internal server error"
+        },
+        tags=["Comments"]
+    )
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+
+
 class FriendRequestListCreateAPI(generics.ListCreateAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
     serializer_class = FriendRequestCreateSerializer
-    queryset = FriendRequest.objects.all()
+    # queryset = FriendRequest.objects.all()
     pagination_class = DefaultPagination
     http_method_names = ['get', 'post']
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]

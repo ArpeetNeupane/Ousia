@@ -236,8 +236,9 @@ class PostUpdateSerializer(MediaValidationMixin, serializers.ModelSerializer):
 class LikeRetrieveCreateSerializer(serializers.ModelSerializer):
     liked_by_username = serializers.CharField(source='liked_by.username', read_only=True)
     class Meta:
+        model=Like
         fields = ['id', 'liked_by', 'liked_by_username', 'liked_at', 'post']
-        read_only_fields = ['id', 'liked_at', 'liked_by_username']
+        read_only_fields = ['id', 'liked_at', 'liked_by', 'liked_by_username'] #since like_by is set in the view
         #extra_kwargs = {'liked_by': {'write_only': True}} #not exposing userid in responses
 
     def create(self, validated_data):
@@ -246,15 +247,15 @@ class LikeRetrieveCreateSerializer(serializers.ModelSerializer):
             liked_by=validated_data['liked_by'],
             post=validated_data['post']
         )
-        if not created:
-            return like
+        return like
 
 
 class CommentRetrieveCreateSerializer(serializers.ModelSerializer):
     commented_by_username = serializers.CharField(source='commented_by.username', read_only=True)
     class Meta:
+        model=Comment
         fields = ['id', 'commented_by', 'commented_by_username', 'content', 'commented_at', 'post']
-        read_only_fields = ['id', 'commented_at', 'commented_by_username']
+        read_only_fields = ['id', 'commented_at', 'commented_by', 'commented_by_username']
 
     def validate_content(self, data):
         #making sure comment isn't just whitespace
@@ -263,8 +264,8 @@ class CommentRetrieveCreateSerializer(serializers.ModelSerializer):
         return data
 
 
-class CommentUpdateSerializer(serializers.ModelSerializer):
-    pass
+# class CommentUpdateSerializer(serializers.ModelSerializer):
+#     pass
 
 
 class FriendRequestCreateSerializer(serializers.ModelSerializer):

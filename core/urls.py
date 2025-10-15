@@ -9,6 +9,8 @@ from core.views import (
     PostListCreateAPI,
     PostRetrieveUpdateDeleteAPI,
     MediaDeleteAPI,
+    LikeListCreateAPI,
+    CommentListCreateAPI,
     FriendRequestListCreateAPI,
     FriendRequestResponseAPI,
     FriendRequestDeleteAPI,
@@ -26,6 +28,9 @@ urlpatterns = [
     # path('post/', PostListCreateAPI.as_view(), name='post_list_create'),
     # path('post/<int:pk>/', PostRetrieveUpdateDeleteAPI.as_view(), name='post_retrieve_update_destroy'),
     path('post/<int:post_id>/media_delete/<int:media_id>/', MediaDeleteAPI.as_view(), name='media_delete'),
+
+    path('likes/', LikeListCreateAPI.as_view(), name='like_list_create'),
+    path('comments/', CommentListCreateAPI.as_view(), name='like_list_create'),
 
     path('friend_request/', FriendRequestListCreateAPI.as_view(), name='friend_request'),
     path('friend_request_response/<int:pk>/', FriendRequestResponseAPI.as_view(), name='friend_request_response'),
