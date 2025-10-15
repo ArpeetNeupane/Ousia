@@ -234,11 +234,33 @@ class PostUpdateSerializer(MediaValidationMixin, serializers.ModelSerializer):
 
 
 class LikeRetrieveCreateSerializer(serializers.ModelSerializer):
-    pass
+    liked_by_username = serializers.CharField(source='liked_by.username', read_only=True)
+    class Meta:
+        fields = ['id', 'liked_by', 'liked_by_username', 'liked_at', 'post']
+        read_only_fields = ['id', 'liked_at', 'liked_by_username']
+        #extra_kwargs = {'liked_by': {'write_only': True}} #not exposing userid in responses
+
+    def create(self, validated_data):
+        #using get_or_create to prevent duplicate likes (returns existing like if already liked else creates)
+        like, created = Like.objects.get_or_create(
+            liked_by=validated_data['liked_by'],
+            post=validated_data['post']
+        )
+        if not created:
+            return like
 
 
 class CommentRetrieveCreateSerializer(serializers.ModelSerializer):
-    pass
+    commented_by_username = serializers.CharField(source='commented_by.username', read_only=True)
+    class Meta:
+        fields = ['id', 'commented_by', 'commented_by_username', 'content', 'commented_at', 'post']
+        read_only_fields = ['id', 'commented_at', 'commented_by_username']
+
+    def validate_content(self, data):
+        #making sure comment isn't just whitespace
+        if not data.strip():
+            raise serializers.ValidationError("Comments can't be empty.")
+        return data
 
 
 class CommentUpdateSerializer(serializers.ModelSerializer):

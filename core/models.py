@@ -169,32 +169,8 @@ class Comment(models.Model):
             models.Index(fields=['post', 'commented_at']),
         ]
 
-    @property
-    def comment_like_count(self):
-        return self.like_on_comment.count()
-
     def __str__(self):
         return f"{self.commented_by.username} commented on post {self.post.id}"
-
-
-class CommentLike(models.Model):
-    liked_at = models.DateTimeField(auto_now_add=True)
-    liked_by = models.ForeignKey(User, on_delete=models.CASCADE)
-    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='like_on_comment')
-
-    class Meta:
-        verbose_name = _("CommentLike")
-        verbose_name_plural = _("CommentLikes")
-        constraints = [
-            models.UniqueConstraint(fields=['liked_by', 'comment'], name='unique_liked_by_comment')
-        ]
-        indexes = [
-            models.Index(fields=['comment']),
-            models.Index(fields=['liked_by']),
-        ]
-
-    def __str__(self):
-        return f"{self.liked_by.username} liked comment #{self.comment.id} on post {self.comment.post.id}"
 
 
 class FriendRequest(models.Model):
