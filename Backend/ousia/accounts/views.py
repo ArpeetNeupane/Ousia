@@ -19,8 +19,9 @@ from drf_yasg import openapi
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    parser_classes = [FormParser, MultiPartParser]
 
-    @swagger_auto_schema(
+    @swagger_auto_schema(   
         operation_description="Register a new user.",
         request_body=UserRegistrationSerializer,
         responses={

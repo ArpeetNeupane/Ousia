@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -92,6 +93,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your username';
+                      }
+                      if (value.length < 3 && value.length > 20) {
+                        return 'Username must be between 3-20 characters';
+                      }
+                      return null;
+                    },
                     controller: _usernameController,
                     decoration: InputDecoration(
                       hintText: 'Arpit',
@@ -133,6 +143,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your password';
+                      }
+                      return null;
+                    },
                     controller: _passwordController,
                     obscureText: true,
                     decoration: InputDecoration(
@@ -166,13 +182,28 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // Navigate to main app
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/feed',
-                          (route) => false,
-                        );
+                      onPressed: () async {
+                        if (_formKey.currentState!.validate()) {
+                          final username = _usernameController.text.trim();
+                          final password = _passwordController.text;
+
+                          final authService = AuthService();
+                          final result = await authService.login(username, password);
+
+                          if (result['success']) {
+                            // Navigate to feed or main screen
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              '/feed',
+                              (route) => false,
+                            );
+                          } else {
+                            // Show error message
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(result['message'])),
+                            );
+                          }
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.purple[200],

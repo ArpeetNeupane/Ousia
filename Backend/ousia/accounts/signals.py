@@ -9,17 +9,17 @@ def create_or_update_profile(sender, instance, created, **kwargs):
             user=instance,
             synced_username=instance.username,
             synced_email=instance.email,
-            synced_phone_number=instance.phone_number
+            synced_birth_date=instance.birth_date
         )
     else:
         profile, _ = Profile.objects.get_or_create(user=instance)
         profile.synced_username = instance.username
         profile.synced_email = instance.email
-        profile.synced_phone_number = instance.phone_number
+        profile.synced_birth_date = instance.birth_date
         profile.save()
 
 
-#if Profile is updated, update synced fields of User(email, phone_number and username)
+#if Profile is updated, update synced fields of User(email, birth_date and username)
 @receiver(post_save, sender=Profile)
 def sync_profile_to_user(sender, instance, **kwargs):
     user = instance.user
@@ -31,8 +31,8 @@ def sync_profile_to_user(sender, instance, **kwargs):
     if instance.synced_email and instance.synced_email != user.email:
         user.email = instance.synced_email
         updated = True
-    if instance.synced_phone_number and instance.synced_phone_number != user.phone_number:
-        user.phone_number = instance.synced_phone_number
+    if instance.synced_birth_date and instance.synced_birth_date != user.birth_date:
+        user.birth_date = instance.synced_birth_date
         updated = True
 
     if updated:

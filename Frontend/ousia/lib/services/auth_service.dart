@@ -1,10 +1,11 @@
+import 'dart:io';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../models/profile.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.7:8000/api';
+  static const String baseUrl = 'http://192.168.1.4:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -171,22 +172,43 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> signup(String username, String email, String phoneNumber, String password, String confirmPassword) async {
+  Future<Map<String, dynamic>> signup({
+    required String username,
+    required String email,
+    required DateTime birthDate,
+    required String password,
+    required String confirmPassword,
+    File? selfieImage,  // optional image
+    File? idCardImage,  // optional image
+  }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/register/'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'username': username,
-          'email': email,
-          'phone_number': phoneNumber,
-          'password': password,
-          'confirm_password': confirmPassword,
-          'role': 'user', // Default role
-        }),
-      );
+      var uri = Uri.parse('$baseUrl/register/');
+      var request = http.MultipartRequest('POST', uri);
+
+      // Add text fields
+      request.fields['username'] = username;
+      request.fields['email'] = email;
+      request.fields['birth_date'] = birthDate.toIso8601String().split('T')[0]; //DDDD-MM-DD format
+      request.fields['password'] = password;
+      request.fields['confirm_password'] = confirmPassword;
+      request.fields['role'] = 'user';
+
+      // Add images if provided
+      if (selfieImage != null) {
+        request.files.add(await http.MultipartFile.fromPath(
+          'selfie_image',
+          selfieImage.path,
+        ));
+      }
+      if (idCardImage != null) {
+        request.files.add(await http.MultipartFile.fromPath(
+          'idcard_image',
+          idCardImage.path,
+        ));
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
 
       print('Signup response status: ${response.statusCode}');
       print('Signup response body: ${response.body}');
@@ -196,12 +218,14 @@ class AuthService {
       if (data['is_success'] == true) {
         return {
           'success': true,
-          'message': data['result']['message'] ?? 'Account created successfully! Please login to continue.',
+          'message': data['result']['message'] ??
+              'Account created successfully! Please login to continue.',
         };
       } else {
         return {
           'success': false,
-          'message': _parseErrorMessage(data['error_message'], 'Registration failed'),
+          'message': _parseErrorMessage(
+              data['error_message'], 'Registration failed'),
         };
       }
     } catch (e) {

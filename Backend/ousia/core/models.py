@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 
 class Emotion(models.Model):
     emotion_emoji_name = models.CharField(max_length=20, unique=True)
-    emotion_public_id = models.CharField(help_text=_("Public id of the emoji"))
+    emotion_public_id = models.CharField(max_length=2056, help_text=_("Public id of the emoji"))
 
     upload_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -72,6 +72,18 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter a username';
+                      }
+                      if (value.length < 3 && value.length > 20) {
+                        return 'Username must be between 3-20 characters';
+                      }
+                      if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+                        return 'Only letters, numbers and underscore allowed';
+                      }
+                      return null;
+                    },
                     controller: _usernameController,
                     decoration: InputDecoration(
                       hintText: 'Enter your desired username.',
@@ -113,6 +125,15 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter an email.';
+                      }
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                        return 'Invalid email format.';
+                      }
+                      return null;
+                    },
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
@@ -155,6 +176,15 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter a password';
+                      }
+                      if (value.length < 8) {
+                        return 'Password must be at least 8 characters';
+                      }
+                      return null;
+                    },
                     controller: _passwordController,
                     obscureText: true,
                     decoration: InputDecoration(
@@ -197,6 +227,15 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please confirm your password';
+                      }
+                      if (value != _passwordController.text) {
+                        return 'Passwords do not match';
+                      }
+                      return null;
+                    },
                     controller: _confirmPasswordController,
                     obscureText: true,
                     decoration: InputDecoration(
@@ -232,7 +271,9 @@ class _SignupScreenState extends State<SignupScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         // Navigate to the continue signup screen (selfie/ID upload)
-                        Navigator.pushNamed(context, '/signup-continue');
+                        if (_formKey.currentState!.validate()) {
+                          Navigator.pushNamed(context, '/signup-continue');
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                       ),

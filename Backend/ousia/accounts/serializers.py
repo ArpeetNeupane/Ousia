@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import User, Profile, RoleEnum
 
+import cloudinary
 from cloudinary.utils import cloudinary_url
 from cloudinary.uploader import upload as cloudinary_upload
 
@@ -19,32 +20,62 @@ import os
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'email', 'role', 'phone_number']
-        read_only_fields = ['date_joined']
+        fields = ['id', 'username', 'email', 'role', 'birth_date']
+        read_only_fields = ['id', 'date_joined']
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
+    selfie_image = serializers.ImageField(write_only=True)
+    selfie_url = serializers.SerializerMethodField(read_only=True)
+    idcard_image = serializers.ImageField(write_only=True)
+    idcard_url = serializers.SerializerMethodField(read_only=True)
+
     password = serializers.CharField(write_only=True, required=True)
     confirm_password = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'role', 'phone_number', 'password', 'confirm_password']
+        fields = ['id', 'username', 'email', 'role', 'birth_date', 'password', 'confirm_password',
+                    'selfie_public_id', 'selfie_image', 'selfie_url',
+                    'idcard_public_id', 'idcard_image', 'idcard_url'
+        ]
+        read_only_fields = ['id', 'selfie_public_id', 'idcard_public_id']
+
+    def get_selfie_url(self, obj):
+        try:
+            public_id = getattr(obj, "selfie_public_id", None)
+            #returning no url if public id isn't found
+            if not public_id:
+                return None
+
+            url, _ = cloudinary_url(public_id, resource_type="image", secure=True)
+            return url
+        except Exception:
+            return None
+
+    def get_idcard_url(self, obj):
+        try:
+            public_id = getattr(obj, "idcard_public_id", None)
+            #returning no url if public id isn't found
+            if not public_id:
+                return None
+
+            url, _ = cloudinary_url(public_id, resource_type="image", secure=True)
+            return url
+        except Exception:
+            return None
 
     def validate(self, data):
+        username = data['username']
         password = data['password']
         confirm_password = data["confirm_password"]
-        phone_number = data['phone_number']
         role = data['role']
 
-        if not phone_number.isdigit():
+        if len(username) < 3 and len(username) > 20:
             raise serializers.ValidationError(
-                {"phone_number": "Phone number must only contain digits."}
+                {"username": "Username must be between 3-20 letters long"}
             )
-        if len(phone_number) < 10:
-            raise serializers.ValidationError(
-                {"phone_number": "Phone number must have at least 10 digits."}
-            )
+
         existing_superuser = User.objects.filter(role=RoleEnum.SUPERUSER).exists()
         if role==RoleEnum.SUPERUSER and existing_superuser:
             raise serializers.ValidationError(
@@ -61,11 +92,30 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"password": "Passwords do not match."}
             )
+
+        if role != RoleEnum.SUPERUSER:
+            if "selfie_image" not in data:
+                raise serializers.ValidationError({
+                    "selfie_image": "Selfie image is required."
+                })
+            if "idcard_image" not in data:
+                raise serializers.ValidationError({
+                    "idcard_image": "ID card image is required."
+                })
+
         return data
 
     def create(self, validated_data):
         password = validated_data.pop('password')
         validated_data.pop('confirm_password')
+
+        selfie_image = validated_data.pop("selfie_image", None)
+        idcard_image = validated_data.pop("idcard_image", None)
+        if selfie_image and idcard_image:
+            upload_result_selfie = cloudinary.uploader.upload(selfie_image, resource_type="image")
+            upload_result_idcard = cloudinary.uploader.upload(idcard_image, resource_type="image")
+            validated_data["selfie_public_id"] = upload_result_selfie.get("public_id")
+            validated_data["idcard_public_id"] = upload_result_idcard.get("public_id")
 
         user = User.objects.create_user(password=password, **validated_data)
         return user
@@ -146,7 +196,7 @@ class UserPasswordUpdateSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model=Profile
-        fields=['id', 'synced_username', 'synced_email', 'synced_phone_number', 'bio', 'address', 'birth_date',
+        fields=['id', 'synced_username', 'synced_email', 'synced_birth_date', 'bio', 'address',
             'created_at', 'updated_at', 'pfp_public_id']
 
 
@@ -170,7 +220,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            'id', 'synced_username', 'synced_email', 'synced_phone_number', 'bio', 'address', 'birth_date',
+            'id', 'synced_username', 'synced_email', 'synced_birth_date', 'bio', 'address',
             'created_at', 'updated_at', 'pfp_public_id', 'pfp_url', 'pfp'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'pfp_public_id', 'pfp_url']
@@ -214,7 +264,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         with transaction.atomic():
-            for field in ['synced_username', 'synced_email', 'synced_phone_number', 'bio', 'address', 'birth_date']:
+            for field in ['synced_username', 'synced_email', 'synced_birth_date', 'bio', 'address', 'birth_date']:
                 value = validated_data.get(field, None)
                 if value == "":
                     validated_data.pop(field)
@@ -233,7 +283,7 @@ class ProfileAdminUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            'id', 'synced_username', 'synced_email', 'synced_phone_number', 'bio', 'address', 'birth_date',
+            'id', 'synced_username', 'synced_email', 'synced_birth_date', 'bio', 'address', 'birth_date',
             'created_at', 'updated_at', 'pfp_public_id', 'pfp_url', 'pfp'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'pfp_public_id', 'pfp_url']
@@ -277,7 +327,7 @@ class ProfileAdminUpdateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         with transaction.atomic():
-            for field in ['synced_username', 'synced_email', 'synced_phone_number', 'bio', 'address', 'birth_date']:
+            for field in ['synced_username', 'synced_email', 'synced_birth_date', 'bio', 'address', 'birth_date']:
                 value = validated_data.get(field, None)
                 if value == "":
                     validated_data.pop(field)

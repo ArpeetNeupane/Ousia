@@ -89,12 +89,9 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                     filled: true,
                     fillColor: const Color.fromARGB(255, 255, 255, 255),
 
-                    suffixIcon: Padding(
-                      padding: const EdgeInsets.only(right: 7),
-                      child: Icon(
-                        Icons.calendar_month,
-                        color: Colors.grey[600],
-                      ),
+                    suffixIcon: Icon(
+                      Icons.calendar_month,
+                      color: Colors.grey[600],
                     ),
 
                     border: OutlineInputBorder(
@@ -266,7 +263,27 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                   height: 56,
                   child: ElevatedButton(
                     onPressed: () {
-                      // Complete signup and navigate to main app
+                      if (_dateController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please select your date of birth')),
+                        );
+                        return;
+                      }
+                      
+                      if (_selfieFile == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please upload a selfie')),
+                        );
+                        return;
+                      }
+                      
+                      if (_idCardFile == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please upload your ID card')),
+                        );
+                        return;
+                      }
+                      
                       Navigator.pushNamedAndRemoveUntil(
                         context,
                         '/feed',
