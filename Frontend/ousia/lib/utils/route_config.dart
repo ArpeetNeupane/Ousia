@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/welcome_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/signup_screen.dart';
-// import '../screens/forgot_password_screen.dart';
+import '../screens/user_interest_screen.dart';
 import '../screens/main_navigation_screen.dart';
 import '../screens/signup_continue_screen.dart';
 // import '../screens/edit_profile_screen.dart';
@@ -20,8 +20,8 @@ class RouteConfig {
       case RouteNames.signup:
         return MaterialPageRoute(builder: (_) => const SignupScreen());
       
-      // case RouteNames.forgotPassword:
-      //   return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
+      case RouteNames.userInterest:
+        return MaterialPageRoute(builder: (_) => const UserInterestScreen());
       
       case RouteNames.home:
       case RouteNames.feed:

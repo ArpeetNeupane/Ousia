@@ -13,6 +13,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isPasswordVisible = false;
 
   @override
   void dispose() {
@@ -24,7 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      // backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -34,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 80),
                   
                   // Title
                   const Text(
@@ -54,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 130),
                   // Username Field
                   Align(
                     alignment: Alignment.centerLeft,
@@ -70,20 +71,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      final username = value?.trim();
+                      if (username == null || username.isEmpty) {
                         return 'Please enter your username';
                       }
-                      if (value.length < 3 && value.length > 20) {
+                      if (username.length < 3 && username.length > 20) {
                         return 'Username must be between 3-20 characters';
                       }
                       return null;
                     },
                     controller: _usernameController,
                     decoration: InputDecoration(
-                      hintText: 'Arpit',
-                      hintStyle: TextStyle(color: Colors.grey[400]),
+                      hintText: 'What\'s your username?',
+                      hintStyle: TextStyle(color: Colors.grey[500]),
                       filled: true,
-                      fillColor: Colors.grey[50],
+                      fillColor: const Color.fromARGB(255, 255, 255, 255),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(color: Colors.grey[300]!),
@@ -94,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.purple[200]!),
+                        borderSide: BorderSide(color: Colors.purple[300]!),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -120,18 +122,31 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
+                      final password = value?.trim();
+                      if (password == null || password.isEmpty) {
+                        return 'Please enter your secret code.';
                       }
                       return null;
                     },
                     controller: _passwordController,
-                    obscureText: true,
+                    obscureText: !_isPasswordVisible,
                     decoration: InputDecoration(
-                      hintText: 'Arpit',
-                      hintStyle: TextStyle(color: Colors.grey[400]),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
+                      hintText: 'What\'s your secret code?',
+                      hintStyle: TextStyle(color: Colors.grey[500]),
                       filled: true,
-                      fillColor: Colors.grey[50],
+                      fillColor: const Color.fromARGB(255, 255, 255, 255),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(color: Colors.grey[300]!),
@@ -142,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.purple[200]!),
+                        borderSide: BorderSide(color: Colors.purple[300]!),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -155,13 +170,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   
                   // Login Button
                   SizedBox(
-                    width: double.infinity,
+                    width: 150,
                     height: 56,
                     child: ElevatedButton(
                       onPressed: () async {
                         if (_formKey.currentState!.validate()) {
                           final username = _usernameController.text.trim();
-                          final password = _passwordController.text;
+                          final password = _passwordController.text.trim();
 
                           final authService = AuthService();
                           final result = await authService.login(username, password);
@@ -170,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             // Navigate to feed or main screen
                             Navigator.pushNamedAndRemoveUntil(
                               context,
-                              '/feed',
+                              '/user-interest',
                               (route) => false,
                             );
                           } else {
@@ -182,18 +197,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple[200],
-                        foregroundColor: Colors.black,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
                       ),
                       child: const Text(
                         'Login',
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 18,
                         ),
                       ),
                     ),

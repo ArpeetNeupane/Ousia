@@ -184,10 +184,11 @@ class _SignupScreenState extends State<SignupScreen> {
                     controller: _passwordController,
                     obscureText: !_isPasswordVisible,
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      final password = value?.trim();
+                      if (password == null || password.isEmpty) {
                         return 'Please enter a password';
                       }
-                      if (value.length < 8) {
+                      if (password.length < 8) {
                         return 'Password must be at least 8 characters';
                       }
                       return null;
@@ -245,10 +246,11 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      final cPassword = value?.trim();
+                      if (cPassword == null || cPassword.isEmpty) {
                         return 'Please confirm your password';
                       }
-                      if (value != _passwordController.text) {
+                      if (cPassword != _passwordController.text.trim()) {
                         return 'Passwords do not match';
                       }
                       return null;
@@ -305,10 +307,10 @@ class _SignupScreenState extends State<SignupScreen> {
                             context,
                             MaterialPageRoute(
                               builder: (context) => SignupContinueScreen(
-                                username: _usernameController.text,
-                                email: _emailController.text,
-                                password: _passwordController.text,
-                                confirmPassword: _confirmPasswordController.text,
+                                username: _usernameController.text.trim(),
+                                email: _emailController.text.trim(),
+                                password: _passwordController.text.trim(),
+                                confirmPassword: _confirmPasswordController.text.trim(),
                               ),
                             ),
                           );

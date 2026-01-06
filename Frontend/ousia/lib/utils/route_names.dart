@@ -5,6 +5,7 @@ class RouteNames {
   static const String signup = '/signup';
   static const String signupContinue = '/signup-continue';
   static const String forgotPassword = '/forgot-password';
+  static const String userInterest = '/user-interest';
   
   // Main app routes
   static const String home = '/home';

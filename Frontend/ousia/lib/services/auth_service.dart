@@ -128,16 +128,26 @@ class AuthService {
       errorData.forEach((field, messages) {
         if (messages is List) {
           for (var message in messages) {
-            errorMessages.add(message.toString());
+            if (message != null) {
+              errorMessages.add(message.toString());
+            }
           }
         } else if (messages is String) {
           errorMessages.add(messages);
+        } else if (messages != null) {
+          errorMessages.add(messages.toString());
         }
       });
       
       return errorMessages.isNotEmpty ? errorMessages.join('\n') : defaultMessage;
     } else if (errorData is List && errorData.isNotEmpty) {
-      return errorData.first.toString();
+      List<String> errorMessages = [];
+      for (var error in errorData) {
+        if (error != null) {
+          errorMessages.add(error.toString());
+        }
+      }
+      return errorMessages.isNotEmpty ? errorMessages.join('\n') : defaultMessage;
     }
     
     return defaultMessage;
@@ -161,10 +171,10 @@ class AuthService {
 
       final data = jsonDecode(response.body);
 
-      // Handle your custom response format (lowercase keys)
-      if (data['is_success'] == true) {
-        // Extract tokens from the Result.data field
-        final result = data['result'];
+      // Handle success case - check both formats
+      if (data['is_success'] == true || data['IsSuccess'] == true) {
+        // Extract tokens from the result.data field
+        final result = data['result'] ?? data['Result'];
         final tokenData = result['data'];
         _accessToken = tokenData['access_token'];
         _refreshToken = tokenData['refresh_token'];
@@ -182,9 +192,30 @@ class AuthService {
           'user': _currentUser,
         };
       } else {
+        // Handle error case - extract from various error fields
+        String errorMessage = 'Login failed.';
+        
+        // Check for ErrorMessage field (your backend format)
+        if (data['ErrorMessage'] != null) {
+          errorMessage = _parseBackendErrorMessage(data['ErrorMessage']);
+        }
+        // Check for error_message field
+        else if (data['error_message'] != null) {
+          errorMessage = _parseErrorMessage(data['error_message'], 'Login failed.');
+        }
+        // Check for Result field errors
+        else if (data['Result'] != null && data['Result']['message'] != null) {
+          errorMessage = data['Result']['message'];
+        }
+        // Check for result field errors (lowercase)
+        else if (data['result'] != null && data['result']['message'] != null) {
+          errorMessage = data['result']['message'];
+        }
+
         return {
           'success': false,
-          'message': _parseErrorMessage(data['error_message'], 'Login failed'),
+          'message': errorMessage,
+          'fieldErrors': data['ErrorMessage'] ?? data['error_message'] ?? {},
         };
       }
     } catch (e) {

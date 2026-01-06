@@ -316,7 +316,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                             // Navigate to feed or main screen
                             Navigator.pushNamedAndRemoveUntil(
                               context,
-                              '/feed',
+                              '/user-interest',
                               (route) => false,
                             );
                           } else {
