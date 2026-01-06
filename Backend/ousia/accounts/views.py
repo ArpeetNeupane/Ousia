@@ -59,7 +59,7 @@ class RegisterView(APIView):
                 is_success=False,
                 error_message=str(e),
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            ) 
 
 
 class LoginView(APIView):

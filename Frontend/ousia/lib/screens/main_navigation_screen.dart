@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 // import 'feed_screen.dart';
 // import 'profile_screen.dart';
 
@@ -23,6 +24,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Main Navigation'),
+        backgroundColor: Colors.purple[300],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              // Call your logout function
+              await AuthService.logout();
+
+              // Navigate back to login or signup screen
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login', // adjust according to your route
+                (route) => false,
+              );
+            },
+          ),
+        ],
+      ),
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,

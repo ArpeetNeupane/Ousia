@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/profile.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.4:8000/api';
+  static const String baseUrl = 'http://192.168.1.7:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -55,6 +55,30 @@ class AuthService {
       print('Error initializing auth service: $e');
       await logout(); // Clear any corrupted data
     }
+  }
+
+  static String _parseBackendErrorMessage(dynamic errorData, [String defaultMessage = 'An error occurred']) {
+    if (errorData == null) return defaultMessage;
+    
+    List<String> errorMessages = [];
+    
+    if (errorData is Map) {
+      errorData.forEach((field, messages) {
+        if (messages is List) {
+          for (var message in messages) {
+            errorMessages.add(message.toString());
+          }
+        } else if (messages is String) {
+          errorMessages.add(messages);
+        }
+      });
+    } else if (errorData is String) {
+      return errorData;
+    } else if (errorData is List && errorData.isNotEmpty) {
+      return errorData.first.toString();
+    }
+    
+    return errorMessages.isNotEmpty ? errorMessages.join('\n') : defaultMessage;
   }
 
   // Check if stored token is still valid
@@ -111,7 +135,7 @@ class AuthService {
         }
       });
       
-      return errorMessages.isNotEmpty ? errorMessages.join(', ') : defaultMessage;
+      return errorMessages.isNotEmpty ? errorMessages.join('\n') : defaultMessage;
     } else if (errorData is List && errorData.isNotEmpty) {
       return errorData.first.toString();
     }
@@ -178,8 +202,8 @@ class AuthService {
     required DateTime birthDate,
     required String password,
     required String confirmPassword,
-    File? selfieImage,  // optional image
-    File? idCardImage,  // optional image
+    File? selfieImage,
+    File? idCardImage,
   }) async {
     try {
       var uri = Uri.parse('$baseUrl/register/');
@@ -188,7 +212,7 @@ class AuthService {
       // Add text fields
       request.fields['username'] = username;
       request.fields['email'] = email;
-      request.fields['birth_date'] = birthDate.toIso8601String().split('T')[0]; //DDDD-MM-DD format
+      request.fields['birth_date'] = birthDate.toIso8601String().split('T')[0];
       request.fields['password'] = password;
       request.fields['confirm_password'] = confirmPassword;
       request.fields['role'] = 'user';
@@ -215,17 +239,34 @@ class AuthService {
 
       final data = jsonDecode(response.body);
 
-      if (data['is_success'] == true) {
+      // Handle success case
+      if (data['IsSuccess'] == true || data['is_success'] == true) {
         return {
           'success': true,
-          'message': data['result']['message'] ??
-              'Account created successfully! Please login to continue.',
+          'message': data['result']?['message'] ?? 
+              'Account created successfully! Please login to start your adventure.',
         };
       } else {
+        // Handle error case - extract from ErrorMessage field
+        String errorMessage = 'Registration failed.';
+        
+        // Check for ErrorMessage field (your backend format)
+        if (data['ErrorMessage'] != null) {
+          errorMessage = _parseBackendErrorMessage(data['ErrorMessage']);
+        }
+        // Fallback to error_message field
+        else if (data['error_message'] != null) {
+          errorMessage = _parseErrorMessage(data['error_message'], 'Registration failed.');
+        }
+        // Check for Result field errors
+        else if (data['Result'] != null && data['Result']['message'] != null) {
+          errorMessage = data['Result']['message'];
+        }
+
         return {
           'success': false,
-          'message': _parseErrorMessage(
-              data['error_message'], 'Registration failed'),
+          'message': errorMessage,
+          'fieldErrors': data['ErrorMessage'] ?? data['error_message'] ?? {},
         };
       }
     } catch (e) {

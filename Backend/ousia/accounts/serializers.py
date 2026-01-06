@@ -15,6 +15,7 @@ from cloudinary.utils import cloudinary_url
 from cloudinary.uploader import upload as cloudinary_upload
 
 import os
+from datetime import date
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -40,6 +41,13 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                     'idcard_public_id', 'idcard_image', 'idcard_url'
         ]
         read_only_fields = ['id', 'selfie_public_id', 'idcard_public_id']
+
+    def validate_birth_date(self, value):
+        today = date.today()
+        age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
+        if age < 7 or age > 13:
+            raise serializers.ValidationError("You must be between 7 and 13 years old to register.")
+        return value
 
     def get_selfie_url(self, obj):
         try:

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../screens/signup_continue_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -14,6 +15,8 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
 
   @override
   void dispose() {
@@ -73,13 +76,14 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      final username = value?.trim();
+                      if (username == null || username.isEmpty) {
                         return 'Please enter a username';
                       }
-                      if (value.length < 3 && value.length > 20) {
+                      if (username.length < 3 && username.length > 20) {
                         return 'Username must be between 3-20 characters';
                       }
-                      if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+                      if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
                         return 'Only letters, numbers and underscore allowed';
                       }
                       return null;
@@ -126,10 +130,11 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      final email = value?.trim();
+                      if (email == null || email.isEmpty) {
                         return 'Please enter an email.';
                       }
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
                         return 'Invalid email format.';
                       }
                       return null;
@@ -176,6 +181,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
+                    controller: _passwordController,
+                    obscureText: !_isPasswordVisible,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter a password';
@@ -185,11 +192,21 @@ class _SignupScreenState extends State<SignupScreen> {
                       }
                       return null;
                     },
-                    controller: _passwordController,
-                    obscureText: true,
                     decoration: InputDecoration(
                       hintText: 'What\'s your secret code?',
                       hintStyle: TextStyle(color: Colors.grey[500]),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
                       filled: true,
                       fillColor: const Color.fromARGB(255, 255, 255, 255),
                       border: OutlineInputBorder(
@@ -237,8 +254,20 @@ class _SignupScreenState extends State<SignupScreen> {
                       return null;
                     },
                     controller: _confirmPasswordController,
-                    obscureText: true,
+                    obscureText: !_isConfirmPasswordVisible,
                     decoration: InputDecoration(
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isConfirmPasswordVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                          });
+                        },
+                      ),
                       hintText: 'What\'s your secret code again?',
                       hintStyle: TextStyle(color: Colors.grey[500]),
                       filled: true,
@@ -272,7 +301,17 @@ class _SignupScreenState extends State<SignupScreen> {
                       onPressed: () {
                         // Navigate to the continue signup screen (selfie/ID upload)
                         if (_formKey.currentState!.validate()) {
-                          Navigator.pushNamed(context, '/signup-continue');
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SignupContinueScreen(
+                                username: _usernameController.text,
+                                email: _emailController.text,
+                                password: _passwordController.text,
+                                confirmPassword: _confirmPasswordController.text,
+                              ),
+                            ),
+                          );
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -328,7 +367,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     ],
                   ),
                   
-                  const SizedBox(height: 53),
+                  const SizedBox(height: 50),
                   
                   SizedBox(
                     height: 100,
@@ -360,12 +399,12 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                         Positioned(
                           left: 240,
-                          top: -70,
+                          top: -65,
                           child: SvgPicture.asset(
                             'assets/svg/dawg-full.svg',
                             height: 230,
                             width: 45,
-                            fit: BoxFit.contain,
+                            fit: BoxFit.cover,
                           ),
                         ),
                       ],

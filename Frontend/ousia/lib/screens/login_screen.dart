@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,46 +40,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   const Text(
                     'Welcome to Ousia',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 40,
                       fontWeight: FontWeight.bold,
+                      color: Color(0xffB2A0A0)
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   const Text(
                     'A safe place to share your ideas',
                     style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
+                      fontSize: 16,
+                      color: Color.fromARGB(255, 103, 103, 103),
                     ),
                   ),
                   
                   const SizedBox(height: 60),
-                  
-                  // Login Section Title
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Login',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Login to start sharing your ideas and posts',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 32),
-                  
                   // Username Field
                   Align(
                     alignment: Alignment.centerLeft,
@@ -267,28 +243,43 @@ class _LoginScreenState extends State<LoginScreen> {
                   
                   // Paw prints decoration at bottom
                   SizedBox(
-                    height: 40,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    height: 100,
+                    child: Stack(
+                      clipBehavior: Clip.none,
                       children: [
-                        ...List.generate(8, (index) {
-                          return Text(
-                            '🐾',
-                            style: TextStyle(
-                              fontSize: 20,
-                              color: [
-                                Colors.grey[400],
-                                Colors.blue[200],
-                                Colors.grey[500],
-                                Colors.purple[200],
-                                Colors.grey[400],
-                                Colors.blue[200],
-                                Colors.grey[500],
-                                Colors.purple[200],
-                              ][index],
+                        Positioned(
+                          left: -40,
+                          top: 0,
+                          child: Transform.rotate(
+                            angle: 30 * 3.1416 / 180,
+                            child: SvgPicture.asset(
+                              'assets/svg/pawprint-centre.svg',
+                              height: 90,
+                              width: 15,
+                              fit: BoxFit.contain,
                             ),
-                          );
-                        }),
+                          ),
+                        ),
+                        Positioned(
+                          left: 100,
+                          top: 0,
+                          child: SvgPicture.asset(
+                            'assets/svg/pawprint-centre.svg',
+                            height: 90,
+                            width: 15,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        Positioned(
+                          left: 240,
+                          top: -65,
+                          child: SvgPicture.asset(
+                            'assets/svg/dawg-full.svg',
+                            height: 230,
+                            width: 45,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ],
                     ),
                   ),

@@ -28,7 +28,15 @@ class RouteConfig {
         return MaterialPageRoute(builder: (_) => const MainNavigationScreen());
 
       case RouteNames.signupContinue:
-        return MaterialPageRoute(builder: (_) => const SignupContinueScreen());
+        final args = settings.arguments as Map<String, dynamic>;
+        return MaterialPageRoute(
+          builder: (_) => SignupContinueScreen(
+            username: args['username'],
+            email: args['email'],
+            password: args['password'],
+            confirmPassword: args['confirmPassword'],
+          ),
+        );
       
       // case RouteNames.profile:
       //   return MaterialPageRoute(builder: (_) => const ProfileScreen());
