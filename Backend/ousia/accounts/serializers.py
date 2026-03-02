@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.images import get_image_dimensions
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth import authenticate
+from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
 from django.conf import settings
 
@@ -9,13 +10,39 @@ from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import User, Profile, RoleEnum
+from accounts.ai_utils import verify_student_identity, extract_dob_from_text, extract_text_from_id
 
 import cloudinary
 from cloudinary.utils import cloudinary_url
 from cloudinary.uploader import upload as cloudinary_upload
 
-import os
+import os, sys, nepali_datetime
 from datetime import date
+from PIL import Image
+from io import BytesIO
+
+
+#helper method for resizing image
+def compress_and_resize_image(image_field, max_size=(800, 800)):
+    """Resizing image to max_size and compressing it to save memory/upload time"""
+    img = Image.open(image_field)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    
+    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+    
+    output = BytesIO()
+    img.save(output, format='JPEG', quality=85)
+    output.seek(0)
+    
+    return InMemoryUploadedFile(
+        output, 
+        'ImageField', 
+        f"{image_field.name.split('.')[0]}.jpg", 
+        'image/jpeg', 
+        sys.getsizeof(output), 
+        None
+    )
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -43,7 +70,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'selfie_public_id', 'idcard_public_id']
 
     def validate_birth_date(self, value):
-        today = date.today()
+        today_in_ad = date.today()
+        today = nepali_datetime.date.from_datetime_date(today_in_ad)
         age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
         if age < 7 or age > 13:
             raise serializers.ValidationError("You must be between 7 and 13 years old to register.")
@@ -73,55 +101,107 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         except Exception:
             return None
 
-    def validate(self, data):
-        username = data['username']
-        password = data['password']
-        confirm_password = data["confirm_password"]
-        role = data['role']
+    #helper method to process AI results and return dictionary of errors
+    def _check_ai_results(self, ai_results, validated_data):
+        errors = {}
+        e_text_id = ai_results.get('idcard_cv', '')
 
-        if len(username) < 3 and len(username) > 20:
+        if not ai_results.get('is_match'): 
+            errors["identity"] = "The selfie does not match the photo on the ID card."
+        
+        text = extract_text_from_id(e_text_id)
+        id_dob = extract_dob_from_text(text)
+
+        if not id_dob:
+            errors["id_card"] = "Date of birth not found on ID."
+
+        else:
+            entered_dob = validated_data.get("birth_date")
+
+            #allowing ±1 year buffer due to possible OCR + calendar issues
+            if abs((id_dob - entered_dob).days) > 365:
+                errors["birth_date"] = (
+                    f"Entered DOB does not match ID. "
+                    f"ID shows {id_dob}."
+                )
+
+        #checking OCR keywords
+        e_text = ai_results.get('extracted_text', '').lower()
+        keywords = ['identity', 'card', 'dob', 'school', 'academy', 'grade', 'class', 'student', 'vidyalaya', 'college', 'campus', 'institute', 'pathshala', 'shikshya', '+2']
+        if not any(k in e_text for k in keywords):
+            errors["id_card"] = "Could not detect a valid school ID. Ensure the text is readable."
+
+        return errors
+
+    def validate(self, data):
+        username = data.get('username')
+        password = data.get('password')
+        confirm_password = data.get("confirm_password")
+        role = data.get('role')
+
+        if len(username) < 3 or len(username) > 20:
             raise serializers.ValidationError(
                 {"username": "Username must be between 3-20 letters long"}
             )
 
         existing_superuser = User.objects.filter(role=RoleEnum.SUPERUSER).exists()
-        if role==RoleEnum.SUPERUSER and existing_superuser:
+        if role == RoleEnum.SUPERUSER and existing_superuser:
             raise serializers.ValidationError(
                 {"existing_role": "A superuser already exists."}
             )
+            
         try:
             validate_password(password)
-        except ValidationError as e:
-            raise serializers.ValidationError(
-                {"password": e.messages}
-            )
+        except Exception as e:
+            raise serializers.ValidationError({"password": list(e) if hasattr(e, 'messages') else str(e)})
 
         if password != confirm_password:
-            raise serializers.ValidationError(
-                {"password": "Passwords do not match."}
-            )
+            raise serializers.ValidationError({"password": "Passwords do not match."})
 
+        #performing AI validation
         if role != RoleEnum.SUPERUSER:
-            if "selfie_image" not in data:
-                raise serializers.ValidationError({
-                    "selfie_image": "Selfie image is required."
-                })
-            if "idcard_image" not in data:
-                raise serializers.ValidationError({
-                    "idcard_image": "ID card image is required."
-                })
+            selfie_image = data.get("selfie_image")
+            idcard_image = data.get("idcard_image")
+
+            if not selfie_image:
+                raise serializers.ValidationError({"selfie_image": "Selfie image is required."})
+            if not idcard_image:
+                raise serializers.ValidationError({"idcard_image": "ID card image is required."})
+            
+            #reading bytes for AI processing
+            selfie_bytes = selfie_image.read()
+            idcard_bytes = idcard_image.read()
+
+            #resetting pointers so create() can read them again for upload
+            selfie_image.seek(0)
+            idcard_image.seek(0)
+
+            #calling the utility function
+            ai_results = verify_student_identity(selfie_bytes, idcard_bytes)
+            ai_errors = self._check_ai_results(ai_results, data)
+            
+            if ai_errors:
+                raise serializers.ValidationError(ai_errors)
 
         return data
 
     def create(self, validated_data):
         password = validated_data.pop('password')
-        validated_data.pop('confirm_password')
-
+        validated_data.pop('confirm_password', None)
+        
         selfie_image = validated_data.pop("selfie_image", None)
         idcard_image = validated_data.pop("idcard_image", None)
-        if selfie_image and idcard_image:
-            upload_result_selfie = cloudinary.uploader.upload(selfie_image, resource_type="image")
-            upload_result_idcard = cloudinary.uploader.upload(idcard_image, resource_type="image")
+        role = validated_data.get('role', RoleEnum.USER.value)
+
+        #uploading to cloudinary only after AI validation has already passed
+        if role != RoleEnum.SUPERUSER.value and selfie_image and idcard_image:
+            #compressing images before upload
+            compressed_selfie = compress_and_resize_image(selfie_image)
+            compressed_idcard = compress_and_resize_image(idcard_image)
+
+            upload_result_selfie = cloudinary.uploader.upload(compressed_selfie, resource_type="image")
+            upload_result_idcard = cloudinary.uploader.upload(compressed_idcard, resource_type="image")
+            
             validated_data["selfie_public_id"] = upload_result_selfie.get("public_id")
             validated_data["idcard_public_id"] = upload_result_idcard.get("public_id")
 
