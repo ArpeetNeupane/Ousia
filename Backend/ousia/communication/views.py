@@ -51,22 +51,15 @@ class ConversationListAPI(generics.ListAPIView):
         return queryset
 
     def list(self, request, *args, **kwargs):
-        try:
-            response = super().list(self, request, *args, **kwargs)
-            return api_response(
-                is_success=True,
-                result={
-                    "message": "Successfully retrieved conversation.",
-                    "data": response.data
-                },
-                status_code=status.HTTP_200_OK
-            )
-        except Exception as e:
-            return api_response(
-                is_success=False,
-                error_message=str(e),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        response = super().list(request, *args, **kwargs)
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Successfully retrieved conversation.",
+                "data": response.data
+            },
+            status_code=status.HTTP_200_OK
+        )
 
     @swagger_auto_schema(
         operation_description="Retrieve the list of all conversations.",
@@ -103,59 +96,59 @@ class ConversationCreateAPI(generics.CreateAPIView):
         serializer.save()
 
     def create(self, request, *args, **kwargs):
-        try:
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            
-            #checking if the serializer has caught an existing conversation
-            if hasattr(serializer, 'existing_conversation'):
-                existing_convo = serializer.existing_conversation
+        # try:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        #checking if the serializer has caught an existing conversation
+        if hasattr(serializer, 'existing_conversation'):
+            existing_convo = serializer.existing_conversation
 
-                #checking if it was soft-deleted for current user
-                participant_qs = ConversationParticipant.objects.filter(
-                    conversation=existing_convo,
-                    user=request.user
-                )
+            #checking if it was soft-deleted for current user
+            participant_qs = ConversationParticipant.objects.filter(
+                conversation=existing_convo,
+                user=request.user
+            )
 
-                was_deleted = participant_qs.filter(deleted_for_user=True).exists()
-                if was_deleted:
-                    #un-soft deleting
-                    participant_qs.update(deleted_for_user=False)
-                    message = "Conversation already exists. Undeleted for you."
-                else:
-                    message = "Conversation already exists."
-
-                convo_serializer = self.get_serializer(existing_convo)
-                return api_response(
-                    is_success=True,
-                    result={
-                        "message": message,
-                        "data": convo_serializer.data
-                    },
-                    status_code=status.HTTP_200_OK
-                )
+            was_deleted = participant_qs.filter(deleted_for_user=True).exists()
+            if was_deleted:
+                #un-soft deleting
+                participant_qs.update(deleted_for_user=False)
+                message = "Conversation already exists. Undeleted for you."
             else:
-                self.perform_create(serializer)
-                return api_response(
-                    is_success=True,
-                    result={
-                        "message": "Successfully created conversation.",
-                        "data": serializer.data
-                    },
-                    status_code=status.HTTP_201_CREATED
-                )
-        except ValidationError as ve:
+                message = "Conversation already exists."
+
+            convo_serializer = self.get_serializer(existing_convo)
             return api_response(
-                is_success=False,
-                error_message=ve.detail,
-                status_code=status.HTTP_400_BAD_REQUEST
+                is_success=True,
+                result={
+                    "message": message,
+                    "data": convo_serializer.data
+                },
+                status_code=status.HTTP_200_OK
             )
-        except Exception as e:
+        else:
+            self.perform_create(serializer)
             return api_response(
-                is_success=False,
-                error_message=str(e),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                is_success=True,
+                result={
+                    "message": "Successfully created conversation.",
+                    "data": serializer.data
+                },
+                status_code=status.HTTP_201_CREATED
             )
+        # except ValidationError as ve:
+        #     return api_response(
+        #         is_success=False,
+        #         error_message=ve.detail,
+        #         status_code=status.HTTP_400_BAD_REQUEST
+        #     )
+        # except Exception as e:
+        #     return api_response(
+        #         is_success=False,
+        #         error_message=str(e),
+        #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        #     )
 
     @swagger_auto_schema(
         operation_description="Create a conversation. The authenticated user will automatically become the group admin if s/he created the group and be added as a participant.",
@@ -190,22 +183,15 @@ class ConversationRetrieveAPI(generics.RetrieveAPIView):
         return Conversation.objects.filter(id__in=conversation_ids)
 
     def retrieve(self, request, *args, **kwargs):
-        try:
-            response = super().retrieve(self, request, *args, **kwargs)
-            return api_response(
-                is_success=True,
-                result={
-                    "message": "Successfully retrieved conversation.",
-                    "data": response.data
-                },
-                status_code=status.HTTP_200_OK
-            )
-        except Exception as e:
-            return api_response(
-                is_success=False,
-                error_message=str(e),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        response = super().retrieve(self, request, *args, **kwargs)
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Successfully retrieved conversation.",
+                "data": response.data
+            },
+            status_code=status.HTTP_200_OK
+        )
 
     @swagger_auto_schema(
         operation_description="Retrieve the list of a single conversations.",
@@ -226,7 +212,7 @@ class ConversationRetrieveAPI(generics.RetrieveAPIView):
 
 class ConversationUpdateAPI(generics.UpdateAPIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminOfConversation]
     serializer_class = ConversationUpdateSerializer
     http_method_names = ["patch"]
     lookup_field = 'id'
@@ -241,31 +227,31 @@ class ConversationUpdateAPI(generics.UpdateAPIView):
         return Conversation.objects.filter(id__in=conversation_ids, is_group=True)
 
     def partial_update(self, request, *args, **kwargs):
-        try:
-            response = super().partial_update(request, *args, **kwargs)
-            return api_response(
-                is_success=True,
-                result={
-                    "message": "Updated conversation successfully.",
-                    "data": response.data
-                },
-                status_code=status.HTTP_200_OK
-            )
-        except ValidationError as ve:
-            return api_response(
-                is_success=False,
-                error_message=ve.detail,
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-        except Exception as e:
-            return api_response(
-                is_success=False,
-                error_message=str(e),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+    #     try:
+        response = super().partial_update(request, *args, **kwargs)
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Updated conversation successfully.",
+                "data": response.data
+            },
+            status_code=status.HTTP_200_OK
+        )
+        # except ValidationError as ve:
+        #     return api_response(
+        #         is_success=False,
+        #         error_message=ve.detail,
+        #         status_code=status.HTTP_400_BAD_REQUEST
+        #     )
+        # except Exception as e:
+        #     return api_response(
+        #         is_success=False,
+        #         error_message=str(e),
+        #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        #     )
 
     @swagger_auto_schema(
-        operation_description="Partially update a conversation",
+        operation_description="Partially update a conversation. Used for updating a group's name.",
         request_body=ConversationUpdateSerializer,
         responses={
             200: openapi.Response(
@@ -293,25 +279,18 @@ class ConversationSoftDBDeleteAPI(generics.DestroyAPIView):
         return Conversation.objects.filter(participants=user, is_deleted=False)
 
     def destroy(self, request, *args, **kwargs):
-        try:
-            instance = self.get_object()
-            instance.soft_delete()
-            return api_response(
-                is_success=True,
-                result={
-                    "message": "Soft deleted conversation successfully."
-                },
-                status_code=status.HTTP_200_OK
-            )
-        except Exception as e:
-            return api_response(
-                is_success=False,
-                error_message=str(e),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        instance = self.get_object()
+        instance.soft_delete()
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Soft deleted conversation successfully."
+            },
+            status_code=status.HTTP_200_OK
+        )
 
     @swagger_auto_schema(
-        operation_description="Soft delete a conversation",
+        operation_description="Soft delete a conversation. Used only by admin of a group to delete a conversation group.",
         responses={
             200: openapi.Response(
                 description="Conversation soft-deleted successfully.",
@@ -351,27 +330,27 @@ class ConversationSoftDeleteForUserAPI(generics.DestroyAPIView):
         link.save()
 
     def destroy(self, request, *args, **kwargs):
-        try:
-            super().destroy(request, *args, **kwargs)
-            return api_response(
-                is_success=True,
-                result={
-                    "message": "Conversation successfully deleted for you."
-                },
-                status_code=status.HTTP_200_OK
-            )
-        except ValidationError as ve:
-            return api_response(
-                is_success=False,
-                error_message=ve.detail,
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-        except Exception as e:
-            return api_response(
-                is_success=False,
-                error_message=str(e),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        # try:
+        super().destroy(request, *args, **kwargs)
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Conversation successfully deleted for you."
+            },
+            status_code=status.HTTP_200_OK
+        )
+        # except ValidationError as ve:
+        #     return api_response(
+        #         is_success=False,
+        #         error_message=ve.detail,
+        #         status_code=status.HTTP_400_BAD_REQUEST
+        #     )
+        # except Exception as e:
+        #     return api_response(
+        #         is_success=False,
+        #         error_message=str(e),
+        #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        #     )
 
     @swagger_auto_schema(
         operation_description="Soft deletes the conversation for the authenticated user. "

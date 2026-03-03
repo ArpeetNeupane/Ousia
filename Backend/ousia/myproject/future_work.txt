@@ -146,3 +146,22 @@ eg: {
     "Result": null
 }
 '''
+
+# need to make it so that you can only message your friends by importing friend model in conversation create serializer and
+# add participant API
+
+#update the FriendSerializer so that API response is better
+'''
+username_friend1 = serializers.SerializerMethodField(read_only=True)
+    username_friend2 = serializers.SerializerMethodField(read_only=True)
+
+    def get_username_friend1(self, obj):
+        return obj.user1.username
+    
+    def get_username_friend2(self, obj):
+        return obj.user2.username
+'''
+
+# use uuid instead of id when creating pk for everything not just conversation
+
+# since im using a custom exception handler, remove try-except from all views and test all APIs once

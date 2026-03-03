@@ -5,7 +5,7 @@ from accounts.serializers import UserSerializer
 from accounts.models import User, Profile
 from accounts.serializers import ProfilePictureSerializer
 from communication.service import check_for_existing_one_on_one_conversation
-from communication.models import Conversation, Message
+from communication.models import Conversation, Message, ConversationParticipant
 
 from rest_framework import serializers
 
@@ -103,7 +103,7 @@ class ConversationUpdateSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         is_group = getattr(self.instance, 'is_group', None)
-        group_name = data.get('group_name')
+        group_name = data.get('group_name', None)
 
         if not is_group and group_name:
             raise serializers.ValidationError("A 1-on-1 conversation cannot have a group name.")
@@ -140,8 +140,12 @@ class MessageResponseSerializer(serializers.ModelSerializer):
         convo = obj.conversation
         if convo.is_group:
             return convo.group_name
-        other = convo.get_other_participant()
-        return other.username if other else None #so that we dont get AttributeError
+        
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            other = convo.get_other_participant(request.user)
+            return other.username if other else "Unknown"
+        return "Conversation"
 
 
 class MessageCreateSerializer(serializers.ModelSerializer):
@@ -155,16 +159,34 @@ class MessageCreateSerializer(serializers.ModelSerializer):
             'id', 'message_type', 'sender', 'created_at',
             'updated_at', 'is_edited', 'is_deleted'
         ]
+    
+    def validate(self, data):
+        conversation = data.get('conversation')
+        sender = data.get('sender')
+        
+        if not ConversationParticipant.objects.filter(conversation=conversation, user=sender).exists():
+            raise serializers.ValidationError("You are not a participant in this conversation.")
+        
+        #ensurinng reply_to is in the same conversation
+        reply_to = data.get('reply_to')
+        if reply_to and reply_to.conversation != conversation:
+            raise serializers.ValidationError("Cannot reply to a message from a different conversation.")
+            
+        return data
 
 
 class MessageUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model=Message
         fields = [
-            'id', 'conversation', 'message_type', 'sender', 'content', 'file_attachment_public_url',
-            'reply_to', 'created_at', 'updated_at', 'is_edited', 'is_deleted'
+            'id', 'content', 'updated_at', 'is_edited', 'is_deleted'
         ]
         read_only_fields = [
-            'id', 'message_type', 'sender', 'file_attachment_public_url',
-            'created_at', 'updated_at', 'is_edited', 'is_deleted'
+            'id', 'updated_at', 'is_edited', 'is_deleted'
         ]
+    
+    def update(self, instance, validated_data):
+        instance.content = validated_data.get('content', instance.content)
+        instance.is_edited = True
+        instance.save()
+        return instance

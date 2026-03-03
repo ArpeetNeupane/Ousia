@@ -21,18 +21,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_group_name = f'chat_{self.conversation_id}'
         self.user = self.scope['user']
 
-        # # Reject unauthenticated users
+        # #rejecting unauthenticated users
         # if not self.user.is_authenticated:
         #     await self.close()
         #     return
 
-        # # Verify user is participant of this conversation
+        # #verifying that the user is participant of this conversation
         # is_participant = await self.check_user_is_participant()
         # if not is_participant:
         #     await self.close()
         #     return
 
-        # Join room group
+        #joining room group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
@@ -40,7 +40,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
-        # Optional: Send connection confirmation
+        #sending connection confirmation
         await self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'Connected to chat'
@@ -48,12 +48,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         """Called when WebSocket connection is closed"""
-        # Leave room group
+        #leaving room group
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
 
+    #this is like a traffic controller for different types of messages
     async def receive(self, text_data):
         """
         Called when we receive a message from WebSocket.
@@ -90,7 +91,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.send_error('Content is required for text messages')
             return
 
-        # Save message to database
+        #saving message to database
         message = await self.create_message(
             content=content,
             message_type=message_type,
@@ -99,10 +100,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
         if message:
-            # Serialize the message
+            #serializing the message
             message_data = await self.serialize_message(message)
 
-            # Broadcast to room group
+            #broadcasting to room group
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -120,13 +121,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.send_error('Message ID and content are required')
             return
 
-        # Update message in database
+        #updating message in database
         message = await self.update_message(message_id, new_content)
 
         if message:
             message_data = await self.serialize_message(message)
 
-            # Broadcast edit to room group
+            #broadcasting edit to room group
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -143,11 +144,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.send_error('Message ID is required')
             return
 
-        # Soft delete message
+        #soft deleting message
         success = await self.delete_message(message_id)
 
         if success:
-            # Broadcast deletion to room group
+            #broadcasting deletion to room group
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -160,7 +161,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """Handle typing indicator (user is typing...)"""
         is_typing = data.get('is_typing', False)
 
-        # Broadcast typing status to room group (except sender)
+        #broadcasting typing status to room group (except sender)
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -171,9 +172,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }
         )
 
-    # Event handlers (called by group_send)
+    #event handlers (called by group_send)
     async def chat_message(self, event):
         """Send message to WebSocket"""
+        print(f"BROADCAST RECEIVED: {event['message']['content']}")
         await self.send(text_data=json.dumps({
             'type': 'new_message',
             'message': event['message']
@@ -195,7 +197,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def user_typing(self, event):
         """Send typing indicator to WebSocket (skip for sender)"""
-        # Don't send typing indicator back to the sender
+        #not send typing indicator back to the sender
         if str(self.user.id) != event['user_id']:
             await self.send(text_data=json.dumps({
                 'type': 'typing_indicator',
@@ -204,7 +206,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'is_typing': event['is_typing']
             }))
 
-    # Database operations (sync methods called asynchronously)
+    #database operations (sync methods called asynchronously)
     @database_sync_to_async
     def check_user_is_participant(self):
         """Verify user is a participant of the conversation"""
@@ -215,7 +217,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 deleted_for_user=False
             ).exists()
             
-            # Also check conversation is not deleted
+            #also checking conversation is not deleted
             conversation = Conversation.objects.filter(
                 id=self.conversation_id,
                 is_deleted=False
@@ -229,12 +231,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def create_message(self, content, message_type, file_url, reply_to_id):
         """Create a new message in the database"""
         try:
-            message = Message(
+            message = Message.objects.create(
                 conversation_id=self.conversation_id,
                 sender=self.user,
                 content=content,
                 message_type=message_type,
-                file_attachment_public_url=file_url
+                file_attachment_public_url=file_url,
+                reply_to_id=reply_to_id 
             )
 
             if reply_to_id:
@@ -242,11 +245,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     reply_to = Message.objects.get(id=reply_to_id)
                     message.reply_to = reply_to
                 except Message.DoesNotExist:
-                    pass  # Ignore if reply_to message doesn't exist
+                    pass  #ignoring if reply_to message doesn't exist
 
             message.save()
             
-            # Update conversation's updated_at timestamp
+            #updating conversation's updated_at timestamp
             conversation = Conversation.objects.get(id=self.conversation_id)
             conversation.save(clean=False)
             
@@ -262,7 +265,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             message = Message.objects.get(
                 id=message_id,
-                sender=self.user,  # Only sender can edit
+                sender=self.user,  #only sender can edit
                 conversation_id=self.conversation_id,
                 is_deleted=False
             )
@@ -279,7 +282,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             message = Message.objects.get(
                 id=message_id,
-                sender=self.user,  # Only sender can delete
+                sender=self.user,  #only sender can delete
                 conversation_id=self.conversation_id
             )
             message.soft_delete()

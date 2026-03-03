@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from communication.models import Conversation, ConversationParticipant
+from communication.models import Conversation, ConversationParticipant, Message
 
 class ConversationParticipantInline(admin.TabularInline):
     model = ConversationParticipant
@@ -18,3 +18,7 @@ class ConversationAdmin(admin.ModelAdmin):
 class ConversationParticipantAdmin(admin.ModelAdmin):
     list_display = ['id', 'conversation', 'user']
     search_fields = ['user__username', 'conversation__group_name']
+
+@admin.register(Message)
+class MessageAdmin(admin.ModelAdmin):
+    list_display = ['id', 'conversation', 'sender', 'is_edited', 'created_at', 'updated_at', 'is_deleted']
