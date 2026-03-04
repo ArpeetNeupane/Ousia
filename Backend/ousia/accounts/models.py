@@ -138,6 +138,12 @@ class AreaOfInterest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['name'], name="unique_interest_name")
+        ]
+        ordering = ["-created_at"]
+
     def __str__(self):
         return self.name
 

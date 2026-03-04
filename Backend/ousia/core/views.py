@@ -201,12 +201,13 @@ class EmotionRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
         try:
             instance = self.get_object()
             serializer = self.get_serializer(instance, data=request.data, partial=True)
-            if not serializer.is_valid():
-                return api_response(
-                    is_success=False,
-                    error_message=serializer.errors,
-                    status_code=status.HTTP_400_BAD_REQUEST
-                )
+            # if not serializer.is_valid():
+            #     return api_response(
+            #         is_success=False,
+            #         error_message=serializer.errors,
+            #         status_code=status.HTTP_400_BAD_REQUEST
+            #     )
+            serializer.is_valid(raise_exception=True)
             serializer.save()
 
             return api_response(

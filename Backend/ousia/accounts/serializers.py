@@ -9,7 +9,7 @@ from django.conf import settings
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from accounts.models import User, Profile, RoleEnum
+from accounts.models import User, Profile, RoleEnum, AreaOfInterest, UserAreaOfInterest
 from accounts.ai_utils import verify_student_identity, extract_dob_from_text, extract_text_from_id
 
 import cloudinary
@@ -426,3 +426,55 @@ class ProfileAdminUpdateSerializer(serializers.ModelSerializer):
                 instance.pfp_public_id = result.get("public_id")
 
             return super().update(instance, validated_data)
+
+
+class AreaOfInterestSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(
+        source="created_by.username", read_only=True
+    )
+    class Meta:
+        model = AreaOfInterest
+        fields = ["id", "name", "description", "created_by", "created_by_name", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_by", "created_at", "created_by_name", "updated_at"]
+
+    def validate_name(self, value):
+        value = value.strip()
+        if len(value) > 50:
+            raise serializers.ValidationError("Interest name cannot be longer than 50 characters.")
+        return value
+
+    def validate_description(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Description of interest cannot be empty.")
+        if len(value) > 255:
+            raise serializers.ValidationError("Description of interest cannot be longer than 255 characters.")
+        return value
+
+
+class UserAreaOfInterestSerializer(serializers.ModelSerializer):
+    #nested display for easier frontend use, alternative to SerializerMethodField
+    users_interest_name = serializers.CharField(
+        source="users_interest.name", read_only=True
+    )
+
+    #handling pk related error message properly in POST
+    users_interest = serializers.PrimaryKeyRelatedField(
+        queryset=AreaOfInterest.objects.all(),
+        error_messages={"does_not_exist": "Selected interest does not exist."}
+    )
+    
+    class Meta:
+        model = UserAreaOfInterest
+        fields = ["id", "user", "users_interest", "users_interest_name"]
+        read_only_fields = ["id", "user", "users_interest_name"]
+
+    def validate(self, data):
+        user = self.context["request"].user
+        interest = data.get("users_interest")
+
+        if UserAreaOfInterest.objects.filter(user=user, users_interest=interest).exists():
+            raise serializers.ValidationError(
+                {"users_interest": "You have already selected this interest."}
+            )
+        return data

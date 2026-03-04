@@ -8,9 +8,10 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
-from accounts.models import Profile
-from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer
-from accounts.permissions import IsAuthenticatedOrAdmin, IsOwnerOfProfile
+from accounts.models import Profile, AreaOfInterest, UserAreaOfInterest
+from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer, AreaOfInterestSerializer, UserAreaOfInterestSerializer
+from accounts.permissions import IsAuthenticatedOrAdmin, IsOwnerOfProfile, CreatorOfInterest, IsOwnerOfUserInterest
+from accounts.paginations import DefaultPagination
 from myproject.utils import api_response, blacklist_user_tokens
 
 from drf_yasg.utils import swagger_auto_schema
@@ -413,3 +414,289 @@ class ProfileAdminUpdateAPI(generics.UpdateAPIView):
                 error_message=str(e),
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class AreaOfInterestListCreateAPI(generics.ListCreateAPIView):
+    serializer_class = AreaOfInterestSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    queryset = AreaOfInterest.objects.all()
+    pagination_class = DefaultPagination
+    http_method_names = ["get", "post"]
+    
+    @swagger_auto_schema(
+        operation_description="List an area of interest.",
+        responses={
+            200: AreaOfInterestSerializer(many=True),
+            201: AreaOfInterestSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            500: "Internal Server Error"
+        },
+        tags = ["Interests"]
+    )
+    def get(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Successfully retrieved area of interests.",
+                "data": response.data
+            },
+            status_code=status.HTTP_200_OK
+        )
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @swagger_auto_schema(
+        operation_description="Create an area of interest.",
+        request_body=AreaOfInterestSerializer,
+        responses={
+            201: AreaOfInterestSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            500: "Internal Server Error"
+        },
+        tags = ["Interests"]
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer) #only mixin calls perform create automatically (or super().create())
+        serializer.save()
+
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Area of Interest created successfully.",
+                "data": serializer.data
+            },
+            status_code=status.HTTP_201_CREATED
+        )
+
+
+class AreaOfInterestRetrieveAPI(generics.RetrieveAPIView):
+    serializer_class = AreaOfInterestSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    queryset = AreaOfInterest.objects.all()
+    lookup_field = "id"
+
+    @swagger_auto_schema(
+        operation_description="Retrieve a single area of interest by its ID.",
+        responses={
+            200: AreaOfInterestSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            404: "Not Found",
+            500: "Internal Server Error"
+        },
+        tags = ["Interests"]
+    )
+    def get(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Successfully retrieved area of interest.",
+                "data": serializer.data
+            },
+            status_code=status.HTTP_200_OK
+        )   
+
+
+class AreaOfInterestUpdateAPI(generics.UpdateAPIView):
+    serializer_class = AreaOfInterestSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, CreatorOfInterest]
+    queryset = AreaOfInterest.objects.all()
+    lookup_field = "id"
+    http_method_names = ["patch"]
+
+    @swagger_auto_schema(
+        operation_description="Update an area of interest.",
+        request_body=AreaOfInterestSerializer,
+        responses={
+            200: AreaOfInterestSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            404: "Not Found",
+            500: "Internal Server Error"
+        },
+        tags = ["Interests"]
+    )
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Area of Interest updated successfully.",
+                "data": serializer.data
+            },
+            status_code=status.HTTP_200_OK
+        )
+
+
+class AreaOfInterestDeleteAPI(generics.DestroyAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, CreatorOfInterest]
+    queryset = AreaOfInterest.objects.all()
+    lookup_field = "id"
+
+    @swagger_auto_schema(
+        operation_description="Delete an area of interest by its ID. Only the creator can delete.",
+        responses={
+            204: "No Content – successfully deleted",
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            404: "Not Found",
+            500: "Internal Server Error"
+        },
+        tags = ["Interests"]
+    )
+    def delete(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return api_response(
+            is_success=True,
+            result={"message": f"Area of Interest deleted successfully."},
+            status_code=status.HTTP_200_OK
+        )
+
+
+class UserAreaOfInterestListCreateAPI(generics.ListCreateAPIView):
+    serializer_class = UserAreaOfInterestSerializer
+    authentication_classes = [JWTAuthentication]
+    pagination_class = DefaultPagination
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UserAreaOfInterest.objects.filter(user=self.request.user)
+
+    @swagger_auto_schema(
+        operation_description="List all your selected areas of interest.",
+        responses={
+            200: UserAreaOfInterestSerializer(many=True),
+            201: UserAreaOfInterestSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            500: "Internal Server Error"
+        },
+        tags = ["User Interests"]
+    )
+    def get(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Successfully retrieved user's area of interests.",
+                "data": response.data
+            },
+            status_code=status.HTTP_200_OK
+        )
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @swagger_auto_schema(
+        operation_description="Add a new area of interest for the user.",
+        request_body=UserAreaOfInterestSerializer,
+        responses={
+            201: UserAreaOfInterestSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            500: "Internal Server Error"
+        },
+        tags = ["User Interests"]
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        serializer.save()
+
+        return api_response(
+            is_success=True,
+            result={
+                "message": "User's Area of Interest created successfully.",
+                "data": serializer.data
+            },
+            status_code=status.HTTP_201_CREATED
+        )
+
+
+class UserAreaOfInterestRetrieveAPI(generics.RetrieveAPIView):
+    serializer_class = UserAreaOfInterestSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsOwnerOfUserInterest]
+    lookup_field = "id"
+
+    def get_queryset(self):
+        return UserAreaOfInterest.objects.filter(user=self.request.user)
+
+    @swagger_auto_schema(
+        operation_description="Retrieve a single user-selected area of interest by ID.",
+        responses={
+            200: UserAreaOfInterestSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            404: "Not Found",
+            500: "Internal Server Error"
+        },
+        tags = ["User Interests"]
+    )
+    def get(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Successfully retrieved user's area of interest.",
+                "data": serializer.data
+            },
+            status_code=status.HTTP_200_OK
+        )   
+
+
+class UserAreaOfInterestDeleteAPI(generics.DestroyAPIView):
+    permission_classes = [IsAuthenticated, IsOwnerOfUserInterest]
+    authentication_classes = [JWTAuthentication]
+    lookup_field = "id"
+
+    def get_queryset(self):
+        return UserAreaOfInterest.objects.filter(user=self.request.user)
+
+    @swagger_auto_schema(
+        operation_description="Delete a user-selected area of interest by ID.",
+        responses={
+            204: "No Content – successfully deleted",
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            404: "Not Found",
+            500: "Internal Server Error"
+        },
+        tags = ["User Interests"]
+    )
+    def delete(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return api_response(
+            is_success=True,
+            result={"message": f"User's Area of Interest deleted successfully."},
+            status_code=status.HTTP_200_OK
+        )

@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.core.exceptions import ValidationError
 
-from accounts.models import User, Profile
+from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest
 from accounts.forms import UserCreationForm, UserChangeForm
 
 class UserAdmin(BaseUserAdmin):
@@ -37,3 +37,11 @@ class UserAdmin(BaseUserAdmin):
 
 admin.site.register(User, UserAdmin)
 admin.site.register(Profile)
+
+@admin.register(AreaOfInterest)
+class AreaOfInterestAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'description', 'created_at', 'updated_at']
+
+@admin.register(UserAreaOfInterest)
+class UserAreaOfInterestAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user']

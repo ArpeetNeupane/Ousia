@@ -5,6 +5,7 @@ from rest_framework.views import exception_handler
 from myproject.utils import api_response
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.http import Http404
 
 
 def custom_exception_handler(exc, context):
@@ -31,10 +32,10 @@ def custom_exception_handler(exc, context):
             status_code=status.HTTP_403_FORBIDDEN,
         )
 
-    if isinstance(exc, NotFound):
+    if isinstance(exc, (NotFound, Http404)):
         return api_response(
             is_success=False,
-            error_message="Object not found.",
+            error_message="Sorry! The object you're searching for doesn't exist.",
             status_code=status.HTTP_404_NOT_FOUND,
         )
 

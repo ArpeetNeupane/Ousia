@@ -134,6 +134,8 @@ library like bleach to allow only a safe subset of HTML tags. ✅xss doesnt matt
 #Coding after break
 
 #error messages needs to be fixed when pk related
+#When posting a bad users_interest ID (like "0"), DRF’s PrimaryKeyRelatedField raises a ValidationError, and custom exception handler 
+#wraps it as-is, producing:
 '''
 eg: {
     "StatusCode": 400,
@@ -146,11 +148,13 @@ eg: {
     "Result": null
 }
 '''
+#to solve this in other places see UserAreaOfInterestSerializer
 
 # need to make it so that you can only message your friends by importing friend model in conversation create serializer and
 # add participant API
 
-#update the FriendSerializer so that API response is better
+#update the FriendSerializer so that API response is better, instead of SerializerMethodField, charfield source would be better 
+#check if ive used SerializerMethodField anywhere else and replace with source as its better for single attributes and better in performace too
 '''
 username_friend1 = serializers.SerializerMethodField(read_only=True)
     username_friend2 = serializers.SerializerMethodField(read_only=True)
