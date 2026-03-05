@@ -23,7 +23,7 @@ from core.models import (
     Friend
 )
 from core.paginations import DefaultPagination
-from core.permissions import OwnsObjectOrAdmin
+from core.permissions import OwnsObjectOrAdmin, IsOwnerOfLike
 from core.filters import PostFilter
 from myproject.utils import api_response
 
@@ -912,6 +912,37 @@ class LikeListCreateAPI(generics.ListCreateAPIView):
     )
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
+
+
+
+class LikeDeleteAPI(generics.DestroyAPIView):
+    permission_classes = [IsAuthenticated, IsOwnerOfLike]
+    authentication_classes = [JWTAuthentication]
+    lookup_field = "id"
+
+    def get_queryset(self):
+        return Like.objects.filter(liked_by=self.request.user)
+
+    @swagger_auto_schema(
+        operation_description="Delete a user's like by ID.",
+        responses={
+            204: "No Content – successfully deleted",
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Permission Denied",
+            404: "Not Found",
+            500: "Internal Server Error"
+        },
+        tags = ["Likes"]
+    )
+    def delete(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return api_response(
+            is_success=True,
+            result={"message": f"Like deleted successfully."},
+            status_code=status.HTTP_200_OK
+        )
 
 
 

@@ -13,3 +13,11 @@ class OwnsObjectOrAdmin(BasePermission):
 
         owner = getattr(obj, 'user', None) or getattr(obj, 'created_by', None) or getattr(obj, 'posted_by', None)
         return owner == request.user
+
+
+class IsOwnerOfLike(BasePermission):
+    """
+    Custom permission to only allow users to delete a like object belonging to them.
+    """
+    def has_object_permission(self, request, view, obj):
+        return obj.liked_by == request.user

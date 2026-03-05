@@ -57,7 +57,7 @@ class Post(models.Model):
         PRIVATE = 'private', _('Private')
         FRIENDS_ONLY = 'friends_only', _('Friends Only')
 
-    caption = models.CharField(max_length=512, help_text=_("Text caption describing the post."))
+    caption = models.CharField(max_length=512, help_text=_("Text caption describing the post."), blank=True, null=True)
     # posted_from = models.CharField(max_length=255, blank=True, null=True)
     visibility = models.CharField(
         max_length=20,

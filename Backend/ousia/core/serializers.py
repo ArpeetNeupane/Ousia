@@ -13,7 +13,8 @@ from core.models import (
 )
 from core.mixins import MediaValidationMixin
 from core.service import PostCreateService, PostUpdateService
-from accounts.models import User
+from accounts.models import User, Profile
+from accounts.serializers import ProfilePictureSerializer
 
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
@@ -149,7 +150,7 @@ class MediaUploadSerializer(serializers.ModelSerializer):
 
 class PostResponseCreateSerializer(MediaValidationMixin, serializers.ModelSerializer):
     posted_by_username = serializers.SerializerMethodField(read_only=True)
-    visibility_label = serializers.SerializerMethodField()
+    visibility_label = serializers.SerializerMethodField(read_only=True)
     media_files = MediaUploadSerializer(source='post_media', many=True, read_only=True)
     media = serializers.ListField(
         child=serializers.FileField(),
@@ -158,19 +159,28 @@ class PostResponseCreateSerializer(MediaValidationMixin, serializers.ModelSerial
         help_text="Upload media files for the post"
     )
     type_of_post = serializers.CharField(required=False, help_text="Comma-separated hashtag names")
+    posted_by_profile = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = Post
         fields = [
-            'id', 'caption', 'visibility_label', 'created_at', 'updated_at', 'posted_by', 'posted_by_username',
+            'id', 'caption', 'visibility_label', 'created_at', 'updated_at', 'posted_by', 'posted_by_username', 'posted_by_profile',
             'type_of_post', 'media', 'media_files', 'post_like_count', 'post_comment_count'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'posted_by', 'posted_by_username', 'post_like_count', 'post_comment_count', 'media_url']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'posted_by', 'posted_by_username', 'posted_by_profile', 'post_like_count', 'post_comment_count', 'media_url']
 
     def get_posted_by_username(self, obj):
         return obj.posted_by.username if obj.posted_by else None
 
     def get_visibility_label(self, obj):
         return obj.get_visibility_display()
+
+    def get_posted_by_profile(self, obj):
+        try:
+            profile = Profile.objects.get(user=obj.posted_by)
+            return ProfilePictureSerializer(profile).data
+        except Profile.DoesNotExist:
+            return None
 
     def create(self, validated_data):
         request = self.context['request']
@@ -193,6 +203,9 @@ class PostResponseCreateSerializer(MediaValidationMixin, serializers.ModelSerial
 
 
 class PostUpdateSerializer(MediaValidationMixin, serializers.ModelSerializer):
+    posted_by_username = serializers.CharField(
+        source="posted_by.username", read_only=True
+    )
     type_of_post = serializers.CharField(
         required=False,
         help_text="Comma-separated hashtag names"
@@ -209,7 +222,7 @@ class PostUpdateSerializer(MediaValidationMixin, serializers.ModelSerializer):
         model = Post
         fields = [
             'id', 'caption', 'visibility', 'type_of_post', 'media', 'media_files',
-            'created_at', 'updated_at', 'post_like_count', 'post_comment_count'
+            'created_at', 'updated_at', 'posted_by', 'posted_by_username', 'post_like_count', 'post_comment_count'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'post_like_count', 'post_comment_count', 'media_files']
 
@@ -235,6 +248,13 @@ class PostUpdateSerializer(MediaValidationMixin, serializers.ModelSerializer):
 
 class LikeRetrieveCreateSerializer(serializers.ModelSerializer):
     liked_by_username = serializers.CharField(source='liked_by.username', read_only=True)
+
+    #handling pk related error message properly in POST
+    post = serializers.PrimaryKeyRelatedField(
+        queryset=Post.objects.all(),
+        error_messages={"does_not_exist": "Selected post does not exist."}
+    )
+    
     class Meta:
         model=Like
         fields = ['id', 'liked_by', 'liked_by_username', 'liked_at', 'post']

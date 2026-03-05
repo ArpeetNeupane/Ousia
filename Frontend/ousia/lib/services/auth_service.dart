@@ -3,9 +3,10 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../models/profile.dart';
+import '../models/post.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.7:8000/api';
+  static const String baseUrl = 'http://192.168.1.4:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -427,7 +428,7 @@ class AuthService {
     }
   }
 
-  // New method for uploading profile picture
+  // Method for uploading profile picture
   Future<Map<String, dynamic>> updateProfilePicture(String imagePath) async {
     try {
       var request = http.MultipartRequest(
@@ -598,6 +599,80 @@ class AuthService {
         'success': false,
         'message': 'Network error: Please check your connection',
       };
+    }
+  }
+
+
+  Future<Map<String, dynamic>> fetchPosts({String? nextUrl}) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: nextUrl ?? '/post/',
+      );
+      
+      final data = jsonDecode(response.body);
+      return _parsePosts(data);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Map<String, dynamic> _parsePosts(Map<String, dynamic> data) {
+    if ((data['IsSuccess'] ?? false) == true) {
+      final result = data['Result'];
+      final pagination = result['data'];
+      final List rawPosts = pagination['results'] ?? [];
+      return {
+        'success': true,
+        'posts': rawPosts.map((p) => Post.fromJson(p)).toList(),
+        'next': pagination['next'],
+      };
+    }
+    final error = data['ErrorMessage'];
+    return {
+      'success': false,
+      'message': error is List ? error.join(', ') : error.toString(),
+    };
+  }
+
+  Future<Map<String, dynamic>> likePost(int postId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/likes/',
+        body: {'post': postId},
+      );
+      final data = jsonDecode(response.body);
+      if ((data['IsSuccess'] ?? false) == true) {
+        return {'success': true, 'like_id': data['Result']['id']};
+      }
+      
+      return {
+        'success': false,
+        'message': data['ErrorMessage'] ?? 'Failed to like post',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> unlikePost(int likeId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'DELETE',
+        endpoint: '/like-delete/$likeId/',
+      );
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        return {'success': true};
+      }
+      
+      final data = jsonDecode(response.body);
+      return {
+        'success': false,
+        'message': data['ErrorMessage'] ?? 'Failed to unlike post',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
     }
   }
 
