@@ -31,6 +31,9 @@ class AuthService {
   static String? get accessToken => _accessToken;
   static Profile? get currentUser => _currentUser;
   static bool get isLoggedIn => _accessToken != null && _currentUser != null;
+  
+  bool _hasCompletedInterests = false;
+  bool get hasCompletedInterests => _hasCompletedInterests;
 
   // Initialize auth service - load tokens from secure storage
   static Future<void> initialize() async {
@@ -173,23 +176,19 @@ class AuthService {
 
       // Handle success case - check both formats
       if (data['is_success'] == true || data['IsSuccess'] == true) {
-        // Extract tokens from the result.data field
         final result = data['result'] ?? data['Result'];
         final tokenData = result['data'];
+
         _accessToken = tokenData['access_token'];
         _refreshToken = tokenData['refresh_token'];
-        
-        // Store tokens securely
+        _hasCompletedInterests = tokenData['has_completed_interests'] == true;
+
         await _secureStorage.write(key: _accessTokenKey, value: _accessToken!);
         await _secureStorage.write(key: _refreshTokenKey, value: _refreshToken!);
-        
-        // Fetch user profile after successful login
-        await _fetchUserProfile();
-        
+
         return {
           'success': true,
           'message': result['message'] ?? 'Login successful',
-          'user': _currentUser,
         };
       } else {
         // Handle error case - extract from various error fields
@@ -531,6 +530,77 @@ class AuthService {
     await _secureStorage.delete(key: _userProfileKey);
   }
 
+  Future<Map<String, dynamic>> fetchInterests() async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/interests/',
+      );
+
+      final data = jsonDecode(response.body);
+
+      if ((data['IsSuccess'] ?? data['is_success']) == true) {
+        final result = data['Result'] ?? data['result'];
+        final List interests = result['data'] ?? [];
+
+        return {
+          'success': true,
+          'interests': interests,
+        };
+      } else {
+        final error = data['ErrorMessage'] ?? data['error_message'];
+        return {
+          'success': false,
+          'message': _parseBackendErrorMessage(
+              error, 'Failed to load interests.'),
+        };
+      }
+    } catch (e) {
+      print('fetchInterests error: $e');
+      return {
+        'success': false,
+        'message': 'Network error: Please check your connection',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> saveUserInterests(int interestId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/user-interests/',
+        body: {
+          'users_interest': interestId,
+        },
+      );
+
+      final data = jsonDecode(response.body);
+
+      if ((data['IsSuccess'] ?? data['is_success']) == true) {
+        final result = data['Result'] ?? data['result'];
+
+        return {
+          'success': true,
+          'message': result?['message'] ?? 'Interests saved successfully.',
+          // 'interests': result?['data']?['results'] ?? [],
+        };
+      } else {
+        final error = data['ErrorMessage'] ?? data['error_message'];
+        return {
+          'success': false,
+          'message': _parseBackendErrorMessage(
+              error, 'Failed to save interests.'),
+        };
+      }
+    } catch (e) {
+      print('saveUserInterests error: $e');
+      return {
+        'success': false,
+        'message': 'Network error: Please check your connection',
+      };
+    }
+  }
+
   // Helper method to make authenticated requests with auto-retry on token refresh
   Future<http.Response> authenticatedRequest({
     required String method,
@@ -604,7 +674,7 @@ class AuthService {
   }
 
   // Helper methods for role checks
-  static bool isAdmin() => hasRole('admin') || hasRole('superuser');
+  static bool isAdmin() => hasRole('admin');
   static bool isSuperUser() => hasRole('superuser');
   static bool isUser() => hasRole('user');
 }

@@ -236,6 +236,9 @@ class UserLoginSerializer(serializers.Serializer): #using Serializer here instea
         #UserSerializer doesn't include password in fields, so it never shows up in to_repr's data.
         user_data = UserSerializer(instance=self.user).data
 
+        #adding interest selection completion flag
+        user_data['has_completed_interests'] = self.user.has_completed_interests
+
         #generating refresh and access tokens
         refresh = RefreshToken.for_user(self.user)
         user_data['access_token'] = str(refresh.access_token)

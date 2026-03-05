@@ -35,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 80),
+                  const SizedBox(height: 130),
                   
                   // Title
                   const Text(
@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   
-                  const SizedBox(height: 130),
+                  const SizedBox(height: 80),
                   // Username Field
                   Align(
                     alignment: Alignment.centerLeft,
@@ -182,16 +182,26 @@ class _LoginScreenState extends State<LoginScreen> {
                           final result = await authService.login(username, password);
 
                           if (result['success']) {
-                            // Navigate to feed or main screen
-                            Navigator.pushNamedAndRemoveUntil(
-                              context,
-                              '/user-interest',
-                              (route) => false,
-                            );
+                            final hasCompletedInterests = authService.hasCompletedInterests;
+
+                            // Navigate to interest selection screen or feed
+                            if (!hasCompletedInterests) {
+                              Navigator.pushNamedAndRemoveUntil(
+                                context,
+                                '/user-interest',
+                                (route) => false,
+                              );
+                            } else {
+                              Navigator.pushNamedAndRemoveUntil(
+                                context,
+                                '/feed',
+                                (route) => false,
+                              );
+                            }
                           } else {
                             // Show error message
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(result['message'])),
+                              SnackBar(content: Text(result['message'] ?? "Login Failed")),
                             );
                           }
                         }

@@ -46,7 +46,7 @@ class RegisterView(APIView):
                 serializer.save()
                 return api_response(
                     is_success=True,
-                    result={"message": "User registered successfully."},
+                    result={"message": "User registered successfully. Please redirect to the login screen to continue."},
                     status_code=status.HTTP_201_CREATED,
                 )
             return api_response(
@@ -421,7 +421,7 @@ class AreaOfInterestListCreateAPI(generics.ListCreateAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
     queryset = AreaOfInterest.objects.all()
-    pagination_class = DefaultPagination
+    pagination_class = None
     http_method_names = ["get", "post"]
     
     @swagger_auto_schema(
@@ -606,9 +606,6 @@ class UserAreaOfInterestListCreateAPI(generics.ListCreateAPIView):
             },
             status_code=status.HTTP_200_OK
         )
-    
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
 
     @swagger_auto_schema(
         operation_description="Add a new area of interest for the user.",
@@ -625,8 +622,13 @@ class UserAreaOfInterestListCreateAPI(generics.ListCreateAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        serializer.save()
+
+        serializer.save(user=request.user)
+
+        #setting has_completed_interests = True for this user so that we know where to navigate this user on future logins
+        user = request.user
+        user.has_completed_interests = True
+        user.save(update_fields=['has_completed_interests'])
 
         return api_response(
             is_success=True,

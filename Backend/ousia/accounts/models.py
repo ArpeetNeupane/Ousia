@@ -79,6 +79,8 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
     selfie_public_id = models.CharField(max_length=2056, blank=True, null=True, help_text=_("Public id of the selfie."))
     idcard_public_id = models.CharField(max_length=2056, blank=True, null=True, help_text=_("Public id of the id card."))
 
+    has_completed_interests = models.BooleanField(default=False) #field to track if user has selected interests or not
+
     objects = UserManager() #connecting to the manager created above
 
     USERNAME_FIELD = 'username'
@@ -142,7 +144,7 @@ class AreaOfInterest(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['name'], name="unique_interest_name")
         ]
-        ordering = ["-created_at"]
+        ordering = ["created_at"]
 
     def __str__(self):
         return self.name

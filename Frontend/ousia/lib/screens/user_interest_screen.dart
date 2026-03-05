@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../services/auth_service.dart';
 
 class UserInterestScreen extends StatefulWidget {
   const UserInterestScreen({super.key});
@@ -9,53 +10,127 @@ class UserInterestScreen extends StatefulWidget {
 }
 
 class _UserInterestScreenState extends State<UserInterestScreen> {
-  final List<Map<String, dynamic>> _allInterests = [
-    {'name': 'Drawing', 'icon': Icons.brush, 'isSelected': false},
-    {'name': 'Music', 'icon': Icons.music_note, 'isSelected': false},
-    {'name': 'Sports', 'icon': Icons.sports_soccer, 'isSelected': false},
-    {'name': 'Games', 'icon': Icons.games, 'isSelected': false},
-    {'name': 'Stories', 'icon': Icons.book, 'isSelected': false},
-    {'name': 'Science', 'icon': Icons.science, 'isSelected': false},
-    {'name': 'Nature', 'icon': Icons.nature, 'isSelected': false},
-    {'name': 'Cooking', 'icon': Icons.restaurant, 'isSelected': false},
-  ];
+  List<Map<String, dynamic>> _allInterests = [];
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String? _errorMessage;
 
-  List<String> get _selectedInterests {
-    return _allInterests
-        .where((interest) => interest['isSelected'])
-        .map<String>((interest) => interest['name'])
-        .toList();
+  final _authService = AuthService();
+
+  static const Map<String, IconData> _iconMap = {
+    'drawing':     Icons.brush,
+    'music':       Icons.music_note,
+    'sports':      Icons.sports_soccer,
+    'games':       Icons.games,
+    'stories':     Icons.book,
+    'science':     Icons.science,
+    'nature':      Icons.nature,
+    'cooking':     Icons.restaurant,
+    'art':         Icons.palette,
+    'reading':     Icons.menu_book,
+    'technology':  Icons.computer,
+    'travel':      Icons.flight,
+    'fitness':     Icons.fitness_center,
+    'photography': Icons.camera_alt,
+    'movies':      Icons.movie,
+    'coding':      Icons.code,
+  };
+
+  static IconData _iconFor(String name) =>
+      _iconMap[name.toLowerCase()] ?? Icons.star_outline;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInterests();
   }
 
-  void _toggleInterest(int index) {
+  Future<void> _loadInterests() async {
     setState(() {
-      _allInterests[index]['isSelected'] = !_allInterests[index]['isSelected'];
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    final result = await _authService.fetchInterests();
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final List interests = result['interests'];
+      setState(() {
+        _allInterests = interests.map<Map<String, dynamic>>((item) {
+          final name = item['name'] as String? ?? '';
+          return {
+            'id': item['id'],
+            'name': name,
+            'icon': _iconFor(name),
+            'isSelected': false,
+          };
+        }).toList();
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _errorMessage = result['message'];
+        _isLoading = false;
+      });
+    }
   }
 
-  void _confirmInterests() {
-    if (_selectedInterests.length < 3) {
+  Future<void> _saveSelectedInterests() async {
+    final selectedIds = _allInterests
+        .where((i) => i['isSelected'] == true)
+        .map((i) => i['id'])
+        .toList();
+
+    // Validation: at least 3 interests
+    if (selectedIds.length < 3) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select at least 3 interests.'),
-        ),
+        const SnackBar(content: Text('Please select at least 3 interests.')),
       );
       return;
     }
 
-    // Navigate to the next screen or save interests
-    print('Selected interests: $_selectedInterests');
-    
-    // Navigate to feed or next onboarding step
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/feed',
-      (route) => false,
-    );
+    setState(() => _isSaving = true);
+
+    // create a list of futures
+    final futures = selectedIds.map((id) => _authService.saveUserInterests(id)).toList();
+
+    // wait for all requests to complete in parallel
+    final results = await Future.wait(futures);
+
+    bool anyError = false;
+
+    for (var result in results) {
+      if (!result['success']) {
+        anyError = true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'])),
+        );
+      }
+    }
+
+    setState(() => _isSaving = false);
+
+    if (!anyError) {
+      Navigator.pushNamedAndRemoveUntil(context, '/feed', (route) => false);
+    }
+  }
+
+  List<Map<String, dynamic>> get _selectedInterests =>
+      _allInterests.where((i) => i['isSelected'] as bool).toList();
+
+  void _toggleInterest(int index) {
+    setState(() {
+      _allInterests[index]['isSelected'] =
+          !(_allInterests[index]['isSelected'] as bool);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final selectedCount = _selectedInterests.length;
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -63,8 +138,7 @@ class _UserInterestScreenState extends State<UserInterestScreen> {
           child: Column(
             children: [
               const SizedBox(height: 40),
-              
-              // Title
+
               const Text(
                 'Interests',
                 style: TextStyle(
@@ -73,86 +147,105 @@ class _UserInterestScreenState extends State<UserInterestScreen> {
                   color: Color(0xffB2A0A0),
                 ),
               ),
-              
+
               const SizedBox(height: 8),
-              
-              // Subtitle
+
               Text(
                 'Pick any 3 you like to do.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
-              
+
               const SizedBox(height: 60),
-              
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2, // Changed from 3 to 2 columns
-                  childAspectRatio: 3.0, // Made boxes bigger
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                ),
-                itemCount: _allInterests.length,
-                itemBuilder: (context, index) {
-                  final interest = _allInterests[index];
-                  final isSelected = interest['isSelected'];
-                  
-                  return GestureDetector(
-                    onTap: () => _toggleInterest(index),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isSelected 
-                            ? const Color(0xFFC3B7F5)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(25),
-                        border: Border.all(
-                          color: isSelected 
-                              ? const Color(0xFFC3B7F5)
-                              : Colors.grey[300]!,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            interest['icon'],
-                            size: 20, // Slightly bigger icon
-                            color: isSelected 
-                                ? Colors.white
-                                : Colors.grey[600],
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            interest['name'],
-                            style: TextStyle(
-                              fontSize: 15, // Bigger text
-                              fontWeight: FontWeight.w500,
-                              color: isSelected 
-                                  ? Colors.white
-                                  : Colors.grey[700],
+
+              // Scrollable interest grid — expands to fill available space
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _errorMessage != null
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _errorMessage!,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.grey[600]),
+                                ),
+                                const SizedBox(height: 16),
+                                TextButton(
+                                  onPressed: _loadInterests,
+                                  child: const Text('Try again'),
+                                ),
+                              ],
                             ),
+                          )
+                        : GridView.builder(
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 3.0,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                            ),
+                            itemCount: _allInterests.length,
+                            itemBuilder: (context, index) {
+                              final interest = _allInterests[index];
+                              final isSelected =
+                                  interest['isSelected'] as bool;
+
+                              return GestureDetector(
+                                onTap: () => _toggleInterest(index),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(0xFFC3B7F5)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(25),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? const Color(0xFFC3B7F5)
+                                          : Colors.grey[300]!,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        interest['icon'] as IconData,
+                                        size: 20,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.grey[600],
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        interest['name'] as String,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.grey[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                          // Removed the X icon completely
-                        ],
-                      ),
-                    ),
-                  );
-                },
               ),
-              
-              const SizedBox(height: 40), // Moved button closer to options
-              
-              // Confirm button
+
+              const SizedBox(height: 24),
+
               SizedBox(
                 width: 180,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _confirmInterests,
+                  onPressed:
+                      (_isLoading || _isSaving) ? null : _saveSelectedInterests,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFC3B7F5),
                     foregroundColor: Colors.white,
@@ -160,17 +253,23 @@ class _UserInterestScreenState extends State<UserInterestScreen> {
                       borderRadius: BorderRadius.circular(25),
                     ),
                   ),
-                  child: Text(
-                    'Confirm Interest${_selectedInterests.length != 1 ? 's' : ''}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      // fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          'Confirm Interest${selectedCount != 1 ? 's' : ''}',
+                          style: const TextStyle(fontSize: 18),
+                        ),
                 ),
               ),
-              
-              const SizedBox(height: 150),
+
+              const SizedBox(height: 16),
 
               SizedBox(
                 height: 100,
