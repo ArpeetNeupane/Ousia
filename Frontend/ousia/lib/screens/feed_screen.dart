@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:ousia/services/auth_service.dart';
 import 'package:video_player/video_player.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../models/post.dart';
 
@@ -176,7 +177,11 @@ class _FeedPageState extends State<FeedPage> {
     }
     if (_posts.isEmpty) {
       return const Center(
-        child: Text('No posts have been made by any other user yet!\nWhy don\'t you be the first one?.', style: TextStyle(color: Colors.grey)),
+        child: Text(
+          'No posts have been made by any other user yet!\nWhy don\'t you be the first one?.',
+          style: TextStyle(color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
       );
     }
     return RefreshIndicator(
@@ -219,40 +224,35 @@ class _PostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: Colors.white,
-      margin: const EdgeInsets.only(bottom: 8),
+      // Gap between posts
+      margin: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                const CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Color(0xFFE0E0E0),
-                  child: Icon(Icons.person, color: Colors.white, size: 20),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: const Color(0xFFE0E0E0),
+                  backgroundImage: (post.postedByProfile?.pfpUrl != null &&
+                          post.postedByProfile!.pfpUrl!.isNotEmpty)
+                      ? CachedNetworkImageProvider(post.postedByProfile!.pfpUrl!)
+                      : null,
+                  child: (post.postedByProfile?.pfpUrl == null ||
+                          post.postedByProfile!.pfpUrl!.isEmpty)
+                      ? const Icon(Icons.person, color: Colors.white, size: 22)
+                      : null,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        post.postedByUsername,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        post.typeOfPost,
-                        style: TextStyle(
-                          color: primaryColor,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    post.postedByUsername,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
                 GestureDetector(
@@ -292,7 +292,7 @@ class _PostCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '${post.postLikeCount} Likes',
+                  '${post.postLikeCount} ${post.postLikeCount == 1 ? 'Like' : 'Likes'}',
                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 ),
               ],
@@ -300,18 +300,32 @@ class _PostCard extends StatelessWidget {
           ),
 
           // Caption
-          if (post.caption.isNotEmpty)
+          if (post.caption != null && post.caption!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: _ExpandableCaption(
                 username: post.postedByUsername,
-                caption: post.caption,
+                caption: post.caption!,
+              ),
+            ),
+
+          // Hashtag
+          if (post.typeOfPost.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 12, right: 12, top: 4),
+              child: Text(
+                post.typeOfPost,
+                style: TextStyle(
+                  color: primaryColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
 
           // Time
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Text(
               timeago.format(post.createdAt),
               style: const TextStyle(color: Colors.grey, fontSize: 12),
@@ -457,7 +471,7 @@ class _MediaCarouselState extends State<_MediaCarousel> {
             ),
           ),
 
-        // Counter badge (top right) — only if multiple
+        // Counter badge
         if (total > 1)
           Positioned(
             top: 10,
@@ -486,7 +500,7 @@ class _ArrowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.black45,
         shape: BoxShape.circle,
       ),
@@ -533,7 +547,7 @@ class _VideoItemState extends State<_VideoItem> {
   void initState() {
     super.initState();
     _controller = VideoPlayerController.networkUrl(Uri.parse(widget.media.mediaUrl))
-      ..setVolume(0) // start muted like Instagram
+      ..setVolume(0) // starts muted like Instagram
       ..setLooping(true)
       ..initialize().then((_) {
         if (mounted) {
@@ -556,50 +570,60 @@ class _VideoItemState extends State<_VideoItem> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Thumbnail while loading
-        if (!_initialized)
-          CachedNetworkImage(
-            imageUrl: widget.media.videoThumbnailUrl,
-            fit: BoxFit.cover,
-            placeholder: (_, __) => Container(color: const Color(0xFFEEEEEE)),
-            errorWidget: (_, __, ___) => Container(color: Colors.black),
-          ),
-
-        // Video player
-        if (_initialized)
-          FittedBox(
-            fit: BoxFit.cover,
-            child: SizedBox(
-              width: _controller.value.size.width,
-              height: _controller.value.size.height,
-              child: VideoPlayer(_controller),
+    return VisibilityDetector(
+      key: Key('video-${widget.media.publicId}'),
+      onVisibilityChanged: (info) {
+        if (info.visibleFraction < 0.5) {
+          _controller.pause();
+        } else {
+          _controller.play();
+        }
+      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Thumbnail while loading
+          if (!_initialized)
+            CachedNetworkImage(
+              imageUrl: widget.media.videoThumbnailUrl,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(color: const Color(0xFFEEEEEE)),
+              errorWidget: (_, __, ___) => Container(color: Colors.black),
             ),
-          ),
-
-        // Mute/unmute button (bottom right)
-        Positioned(
-          bottom: 10,
-          right: 12,
-          child: GestureDetector(
-            onTap: _toggleMute,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.black54,
-                shape: BoxShape.circle,
-              ),
-              padding: const EdgeInsets.all(6),
-              child: Icon(
-                _muted ? Icons.volume_off : Icons.volume_up,
-                color: Colors.white,
-                size: 18,
+      
+          // Video player
+          if (_initialized)
+            FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: _controller.value.size.width,
+                height: _controller.value.size.height,
+                child: VideoPlayer(_controller),
               ),
             ),
+      
+          // Mute/unmute button
+          Positioned(
+            bottom: 10,
+            right: 12,
+            child: GestureDetector(
+              onTap: _toggleMute,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  _muted ? Icons.volume_off : Icons.volume_up,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

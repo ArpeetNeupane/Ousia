@@ -572,7 +572,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = []
     serializer_class = PostResponseCreateSerializer
-    queryset = Post.objects.all()
+    queryset = Post.objects.prefetch_related("like_on_post") #reverse relationship name of fk of post on like model
     parser_classes = [FormParser, MultiPartParser]
     pagination_class = DefaultPagination
     http_method_names = ['get', 'post']

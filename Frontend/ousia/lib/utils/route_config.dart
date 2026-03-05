@@ -3,7 +3,7 @@ import '../screens/welcome_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/signup_screen.dart';
 import '../screens/user_interest_screen.dart';
-import '../screens/feed_page.dart';
+import '../screens/feed_screen.dart';
 import '../screens/signup_continue_screen.dart';
 // import '../screens/edit_profile_screen.dart';
 import 'route_names.dart';

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../screens/welcome_screen.dart';
-import '../screens/feed_page.dart';
+import '../screens/feed_screen.dart';
+import '../screens/main_navigation_screen.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});

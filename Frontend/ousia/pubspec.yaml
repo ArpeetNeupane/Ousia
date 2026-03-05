@@ -45,6 +45,7 @@ dependencies:
   cached_network_image: ^3.3.0
   video_player: ^2.8.0
   timeago: ^3.6.0
+  visibility_detector: ^0.4.0
 
 dev_dependencies:
   flutter_test:

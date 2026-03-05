@@ -21,7 +21,7 @@ class MediaFile {
         mediaUrl: json['media_url'],
       );
 
-  /// Cloudinary video thumbnail: replacing /video/upload/ with /video/upload/so_0/ and using .jpg
+  // Cloudinary video thumbnail: swapping /video/upload/ → /video/upload/so_0/ and using .jpg
   String get videoThumbnailUrl {
     if (!isVideo) return mediaUrl;
     final thumb = mediaUrl.replaceFirst('/video/upload/', '/video/upload/so_0/');
@@ -31,29 +31,42 @@ class MediaFile {
   }
 }
 
+class PostedByProfile {
+  final String? pfpUrl;
+  final String username;
+
+  PostedByProfile({this.pfpUrl, required this.username});
+
+  factory PostedByProfile.fromJson(Map<String, dynamic> json) => PostedByProfile(
+        pfpUrl: json['pfp_url'],
+        username: json['username'] ?? '',
+      );
+}
+
 class Post {
   final int id;
-  final String caption;
+  final String? caption;
   final String visibilityLabel;
   final DateTime createdAt;
   final int postedBy;
   final String postedByUsername;
+  final PostedByProfile? postedByProfile;
   final String typeOfPost;
   final List<MediaFile> mediaFiles;
   int postLikeCount;
   final int postCommentCount;
 
-  // Local like state (tracking client-side)
   bool isLiked;
-  int? likeId; // returned from POST /likes/ — needed for DELETE
+  int? likeId;
 
   Post({
     required this.id,
-    required this.caption,
+    this.caption,
     required this.visibilityLabel,
     required this.createdAt,
     required this.postedBy,
     required this.postedByUsername,
+    this.postedByProfile,
     required this.typeOfPost,
     required this.mediaFiles,
     required this.postLikeCount,
@@ -64,16 +77,21 @@ class Post {
 
   factory Post.fromJson(Map<String, dynamic> json) => Post(
         id: json['id'],
-        caption: json['caption'] ?? '',
+        caption: json['caption'],
         visibilityLabel: json['visibility_label'] ?? '',
         createdAt: DateTime.parse(json['created_at']),
         postedBy: json['posted_by'],
         postedByUsername: json['posted_by_username'] ?? '',
+        postedByProfile: json['posted_by_profile'] != null
+            ? PostedByProfile.fromJson(json['posted_by_profile'])
+            : null,
         typeOfPost: json['type_of_post'] ?? '',
         mediaFiles: (json['media_files'] as List<dynamic>)
             .map((m) => MediaFile.fromJson(m))
             .toList(),
         postLikeCount: json['post_like_count'] ?? 0,
         postCommentCount: json['post_comment_count'] ?? 0,
+        isLiked: json['is_liked'] ?? false,
+        likeId: json['user_like_id'],
       );
 }

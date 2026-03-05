@@ -160,14 +160,35 @@ class PostResponseCreateSerializer(MediaValidationMixin, serializers.ModelSerial
     )
     type_of_post = serializers.CharField(required=False, help_text="Comma-separated hashtag names")
     posted_by_profile = serializers.SerializerMethodField(read_only=True)
+    is_liked = serializers.SerializerMethodField()
+    user_like_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
         fields = [
             'id', 'caption', 'visibility_label', 'created_at', 'updated_at', 'posted_by', 'posted_by_username', 'posted_by_profile',
-            'type_of_post', 'media', 'media_files', 'post_like_count', 'post_comment_count'
+            'type_of_post', 'media', 'media_files', 'post_like_count', 'post_comment_count', 'is_liked', 'user_like_id'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'posted_by', 'posted_by_username', 'posted_by_profile', 'post_like_count', 'post_comment_count', 'media_url']
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'posted_by', 'posted_by_username', 'posted_by_profile', 'post_like_count', 
+            'post_comment_count', 'media_url', 'is_liked', 'user_like_id'
+        ]
+    
+    def _get_user_like(self, obj):
+        user = self.context["request"].user
+        if user.is_anonymous:
+            return None
+        return next(
+            (like for like in obj.like_on_post.all() if like.liked_by_id == user.id),
+            None
+        )
+    
+    def get_is_liked(self, obj):
+        return bool(self._get_user_like(obj))
+
+    def get_user_like_id(self, obj):
+        like = self._get_user_like(obj)
+        return like.id if like else None
 
     def get_posted_by_username(self, obj):
         return obj.posted_by.username if obj.posted_by else None
