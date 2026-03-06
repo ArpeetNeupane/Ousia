@@ -202,6 +202,15 @@ class PostResponseCreateSerializer(MediaValidationMixin, serializers.ModelSerial
             return ProfilePictureSerializer(profile).data
         except Profile.DoesNotExist:
             return None
+    
+    def validate(self, data):
+        caption = data.get('caption')
+        media = data.get('media')
+
+        if not caption and not media:
+            raise serializers.ValidationError("You should include either a caption or a media file.")
+        
+        return data
 
     def create(self, validated_data):
         request = self.context['request']

@@ -8,6 +8,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
+from django.shortcuts import get_object_or_404
+
 from accounts.models import Profile, AreaOfInterest, UserAreaOfInterest
 from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer, AreaOfInterestSerializer, UserAreaOfInterestSerializer
 from accounts.permissions import IsAuthenticatedOrAdmin, IsOwnerOfProfile, CreatorOfInterest, IsOwnerOfUserInterest
@@ -187,7 +189,7 @@ class ProfileResponseAPI(generics.RetrieveAPIView):
     serializer_class = ProfileSerializer
 
     def get_object(self):
-        return self.request.user
+        return get_object_or_404(Profile, user=self.request.user)
 
     def retrieve(self, request, *args, **kwargs):
         try:
@@ -254,7 +256,7 @@ class ProfileUpdateAPI(generics.UpdateAPIView):
             raise NotFound("Profile not found for the user.")
 
     @swagger_auto_schema(
-        operation_description="Update a user's profile by user_id. Only accessible to superusers and admin or the user themselves.",
+        operation_description="Update a user's profile by user_id.",
         request_body=ProfileUpdateSerializer,
         responses={
             200: openapi.Response(
@@ -344,7 +346,7 @@ class ProfileAdminUpdateAPI(generics.UpdateAPIView):
             raise PermissionDenied("You are not authorized to access this endpoint.")
 
     @swagger_auto_schema(
-        operation_description="Update a user's profile by user_id. Only accessible to superusers and admin or the user themselves.",
+        operation_description="Update a user's profile by user_id. Only accessible to superusers and admin.",
         request_body=ProfileUpdateSerializer,
         manual_parameters=[
             openapi.Parameter(
