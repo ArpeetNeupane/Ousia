@@ -4,6 +4,7 @@ import '../screens/login_screen.dart';
 import '../screens/signup_screen.dart';
 import '../screens/user_interest_screen.dart';
 import '../screens/feed_screen.dart';
+import '../screens/create_post_screen.dart';
 import '../screens/signup_continue_screen.dart';
 // import '../screens/edit_profile_screen.dart';
 import 'route_names.dart';
@@ -26,6 +27,9 @@ class RouteConfig {
       case RouteNames.home:
       case RouteNames.feed:
         return MaterialPageRoute(builder: (_) => const FeedPage());
+
+      case RouteNames.createPost:
+        return MaterialPageRoute(builder: (_) => const CreatePostPage());
 
       case RouteNames.signupContinue:
         final args = settings.arguments as Map<String, dynamic>;

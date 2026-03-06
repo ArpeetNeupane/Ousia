@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:http/http.dart' as http;
 import '../models/profile.dart';
 import '../models/post.dart';
@@ -391,6 +392,18 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> fetchProfile() async {
+    if (_currentUser != null) {
+      return {'success': true, 'data': _currentUser!.toJson()};
+    }
+    // fallback: fetch if not cached
+    await _fetchUserProfile();
+    if (_currentUser != null) {
+      return {'success': true, 'data': _currentUser!.toJson()};
+    }
+    return {'success': false, 'message': 'Failed to load profile'};
+  }
+
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> profileData) async {
     try {
       final response = await authenticatedRequest(
@@ -673,6 +686,73 @@ class AuthService {
       };
     } catch (e) {
       return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Create post
+  Future<Map<String, dynamic>> createPost({
+    String? caption,
+    required String visibility,
+    String? typeOfPost,
+    List<File> mediaFiles = const [],
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/post/');
+      final request = http.MultipartRequest('POST', uri)
+        ..headers['Authorization'] = 'Bearer $_accessToken';
+
+      if (caption != null && caption.isNotEmpty) {
+        request.fields['caption'] = caption;
+      }
+      request.fields['visibility'] = visibility;
+      if (typeOfPost != null && typeOfPost.isNotEmpty) {
+        request.fields['type_of_post'] = typeOfPost;
+      }
+
+      for (final file in mediaFiles) {
+        final mimeType = _getMimeType(file.path);
+        request.files.add(await http.MultipartFile.fromPath(
+          'media', // backend field name
+          file.path,
+          contentType: mimeType,
+        ));
+      }
+
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      final data = jsonDecode(response.body);
+
+      if ((data['IsSuccess'] ?? false) == true) {
+        return {'success': true};
+      }
+      final error = data['ErrorMessage'];
+      return {
+        'success': false,
+        'message': error is List ? error.join(', ') : error.toString(),
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  MediaType _getMimeType(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return MediaType('image', 'jpeg');
+      case 'png':
+        return MediaType('image', 'png');
+      case 'gif':
+        return MediaType('image', 'gif');
+      case 'mp4':
+        return MediaType('video', 'mp4');
+      case 'mov':
+        return MediaType('video', 'quicktime');
+      case 'avi':
+        return MediaType('video', 'avi');
+      default:
+        return MediaType('application', 'octet-stream');
     }
   }
 
