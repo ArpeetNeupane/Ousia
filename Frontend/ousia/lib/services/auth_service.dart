@@ -616,14 +616,17 @@ class AuthService {
   }
 
 
+  // Fetch Post logic
   Future<Map<String, dynamic>> fetchPosts({String? nextUrl}) async {
     try {
-      final response = await authenticatedRequest(
-        method: 'GET',
-        endpoint: nextUrl ?? '/post/',
-      );
-      
-      print('fetchPosts response: ${response.statusCode} ${response.body.substring(0, 200)}');
+      String endpoint;
+      if (nextUrl != null) {
+        final uri = Uri.parse(nextUrl);
+        endpoint = '/post/?${uri.query}';
+      } else {
+        endpoint = '/post/';
+      }
+      final response = await authenticatedRequest(method: 'GET', endpoint: endpoint);
       final data = jsonDecode(response.body);
       return _parsePosts(data);
     } catch (e) {
