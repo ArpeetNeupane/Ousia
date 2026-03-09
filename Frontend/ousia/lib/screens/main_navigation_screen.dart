@@ -27,10 +27,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const _PlaceholderScreen(label: 'Profile'),
   ];
 
+  Key _feedKey = UniqueKey();
+
   void _onTabTapped(int index) {
-    // Navigates to create post screen
     if (index == 2) {
-      Navigator.pushNamed(context, '/create-post');
+      Navigator.pushNamed(context, '/create-post').then((result) {
+        if (result == true) {
+          setState(() => _feedKey = UniqueKey());
+        }
+      });
       return;
     }
     setState(() => _currentIndex = index);
@@ -43,7 +48,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         // Skipping index 2 (Post) since it navigates away — clamping to avoid out-of-range
         index: _currentIndex > 2 ? _currentIndex - 1 : _currentIndex,
         children: [
-          _screens[0], // Home / Feed
+          FeedPage(key: _feedKey), // Home / Feed
           _screens[1], // Messages
           _screens[3], // Quiz
           _screens[4], // Profile
