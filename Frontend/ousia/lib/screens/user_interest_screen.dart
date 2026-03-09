@@ -113,7 +113,7 @@ class _UserInterestScreenState extends State<UserInterestScreen> {
     setState(() => _isSaving = false);
 
     if (!anyError) {
-      Navigator.pushNamedAndRemoveUntil(context, '/feed', (route) => false);
+      Navigator.pushNamedAndRemoveUntil(context, '/main-navigation-screen', (route) => false);
     }
   }
 

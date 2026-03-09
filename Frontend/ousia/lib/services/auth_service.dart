@@ -7,7 +7,7 @@ import '../models/profile.dart';
 import '../models/post.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.4:8000/api';
+  static const String baseUrl = 'http://192.168.1.5:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -377,8 +377,8 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['is_success'] == true) {
-          _currentUser = Profile.fromJson(data['result']['data']);
+        if (data['IsSuccess'] == true) {
+          _currentUser = Profile.fromJson(data['Result']['data']);
           
           // Store user profile securely
           await _secureStorage.write(
@@ -726,9 +726,17 @@ class AuthService {
         return {'success': true};
       }
       final error = data['ErrorMessage'];
+      String message;
+      if (error is Map) {
+        message = error.values.map((v) => v is List ? v.join(', ') : v.toString()).join('\n');
+      } else if (error is List) {
+        message = error.join(', ');
+      } else {
+        message = error.toString();
+      }
       return {
         'success': false,
-        'message': error is List ? error.join(', ') : error.toString(),
+        'message': message,
       };
     } catch (e) {
       return {'success': false, 'message': 'Network error: $e'};

@@ -8,6 +8,7 @@ class RouteNames {
   static const String userInterest = '/user-interest';
   
   // Main app routes
+  static const String mainNav = '/main-navigation-screen';
   static const String home = '/home';
   static const String feed = '/feed';
   static const String createPost = '/create-post';

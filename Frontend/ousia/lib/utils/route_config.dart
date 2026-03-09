@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ousia/screens/main_navigation_screen.dart';
 import '../screens/welcome_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/signup_screen.dart';
@@ -23,6 +24,9 @@ class RouteConfig {
       
       case RouteNames.userInterest:
         return MaterialPageRoute(builder: (_) => const UserInterestScreen());
+      
+      case RouteNames.mainNav:
+        return MaterialPageRoute(builder: (_) => const MainNavigationScreen());
       
       case RouteNames.home:
       case RouteNames.feed:

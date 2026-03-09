@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 // import 'package:ousia/services/auth_service.dart';
 import 'feed_screen.dart';
 // import 'message_screen.dart';
-// import 'create_post_screen.dart';
+import 'create_post_screen.dart';
 // import 'play_screen.dart';
 // import 'profile_screen.dart';
 
@@ -21,7 +21,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   final List<Widget> _screens = [
     const FeedPage(),
-    const _PlaceholderScreen(label: 'Messages'),
+    const CreatePostPage(),
     const _PlaceholderScreen(label: 'Create Post'),
     const _PlaceholderScreen(label: 'Quiz'),
     const _PlaceholderScreen(label: 'Profile'),
@@ -207,12 +207,10 @@ class _PlaceholderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Text(
-          label,
-          style: const TextStyle(fontSize: 22, color: Colors.grey),
-        ),
+    return Center(
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 22, color: Colors.grey),
       ),
     );
   }

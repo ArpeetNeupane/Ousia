@@ -73,6 +73,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
   Future<void> _loadProfile() async {
     final result = await _service.fetchProfile();
+    debugPrint('fetchProfile result: $result');
     if (!mounted) return;
     if (result['success'] == true) {
       final data = result['data'];

@@ -144,7 +144,7 @@ class _FeedPageState extends State<FeedPage> {
           IconButton(
             icon: const Icon(Icons.search, color: Colors.black),
             onPressed: () {
-              Navigator.of(context).pushNamed('/create-post');
+              // Navigator.of(context).pushNamed('/create-post');
             },
           ),
           IconButton(

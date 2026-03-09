@@ -194,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             } else {
                               Navigator.pushNamedAndRemoveUntil(
                                 context,
-                                '/feed',
+                                '/main-navigation-screen',
                                 (route) => false,
                               );
                             }
