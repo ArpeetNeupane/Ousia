@@ -171,8 +171,8 @@ class AuthService {
         }),
       );
 
-      print('Login response status: ${response.statusCode}');
-      print('Login response body: ${response.body}');
+      // print('Login response status: ${response.statusCode}');
+      // print('Login response body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
@@ -623,6 +623,7 @@ class AuthService {
         endpoint: nextUrl ?? '/post/',
       );
       
+      print('fetchPosts response: ${response.statusCode} ${response.body.substring(0, 200)}');
       final data = jsonDecode(response.body);
       return _parsePosts(data);
     } catch (e) {

@@ -34,6 +34,16 @@ class _FeedPageState extends State<FeedPage> {
     _scrollController.addListener(_onScroll);
   }
 
+  void _prewarmImageCache(List<Post> posts) {
+    for (final post in posts) {
+      for (final media in post.mediaFiles) {
+        if (!media.isVideo) {
+          CachedNetworkImageProvider(media.mediaUrl).resolve(const ImageConfiguration());
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -57,11 +67,13 @@ class _FeedPageState extends State<FeedPage> {
     final result = await _service.fetchPosts();
     if (!mounted) return;
     if (result['success'] == true) {
+      final newPosts = result['posts'] as List<Post>;
       setState(() {
-        _posts = result['posts'];
+        _posts = newPosts;
         _nextUrl = result['next'];
         _isLoading = false;
       });
+      _prewarmImageCache(newPosts);
     } else {
       setState(() {
         _errorMessage = result['message'];
@@ -75,11 +87,13 @@ class _FeedPageState extends State<FeedPage> {
     final result = await _service.fetchPosts(nextUrl: _nextUrl);
     if (!mounted) return;
     if (result['success'] == true) {
+      final newPosts = result['posts'] as List<Post>;
       setState(() {
-        _posts.addAll(result['posts']);
+        _posts.addAll(newPosts);
         _nextUrl = result['next'];
         _isLoadingMore = false;
       });
+      _prewarmImageCache(newPosts);
     } else {
       setState(() => _isLoadingMore = false);
     }
@@ -522,10 +536,51 @@ class _ImageItem extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: media.mediaUrl,
       fit: BoxFit.cover,
-      placeholder: (_, __) => Container(color: const Color(0xFFEEEEEE)),
+      fadeInDuration: const Duration(milliseconds: 150),
+      fadeOutDuration: const Duration(milliseconds: 50),
+      placeholder: (_, __) => const _ShimmerBox(),
       errorWidget: (_, __, ___) => Container(
         color: const Color(0xFFEEEEEE),
         child: const Icon(Icons.broken_image, color: Colors.grey),
+      ),
+    );
+  }
+}
+
+// Shimmer before image loads
+class _ShimmerBox extends StatefulWidget {
+  const _ShimmerBox();
+
+  @override
+  State<_ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<_ShimmerBox> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+    _anim = Tween(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        color: Color.lerp(const Color(0xFFE0E0E0), const Color(0xFFF5F5F5), _anim.value),
       ),
     );
   }
