@@ -243,17 +243,33 @@ class _CreatePostPageState extends State<CreatePostPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const SizedBox(height: 70),
           // User row + visibility
           _buildUserRow(),
           const SizedBox(height: 16),
 
           // Caption field
           _buildCaptionField(),
-          const SizedBox(height: 12),
+          const SizedBox(height: 18),
+
+          const SizedBox(height: 10),
 
           // Type of post / hashtag
           _buildTypeField(),
-          const SizedBox(height: 20),
+          const SizedBox(height: 30),
+          Center(
+            child: Text(
+              "Add an image or a video to make your post more lively!",
+              style: TextStyle(
+                fontSize: 18,
+                color: const Color.fromARGB(255, 4, 115, 146),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          const SizedBox(height: 15),
 
           // Media preview grid
           if (_mediaFiles.isNotEmpty) ...[
