@@ -418,6 +418,47 @@ class ProfileAdminUpdateAPI(generics.UpdateAPIView):
             )
 
 
+
+class UserProfileDetailAPI(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    @swagger_auto_schema(
+        operation_summary="Retrieve other users profile",
+        operation_description="Returns the profile details for the given user id.",
+        responses={
+            200: openapi.Response(
+                description="Profile retrieved successfully",
+                schema=ProfileSerializer()
+            ),
+            401: "Unauthorized",
+            403: "Forbidden",
+            404: "Profile not found",
+            500: "Internal server error",
+        }
+    )
+    def get(self, request, user_id):
+        try:
+            profile = Profile.objects.select_related('user').get(user__id=user_id)
+        except Profile.DoesNotExist:
+            return api_response(
+                is_success=False,
+                error_message="Profile doesn't exist because user doesn't exist for that id.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = ProfileSerializer(profile)
+        return api_response(
+            is_success=True,
+            result={
+                "message": " Profile retrieved successfully.",
+                "data": serializer.data
+            },
+            status_code=status.HTTP_200_OK
+        )
+
+
+
 class AreaOfInterestListCreateAPI(generics.ListCreateAPIView):
     serializer_class = AreaOfInterestSerializer
     authentication_classes = [JWTAuthentication]

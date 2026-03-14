@@ -22,14 +22,13 @@ face_cascade = cv2.CascadeClassifier(
 def extract_dob_from_text(text):
     text = text.lower()
 
-    #patterns
     patterns = [
-        #ad formats
-        r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})',     #yyyy-mm-dd
-        r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})',     #dd-mm-yyyy
-
-        #bs formats
-        r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s*(bs|b\.s\.)'
+        # parenthesized AD date like (06/02/2016)
+        r'\((\d{1,2})[/](\d{1,2})[/](\d{4})\)',
+        # dd/mm/yyyy
+        r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})',
+        # yyyy/mm/dd with optional bs
+        r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s*(bs|b\.s\.)?',
     ]
 
     for p in patterns:
@@ -37,19 +36,23 @@ def extract_dob_from_text(text):
         if match:
             parts = match.groups()
 
-            #bs detected
-            if 'bs' in parts:
+            if len(parts) == 3:
+                if len(parts[0]) == 4:
+                    y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+                else:
+                    d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+            else:
                 y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
-                bs_date = nepali_datetime.date(y, m, d)
-                ad_date = bs_date.to_datetime_date()
-                return ad_date
 
-            #yyyy-mm-dd
-            if len(parts[0]) == 4:
-                return datetime.date(int(parts[0]), int(parts[1]), int(parts[2]))
+            # treat as BS if year looks like a BS year
+            if y > 2100:
+                try:
+                    bs_date = nepali_datetime.date(y, m, d)
+                    return bs_date.to_datetime_date()
+                except Exception:
+                    continue
 
-            #dd-mm-yyyy
-            return datetime.date(int(parts[2]), int(parts[1]), int(parts[0]))
+            return datetime.date(y, m, d)
 
     return None
 

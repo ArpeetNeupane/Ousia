@@ -70,8 +70,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'selfie_public_id', 'idcard_public_id']
 
     def validate_birth_date(self, value):
-        today_in_ad = date.today()
-        today = nepali_datetime.date.from_datetime_date(today_in_ad)
+        today = date.today()
         age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
         if age < 7 or age > 13:
             raise serializers.ValidationError("You must be between 7 and 13 years old to register.")
@@ -109,7 +108,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if not ai_results.get('is_match'): 
             errors["identity"] = "The selfie does not match the photo on the ID card."
         
-        text = extract_text_from_id(e_text_id)
+        text = ai_results.get("extracted_text")
         id_dob = extract_dob_from_text(text)
 
         if not id_dob:

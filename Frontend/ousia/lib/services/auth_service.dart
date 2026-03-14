@@ -7,7 +7,7 @@ import '../models/profile.dart';
 import '../models/post.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.5:8000/api';
+  static const String baseUrl = 'http://192.168.254.23:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(

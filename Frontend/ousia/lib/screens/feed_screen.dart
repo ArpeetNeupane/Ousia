@@ -580,7 +580,7 @@ class _ShimmerBoxState extends State<_ShimmerBox> with SingleTickerProviderState
     return AnimatedBuilder(
       animation: _anim,
       builder: (_, __) => Container(
-        color: Color.lerp(const Color(0xFFE0E0E0), const Color(0xFFF5F5F5), _anim.value),
+        color: Color.lerp(const Color.fromARGB(255, 77, 161, 194), const Color(0xFFF5F5F5), _anim.value),
       ),
     );
   }

@@ -56,6 +56,11 @@ class Post(models.Model):
         PUBLIC = 'public', _('Public')
         PRIVATE = 'private', _('Private')
         FRIENDS_ONLY = 'friends_only', _('Friends Only')
+    
+    class ModerationStatus(models.TextChoices):
+        APPROVED = 'approved', 'Approved'
+        PENDING_REVIEW = 'pending_review', 'Pending Review'
+        BLOCKED = 'blocked', 'Blocked'
 
     caption = models.CharField(max_length=512, help_text=_("Text caption describing the post."), blank=True, null=True)
     # posted_from = models.CharField(max_length=255, blank=True, null=True)
@@ -72,6 +77,17 @@ class Post(models.Model):
 
     posted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users_post')
     type_of_post = models.ManyToManyField(HashTag, related_name='tagged_posts', through='PostHashTag') #using '' to say thats its defined below this model or else itll throw an error
+
+    #content moderation fields
+    moderation_status = models.CharField(
+        max_length=20,
+        choices=ModerationStatus.choices,
+        default=ModerationStatus.APPROVED,
+    )
+    moderation_score = models.FloatField(null=True, blank=True)
+    moderation_label = models.CharField(max_length=100, blank=True)
+    moderation_model = models.CharField(max_length=50, blank=True)
+    moderation_reason = models.TextField(blank=True)
 
     class Meta:
         verbose_name = _("Post")

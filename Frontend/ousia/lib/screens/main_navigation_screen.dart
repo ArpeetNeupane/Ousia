@@ -21,8 +21,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   final List<Widget> _screens = [
     const FeedPage(),
+    const _PlaceholderScreen(label: 'Messages'),
     const CreatePostPage(),
-    const _PlaceholderScreen(label: 'Create Post'),
     const _PlaceholderScreen(label: 'Quiz'),
     const _PlaceholderScreen(label: 'Profile'),
   ];
@@ -107,23 +107,27 @@ class _BottomNav extends StatelessWidget {
                 primaryColor: primaryColor,
               ),
 
-              GestureDetector(
-                onTap: () => onTap(2),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: primaryColor,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withValues(alpha: 0.35),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+              SizedBox(
+                width: 56,
+                height: 60,
+                child: GestureDetector(
+                  onTap: () => onTap(2),
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryColor.withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 26),
                   ),
-                  child: const Icon(Icons.add, color: Colors.white, size: 26),
                 ),
               ),
 

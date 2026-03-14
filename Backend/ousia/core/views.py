@@ -25,6 +25,7 @@ from core.models import (
 from core.paginations import DefaultPagination
 from core.permissions import OwnsObjectOrAdmin, IsOwnerOfLike
 from core.filters import PostFilter
+from core.utils.nsfw_text_classifier import NSFWTextClassifier, NSFWVerdict
 from myproject.utils import api_response
 
 from rest_framework import generics, status, filters
@@ -572,7 +573,10 @@ class PostListCreateAPI(generics.ListCreateAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = []
     serializer_class = PostResponseCreateSerializer
-    queryset = Post.objects.prefetch_related("like_on_post") #reverse relationship name of fk of post on like model
+    #reverse relationship name of fk of post on like model is like_on_post
+    queryset = Post.objects.prefetch_related("like_on_post").filter(
+        moderation_status = "approved"
+    )
     parser_classes = [FormParser, MultiPartParser]
     pagination_class = DefaultPagination
     http_method_names = ['get', 'post']
@@ -588,7 +592,38 @@ class PostListCreateAPI(generics.ListCreateAPIView):
         try:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+
+            caption = request.data.get('caption', '') or ''
+
+            #running NSFW text check on caption
+            nsfw_result = NSFWTextClassifier.classify(caption)
+
+            if nsfw_result.verdict == NSFWVerdict.BLOCK:
+                return api_response(
+                    is_success=False,
+                    error_message={
+                        "caption": f"Post blocked: content violates community guidelines. ({nsfw_result.reason})"
+                    },
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+        
+            post = serializer.save()
+
+            #applying moderation metadata
+            if nsfw_result.verdict == NSFWVerdict.REVIEW:
+                post.moderation_status = 'pending_review'
+            else:
+                post.moderation_status = 'approved'
+    
+            post.moderation_score = nsfw_result.score
+            post.moderation_label = nsfw_result.label
+            post.moderation_model = nsfw_result.model_used
+            post.moderation_reason = nsfw_result.reason
+            post.save(update_fields=[
+                'moderation_status', 'moderation_score',
+                'moderation_label', 'moderation_model', 'moderation_reason'
+            ])
+
             return api_response(
                 is_success=True,
                 result={
