@@ -4,7 +4,7 @@ import 'feed_screen.dart';
 // import 'message_screen.dart';
 import 'create_post_screen.dart';
 // import 'play_screen.dart';
-// import 'profile_screen.dart';
+import 'profile_screen.dart';
 
 
 class MainNavigationScreen extends StatefulWidget {
@@ -24,7 +24,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const _PlaceholderScreen(label: 'Messages'),
     const CreatePostPage(),
     const _PlaceholderScreen(label: 'Quiz'),
-    const _PlaceholderScreen(label: 'Profile'),
+    const ProfileScreen(),
   ];
 
   Key _feedKey = UniqueKey();
@@ -33,7 +33,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     if (index == 2) {
       Navigator.pushNamed(context, '/create-post').then((result) {
         if (result == true) {
-          setState(() => _feedKey = UniqueKey());
+          setState(() {
+            _feedKey = UniqueKey();
+            _currentIndex = 0;
+          });
         }
       });
       return;

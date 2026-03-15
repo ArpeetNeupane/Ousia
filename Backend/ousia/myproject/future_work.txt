@@ -169,3 +169,5 @@ username_friend1 = serializers.SerializerMethodField(read_only=True)
 # use uuid instead of id when creating pk for everything not just conversation
 
 # since im using a custom exception handler, remove try-except from all views and test all APIs once
+
+# feed filtering according to user interest + an algorithm, merge user interests and tag

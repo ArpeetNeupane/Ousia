@@ -7,7 +7,7 @@ import '../screens/user_interest_screen.dart';
 import '../screens/feed_screen.dart';
 import '../screens/create_post_screen.dart';
 import '../screens/signup_continue_screen.dart';
-// import '../screens/edit_profile_screen.dart';
+import '../screens/profile_screen.dart';
 import 'route_names.dart';
 
 class RouteConfig {
@@ -27,6 +27,12 @@ class RouteConfig {
       
       case RouteNames.mainNav:
         return MaterialPageRoute(builder: (_) => const MainNavigationScreen());
+
+      case RouteNames.profile:
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
+      
+      case RouteNames.othersProfile:
+        return MaterialPageRoute(builder: (_) => const ProfileScreen()); //change thiss
       
       case RouteNames.home:
       case RouteNames.feed:

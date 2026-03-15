@@ -34,7 +34,10 @@ class CreatePostPage extends StatefulWidget {
 class _CreatePostPageState extends State<CreatePostPage> {
   final AuthService _service = AuthService();
   final TextEditingController _captionController = TextEditingController();
-  final TextEditingController _typeController = TextEditingController();
+  List<Map<String, dynamic>> _hashtags = [];
+  List<int> _selectedHashtagIds = [];
+  List<String> _selectedHashtagNames = [];
+  bool _hashtagsLoading = false;
   final ImagePicker _picker = ImagePicker();
 
   static const Color _primary = Color(0xFF7B5CF0);
@@ -62,12 +65,12 @@ class _CreatePostPageState extends State<CreatePostPage> {
   void initState() {
     super.initState();
     _loadProfile();
+    _loadHashtags();
   }
 
   @override
   void dispose() {
     _captionController.dispose();
-    _typeController.dispose();
     super.dispose();
   }
 
@@ -85,6 +88,16 @@ class _CreatePostPageState extends State<CreatePostPage> {
     } else {
       setState(() => _profileLoading = false);
     }
+  }
+
+  Future<void> _loadHashtags() async {
+    setState(() => _hashtagsLoading = true);
+    final tags = await _service.fetchHashtags();
+    if (!mounted) return;
+    setState(() {
+      _hashtags = tags;
+      _hashtagsLoading = false;
+    });
   }
 
   int get _videoCount => _mediaFiles.where((m) => m.isVideo).length;
@@ -130,7 +143,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
   Future<void> _submitPost() async {
     final caption = _captionController.text.trim();
-    final typeOfPost = _typeController.text.trim();
+    final typeOfPost = _selectedHashtagNames;
 
     if (caption.isEmpty && _mediaFiles.isEmpty) {
       _showSnack('Add a caption or media to post');
@@ -142,8 +155,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
     final result = await _service.createPost(
       caption: caption.isEmpty ? null : caption,
       visibility: _visibility.value,
-      typeOfPost: typeOfPost.isEmpty ? null : typeOfPost,
-      mediaFiles: _mediaFiles.map((m) => File(m.file.path)).toList()
+      typeOfPost: _selectedHashtagNames.isEmpty ? null : _selectedHashtagNames,
+      mediaFiles: _mediaFiles.map((m) => File(m.file.path)).toList(),
     );
 
     if (!mounted) return;
@@ -152,7 +165,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
     if (result['success'] == true) {
       _showSnack('Post created!');
       await Future.delayed(const Duration(milliseconds: 500));
-      Navigator.pop(context, true); // true = feed should refresh
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
     } else {
       _showSnack(result['message'] ?? 'Failed to create post');
     }
@@ -245,7 +259,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 70),
+          const SizedBox(height: 20),
           // User row + visibility
           _buildUserRow(),
           const SizedBox(height: 16),
@@ -394,22 +408,63 @@ class _CreatePostPageState extends State<CreatePostPage> {
           ),
         ],
       ),
-      child: TextField(
-        controller: _typeController,
-        maxLines: 1,
-        decoration: InputDecoration(
-          hintText: 'Add a topic  e.g. #Anime',
-          hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
-          prefixIcon: Icon(Icons.tag, color: _primary, size: 20),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        ),
-      ),
+      padding: const EdgeInsets.all(12),
+      child: _hashtagsLoading
+          ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7B5CF0)))
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.tag, color: _primary, size: 18),
+                    const SizedBox(width: 8),
+                    const Text('Add topics', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _hashtags.map((tag) {
+                    final id = tag['id'] as int;
+                    final name = tag['name'] as String;
+                    final isSelected = _selectedHashtagIds.contains(id);
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          if (isSelected) {
+                            _selectedHashtagIds.remove(id);
+                            _selectedHashtagNames.remove(name);
+                          } else {
+                            _selectedHashtagIds.add(id);
+                            _selectedHashtagNames.add(name);
+                          }
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected ? _primary : _primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected ? _primary : _primary.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : _primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
     );
   }
 

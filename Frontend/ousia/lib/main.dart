@@ -24,7 +24,7 @@ class OusiaApp extends StatelessWidget {
           seedColor: const Color(0xFFC3B7F5),
           brightness: Brightness.light,
           primary: const Color(0xFFC3B7F5),
-          surface: const Color(0xFFffdfb1), // Card/bg surfaces
+          surface: const Color.fromARGB(255, 248, 248, 246), // Card/bg surfaces
         ),
         scaffoldBackgroundColor: const Color.fromARGB(255, 247, 247, 248),
         textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),

@@ -435,7 +435,8 @@ class UserProfileDetailAPI(APIView):
             403: "Forbidden",
             404: "Profile not found",
             500: "Internal server error",
-        }
+        },
+        tags=["User"]
     )
     def get(self, request, user_id):
         try:

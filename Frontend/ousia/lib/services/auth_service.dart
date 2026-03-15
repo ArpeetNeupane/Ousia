@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http_parser/http_parser.dart';
@@ -7,7 +8,7 @@ import '../models/profile.dart';
 import '../models/post.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.254.23:8000/api';
+  static const String baseUrl = 'http://192.168.1.4:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -101,7 +102,7 @@ class AuthService {
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        // Handle your custom response format
+        // Handling custom response format
         if (data['is_success'] == true) {
           _currentUser = Profile.fromJson(data['result']['data']);
           await _secureStorage.write(
@@ -114,8 +115,15 @@ class AuthService {
         // Token expired, try to refresh
         return await refreshAccessToken();
       }
+    } on TimeoutException {
+      //slow network
+      return true;
+    } on SocketException {
+      //no internet
+      return true;
     } catch (e) {
       print('Error validating token: $e');
+      return true;
     }
     
     return false;
@@ -693,11 +701,28 @@ class AuthService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> fetchHashtags() async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/hashtag/',
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        final results = body['Result']?['data']?['results'] ?? [];
+        return (results as List).cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   // Create post
   Future<Map<String, dynamic>> createPost({
     String? caption,
     required String visibility,
-    String? typeOfPost,
+    List<String>? typeOfPost,
     List<File> mediaFiles = const [],
   }) async {
     try {
@@ -709,8 +734,10 @@ class AuthService {
         request.fields['caption'] = caption;
       }
       request.fields['visibility'] = visibility;
-      if (typeOfPost != null && typeOfPost.isNotEmpty) {
-        request.fields['type_of_post'] = typeOfPost;
+      if (typeOfPost != null) {
+        for (final tag in typeOfPost){
+          request.fields['type_of_post'] = typeOfPost.join(',');
+        }
       }
 
       for (final file in mediaFiles) {

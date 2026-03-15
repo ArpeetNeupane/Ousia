@@ -25,7 +25,7 @@ from core.models import (
 from core.paginations import DefaultPagination
 from core.permissions import OwnsObjectOrAdmin, IsOwnerOfLike
 from core.filters import PostFilter
-from core.utils.nsfw_text_classifier import NSFWTextClassifier, NSFWVerdict
+from core.utils.nsfw_classifier import moderate_post, NSFWVerdict
 from myproject.utils import api_response
 
 from rest_framework import generics, status, filters
@@ -44,7 +44,7 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 
-import cloudinary
+import cloudinary, os, tempfile
 from datetime import timedelta
 
 
@@ -594,31 +594,48 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             serializer.is_valid(raise_exception=True)
 
             caption = request.data.get('caption', '') or ''
+            media_uploads = request.FILES.getlist('media')
 
-            #running NSFW text check on caption
-            nsfw_result = NSFWTextClassifier.classify(caption)
+            # Save uploaded files to temp paths for moderation
+            temp_files = []
+            media_for_moderation = []
+            try:
+                for upload in media_uploads:
+                    suffix = os.path.splitext(upload.name)[1]
+                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+                    for chunk in upload.chunks():
+                        tmp.write(chunk)
+                    tmp.close()
+                    is_video = upload.content_type.startswith('video/') or suffix.lower() in ['.mp4', '.mkv']
+                    temp_files.append(tmp.name)
+                    media_for_moderation.append({'path': tmp.name, 'is_video': is_video})
 
-            if nsfw_result.verdict == NSFWVerdict.BLOCK:
+                mod_result = moderate_post(caption=caption, media_files=media_for_moderation)
+
+            finally:
+                for path in temp_files:
+                    try:
+                        os.unlink(path)
+                    except Exception:
+                        pass
+
+            if mod_result.verdict == NSFWVerdict.BLOCK:
                 return api_response(
                     is_success=False,
                     error_message={
-                        "caption": f"Post blocked: content violates community guidelines. ({nsfw_result.reason})"
+                        "caption": f"Post blocked: content violates community guidelines."
                     },
                     status_code=status.HTTP_400_BAD_REQUEST
                 )
         
             post = serializer.save()
 
-            #applying moderation metadata
-            if nsfw_result.verdict == NSFWVerdict.REVIEW:
-                post.moderation_status = 'pending_review'
-            else:
-                post.moderation_status = 'approved'
+            post.moderation_status = 'pending_review' if mod_result.verdict == NSFWVerdict.REVIEW else 'approved'
     
-            post.moderation_score = nsfw_result.score
-            post.moderation_label = nsfw_result.label
-            post.moderation_model = nsfw_result.model_used
-            post.moderation_reason = nsfw_result.reason
+            post.moderation_score = mod_result.score
+            post.moderation_label = mod_result.label
+            post.moderation_model = mod_result.model_used
+            post.moderation_reason = mod_result.reason
             post.save(update_fields=[
                 'moderation_status', 'moderation_score',
                 'moderation_label', 'moderation_model', 'moderation_reason'

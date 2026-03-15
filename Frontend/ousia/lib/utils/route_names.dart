@@ -16,6 +16,7 @@ class RouteNames {
   static const String reels = '/reels';
   static const String activity = '/activity';
   static const String profile = '/profile';
+  static const String othersProfile = '/others-profile';
   
   // Settings and other routes
   static const String settings = '/settings';

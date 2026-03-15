@@ -272,7 +272,7 @@ class _PostCard extends StatelessWidget {
                   ),
                 ),
                 GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/profile'),
+                  onTap: () => Navigator.pushNamed(context, '/others-profile'),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
