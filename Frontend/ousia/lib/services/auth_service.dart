@@ -8,7 +8,7 @@ import '../models/profile.dart';
 import '../models/post.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.4:8000/api';
+  static const String baseUrl = 'http://192.168.1.17:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -87,7 +87,7 @@ class AuthService {
     return errorMessages.isNotEmpty ? errorMessages.join('\n') : defaultMessage;
   }
 
-  // Check if stored token is still valid
+  // Checking if stored token is still valid
   static Future<bool> _validateToken() async {
     if (_accessToken == null) return false;
     
@@ -98,13 +98,13 @@ class AuthService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_accessToken',
         },
-      );
+      ).timeout(Duration(seconds: 10));
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         // Handling custom response format
         if (data['is_success'] == true) {
-          _currentUser = Profile.fromJson(data['result']['data']);
+          _currentUser = Profile.fromJson(data['Result']['data']);
           await _secureStorage.write(
             key: _userProfileKey, 
             value: jsonEncode(_currentUser!.toJson()),
@@ -115,6 +115,7 @@ class AuthService {
         // Token expired, try to refresh
         return await refreshAccessToken();
       }
+      return true; //trusting locally stored session if any other issues occur
     } on TimeoutException {
       //slow network
       return true;
@@ -125,8 +126,6 @@ class AuthService {
       print('Error validating token: $e');
       return true;
     }
-    
-    return false;
   }
 
   // Parse API error messages consistently
