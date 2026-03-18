@@ -103,7 +103,7 @@ class AuthService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         // Handling custom response format
-        if (data['is_success'] == true) {
+        if (data['IsSuccess'] == true) {
           _currentUser = Profile.fromJson(data['Result']['data']);
           await _secureStorage.write(
             key: _userProfileKey, 
