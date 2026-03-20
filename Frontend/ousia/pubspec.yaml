@@ -48,6 +48,8 @@ dependencies:
   visibility_detector: ^0.4.0
   http_parser: ^4.0.2
   curved_navigation_bar: ^1.0.6
+  provider: ^6.1.2
+  share_plus: ^10.1.2
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4
@@ -68,6 +70,7 @@ dev_dependencies:
 flutter:
   assets:
     - assets/svg/
+    - assets/icon/
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
@@ -104,3 +107,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"

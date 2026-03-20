@@ -4,7 +4,6 @@ import 'package:ousia/services/auth_service.dart';
 import 'package:video_player/video_player.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:visibility_detector/visibility_detector.dart';
-
 import '../models/post.dart';
 
 
@@ -74,6 +73,7 @@ class _FeedPageState extends State<FeedPage> {
         _isLoading = false;
       });
       _prewarmImageCache(newPosts);
+      print('fetchPosts result: success=${result['success']}, fromCache=${result['fromCache']}, postCount=${(result['posts'] as List?)?.length}');
     } else {
       setState(() {
         _errorMessage = result['message'];
@@ -100,7 +100,6 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _toggleLike(Post post) async {
-    // Optimistic update
     setState(() {
       post.isLiked = !post.isLiked;
       post.postLikeCount += post.isLiked ? 1 : -1;
@@ -110,8 +109,8 @@ class _FeedPageState extends State<FeedPage> {
       final result = await _service.likePost(post.id);
       if (result['success'] == true) {
         setState(() => post.likeId = result['like_id']);
+        await _service.updateCachedPost(post); // ← after likeId is set
       } else {
-        // Revert on failure
         setState(() {
           post.isLiked = false;
           post.postLikeCount--;
@@ -122,7 +121,6 @@ class _FeedPageState extends State<FeedPage> {
       if (post.likeId == null) return;
       final result = await _service.unlikePost(post.likeId!);
       if (result['success'] != true) {
-        // Revert on failure
         setState(() {
           post.isLiked = true;
           post.postLikeCount++;
@@ -130,6 +128,7 @@ class _FeedPageState extends State<FeedPage> {
         if (mounted) _showSnack(result['message'] ?? 'Failed to unlike post');
       } else {
         setState(() => post.likeId = null);
+        await _service.updateCachedPost(post); // ← after likeId is cleared
       }
     }
   }
@@ -141,28 +140,29 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final onSurface = colorScheme.onSurface;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Your Feed',
           style: TextStyle(
-            color: Colors.black,
+            color: onSurface,
             fontWeight: FontWeight.bold,
             fontSize: 22,
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.black),
-            onPressed: () {
-              // Navigator.of(context).pushNamed('/create-post');
-            },
+            icon: Icon(Icons.search, color: onSurface),
+            onPressed: () {},
           ),
           IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.black),
+            icon: Icon(Icons.notifications_none, color: onSurface),
             onPressed: () {},
           ),
         ],
@@ -200,6 +200,7 @@ class _FeedPageState extends State<FeedPage> {
         ),
       );
     }
+    
     return RefreshIndicator(
       color: _primary,
       onRefresh: _loadPosts,
@@ -217,6 +218,17 @@ class _FeedPageState extends State<FeedPage> {
             post: _posts[index],
             onLikeTap: () => _toggleLike(_posts[index]),
             primaryColor: _primary,
+            currentUserId: AuthService.currentUser?.id,
+            onDeleteTap: () async {
+              final result = await _service.deletePost(_posts[index].id);
+              if (result['success'] == true) {
+                setState(() => _posts.removeWhere((p) => p.id == _posts[index].id));
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(result['message'])),
+                );
+              }
+            },
           );
         },
       ),
@@ -228,19 +240,26 @@ class _FeedPageState extends State<FeedPage> {
 class _PostCard extends StatelessWidget {
   final Post post;
   final VoidCallback onLikeTap;
+  final VoidCallback? onDeleteTap;
   final Color primaryColor;
+  final int? currentUserId;
 
   const _PostCard({
     required this.post,
     required this.onLikeTap,
     required this.primaryColor,
+    this.onDeleteTap,
+    this.currentUserId,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isOwner = currentUserId != null && post.postedBy == currentUserId;
+    final colorScheme = Theme.of(context).colorScheme;
+    final onSurface = colorScheme.onSurface;
+
     return Container(
-      color: Colors.white,
-      // Gap between posts
+      color: Theme.of(context).scaffoldBackgroundColor,
       margin: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,40 +270,86 @@ class _PostCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: const Color(0xFFE0E0E0),
+                  backgroundColor: colorScheme.surfaceContainerHighest,
                   backgroundImage: (post.postedByProfile?.pfpUrl != null &&
                           post.postedByProfile!.pfpUrl!.isNotEmpty)
                       ? CachedNetworkImageProvider(post.postedByProfile!.pfpUrl!)
                       : null,
                   child: (post.postedByProfile?.pfpUrl == null ||
                           post.postedByProfile!.pfpUrl!.isEmpty)
-                      ? const Icon(Icons.person, color: Colors.white, size: 22)
+                      ? Icon(Icons.person, color: colorScheme.onSurfaceVariant, size: 22)
                       : null,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     post.postedByUsername,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
+                      color: onSurface,
                     ),
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/others-profile'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: primaryColor,
-                      borderRadius: BorderRadius.circular(20),
+
+                // View Profile button — hidden on own posts
+                if (!isOwner)
+                  GestureDetector(
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      '/others-profile',
+                      arguments: post.postedBy,
                     ),
-                    child: const Text(
-                      'View Profile',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: primaryColor,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'View Profile',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
                     ),
                   ),
-                ),
+
+                // Delete button — only on own posts
+                if (isOwner)
+                  GestureDetector(
+                    onTap: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Delete Post'),
+                          content: const Text(
+                              'Are you sure you want to delete this post?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text(
+                                'Delete',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) onDeleteTap?.call();
+                    },
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close, color: Colors.white, size: 14),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -309,7 +374,11 @@ class _PostCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   '${post.postLikeCount} ${post.postLikeCount == 1 ? 'Like' : 'Likes'}',
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: onSurface,
+                  ),
                 ),
               ],
             ),
@@ -344,11 +413,18 @@ class _PostCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Text(
               timeago.format(post.createdAt),
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: TextStyle(
+                color: onSurface.withOpacity(0.5),
+                fontSize: 12,
+              ),
             ),
           ),
 
-          const Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
+          Divider(
+            height: 1,
+            thickness: 0.1,
+            color: Theme.of(context).dividerColor,
+          ),
         ],
       ),
     );
@@ -372,13 +448,14 @@ class _ExpandableCaptionState extends State<_ExpandableCaption> {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     final isLong = widget.caption.length > _limit;
     final displayText =
         (!_expanded && isLong) ? widget.caption.substring(0, _limit) : widget.caption;
 
     return RichText(
       text: TextSpan(
-        style: const TextStyle(color: Colors.black, fontSize: 13.5),
+        style: TextStyle(color: onSurface, fontSize: 13.5),
         children: [
           TextSpan(
             text: '${widget.username} ',
@@ -408,7 +485,7 @@ class _ExpandableCaptionState extends State<_ExpandableCaption> {
         ],
       ),
     );
-  }
+  } 
 }
 
 // Media Carousel

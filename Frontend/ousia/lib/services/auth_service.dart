@@ -6,9 +6,10 @@ import 'package:http_parser/http_parser.dart';
 import 'package:http/http.dart' as http;
 import '../models/profile.dart';
 import '../models/post.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.17:8000/api';
+  static const String baseUrl = 'http://192.168.1.2:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -29,6 +30,11 @@ class AuthService {
   static String? _accessToken;
   static String? _refreshToken;
   static Profile? _currentUser;
+
+  // Cache
+  static const _cacheKey = 'cached_feed';
+  static const _cacheTimeKey = 'cached_feed_time';
+  static const _staleDuration = Duration(minutes: 30);
 
   // Getters
   static String? get accessToken => _accessToken;
@@ -411,82 +417,66 @@ class AuthService {
     return {'success': false, 'message': 'Failed to load profile'};
   }
 
-  Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> profileData) async {
+  // For other user's profile
+  Future<Map<String, dynamic>> fetchUserProfile(int userId) async {
     try {
       final response = await authenticatedRequest(
-        method: 'PATCH',
-        endpoint: '/user/profile/update/',
-        body: profileData,
-      );
+        method: 'GET',
+        endpoint: '/user/profile/$userId/',
+      ).timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
-
-      if (data['is_success'] == true) {
-        _currentUser = Profile.fromJson(data['result']['data']);
-        // Update stored profile
-        await _secureStorage.write(
-          key: _userProfileKey, 
-          value: jsonEncode(_currentUser!.toJson()),
-        );
-        
-        return {
-          'success': true,
-          'message': data['result']['message'] ?? 'Profile updated successfully',
-          'user': _currentUser,
-        };
-      } else {
-        return {
-          'success': false,
-          'message': _parseErrorMessage(data['error_message'], 'Failed to update profile'),
-        };
+      if ((data['IsSuccess'] ?? false) == true) {
+        return {'success': true, 'profile': Profile.fromJson(data['Result']['data'])};
       }
-    } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error: Please check your connection',
-      };
+      return {'success': false, 'message': 'Failed to load profile'};
+    } on SocketException {
+      return {'success': false, 'message': 'No internet connection.'};
+    } on TimeoutException {
+      return {'success': false, 'message': 'Request timed out.'};
+    } catch (_) {
+      return {'success': false, 'message': 'Something went wrong.'};
     }
   }
 
-  // Method for uploading profile picture
-  Future<Map<String, dynamic>> updateProfilePicture(String imagePath) async {
+  Future<Map<String, dynamic>> updateProfile({
+    String? username,
+    String? bio,
+    String? imagePath,
+  }) async {
     try {
-      var request = http.MultipartRequest(
-        'PATCH', 
-        Uri.parse('$baseUrl/user/profile/update/'),
+      final request = http.MultipartRequest(
+        'PATCH',
+        Uri.parse('$baseUrl/user/profile_update/'),
       );
-      
+
       request.headers['Authorization'] = 'Bearer $_accessToken';
-      request.files.add(await http.MultipartFile.fromPath('pfp', imagePath));
-      
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      
+
+      if (username != null) request.fields['username'] = username;
+      if (bio != null) request.fields['bio'] = bio;
+      if (imagePath != null) {
+        request.files.add(await http.MultipartFile.fromPath('pfp', imagePath));
+      }
+
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
       final data = jsonDecode(response.body);
 
-      if (data['is_success'] == true) {
-        _currentUser = Profile.fromJson(data['result']['data']);
+      if ((data['IsSuccess'] ?? false) == true) {
+        _currentUser = Profile.fromJson(data['Result']['data']);
         await _secureStorage.write(
-          key: _userProfileKey, 
+          key: _userProfileKey,
           value: jsonEncode(_currentUser!.toJson()),
         );
-        
-        return {
-          'success': true,
-          'message': data['result']['message'] ?? 'Profile picture updated successfully',
-          'user': _currentUser,
-        };
-      } else {
-        return {
-          'success': false,
-          'message': _parseErrorMessage(data['error_message'], 'Failed to update profile picture'),
-        };
+        return {'success': true};
       }
-    } catch (e) {
+
       return {
         'success': false,
-        'message': 'Network error: Please check your connection',
+        'message': _parseErrorMessage(data['ErrorMessage'], 'Failed to update profile'),
       };
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: Please check your connection'};
     }
   }
 
@@ -522,7 +512,7 @@ class AuthService {
   }
 
   static Future<void> logout() async {
-    // Optionally call logout endpoint to blacklist tokens
+    //logout endpoint to blacklist tokens
     try {
       if (_refreshToken != null) {
         await http.post(
@@ -534,7 +524,7 @@ class AuthService {
           body: jsonEncode({
             'refresh_token': _refreshToken,
           }),
-        );
+        ).timeout(const Duration(seconds: 54));
       }
     } catch (e) {
       print('Error during logout API call: $e');
@@ -549,6 +539,7 @@ class AuthService {
     await _secureStorage.delete(key: _accessTokenKey);
     await _secureStorage.delete(key: _refreshTokenKey);
     await _secureStorage.delete(key: _userProfileKey);
+    await clearFeedCache();
   }
 
   Future<Map<String, dynamic>> fetchInterests() async {
@@ -622,23 +613,54 @@ class AuthService {
     }
   }
 
-
-  // Fetch Post logic
-  Future<Map<String, dynamic>> fetchPosts({String? nextUrl}) async {
-    try {
-      String endpoint;
-      if (nextUrl != null) {
-        final uri = Uri.parse(nextUrl);
-        endpoint = '/post/?${uri.query}';
-      } else {
-        endpoint = '/post/';
-      }
-      final response = await authenticatedRequest(method: 'GET', endpoint: endpoint);
-      final data = jsonDecode(response.body);
-      return _parsePosts(data);
-    } catch (e) {
-      return {'success': false, 'message': 'Network error: $e'};
+  // Fetch Posts with cache fallback
+  Future<Map<String, dynamic>> fetchPosts({String? nextUrl, String? username}) async {
+    // Pagination pages are never cached
+    if (nextUrl != null) {
+      return _fetchPostsFromNetwork(nextUrl: nextUrl);
     }
+
+    if (username != null) {
+      return _fetchPostsFromNetwork(username: username);
+    }
+
+    // Try network first
+    try {
+      final result = await _fetchPostsFromNetwork();
+      if (result['success'] == true) {
+        await _writeFeedCache(result['posts'] as List<Post>, result['next']);
+        return result;
+      }
+    } on SocketException {
+      // No internet — fall through to cache
+    } on TimeoutException {
+      // Timeout — fall through to cache
+    } catch (_) {
+      // Any other error — fall through to cache
+    }
+
+    return _readFeedCache();
+  }
+
+  Future<Map<String, dynamic>> _fetchPostsFromNetwork({String? nextUrl, String? username}) async {
+    String endpoint;
+    if (nextUrl != null) {
+      final uri = Uri.parse(nextUrl);
+      endpoint = '/post/?${uri.query}';
+    } else if (username != null) {
+      endpoint = '/post/?posted_by=$username';
+    }
+    else {
+      endpoint = '/post/';
+    }
+
+    final response = await authenticatedRequest(
+      method: 'GET',
+      endpoint: endpoint,
+    ).timeout(const Duration(seconds: 10));
+
+    final data = jsonDecode(response.body);
+    return _parsePosts(data);
   }
 
   static Map<String, dynamic> _parsePosts(Map<String, dynamic> data) {
@@ -650,6 +672,7 @@ class AuthService {
         'success': true,
         'posts': rawPosts.map((p) => Post.fromJson(p)).toList(),
         'next': pagination['next'],
+        'fromCache': false,
       };
     }
     final error = data['ErrorMessage'];
@@ -657,6 +680,121 @@ class AuthService {
       'success': false,
       'message': error is List ? error.join(', ') : error.toString(),
     };
+  }
+
+  // Cache helpers
+  Future<void> _writeFeedCache(List<Post> posts, String? next) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = jsonEncode({
+        'posts': posts.map((p) => p.toJson()).toList(),
+        'next': next,
+      });
+      await prefs.setString(_cacheKey, payload);
+      await prefs.setInt(_cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>> _readFeedCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_cacheKey);
+      if (raw == null) {
+        return {'success': false, 'message': 'No internet connection.'};
+      }
+
+      final savedAt = prefs.getInt(_cacheTimeKey) ?? 0;
+      final age = DateTime.now().millisecondsSinceEpoch - savedAt;
+      final isStale = age > _staleDuration.inMilliseconds;
+
+      final payload = jsonDecode(raw) as Map<String, dynamic>;
+      final posts = (payload['posts'] as List)
+          .map((p) => Post.fromJson(p as Map<String, dynamic>))
+          .toList();
+
+      return {
+        'success': true,
+        'posts': posts,
+        'next': payload['next'],
+        'fromCache': true,
+        'isStale': isStale,
+      };
+    } catch (_) {
+      return {'success': false, 'message': 'No internet connection.'};
+    }
+  }
+
+  Future<void> updateCachedPost(Post updated) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_cacheKey);
+      if (raw == null) return;
+
+      final payload = jsonDecode(raw) as Map<String, dynamic>;
+      final posts = (payload['posts'] as List)
+          .map((p) => Post.fromJson(p as Map<String, dynamic>))
+          .toList();
+
+      final idx = posts.indexWhere((p) => p.id == updated.id);
+      if (idx != -1) {
+        posts[idx] = updated;
+        payload['posts'] = posts.map((p) => p.toJson()).toList();
+        await prefs.setString(_cacheKey, jsonEncode(payload));
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> clearFeedCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cacheKey);
+      await prefs.remove(_cacheTimeKey);
+    } catch (_) {}
+  }
+
+  // Delete Post
+  Future<Map<String, dynamic>> deletePost(int postId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'DELETE',
+        endpoint: '/post/$postId/',
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+      if ((data['IsSuccess'] ?? false) == true) {
+        await _removeFromFeedCache(postId);
+        return {'success': true};
+      }
+
+      final error = data['ErrorMessage'];
+      return {
+        'success': false,
+        'message': error is List ? error.join(', ') : error.toString(),
+      };
+    } on SocketException {
+      return {'success': false, 'message': 'No internet connection.'};
+    } on TimeoutException {
+      return {'success': false, 'message': 'Request timed out.'};
+    } catch (_) {
+      return {'success': false, 'message': 'Something went wrong.'};
+    }
+  }
+
+  Future<void> _removeFromFeedCache(int postId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_cacheKey);
+      if (raw == null) return;
+
+      final payload = jsonDecode(raw) as Map<String, dynamic>;
+      final posts = (payload['posts'] as List)
+          .map((p) => Post.fromJson(p as Map<String, dynamic>))
+          .where((p) => p.id != postId)
+          .toList();
+
+      payload['posts'] = posts.map((p) => p.toJson()).toList();
+      await prefs.setString(_cacheKey, jsonEncode(payload));
+    } catch (_) {}
   }
 
   Future<Map<String, dynamic>> likePost(int postId) async {

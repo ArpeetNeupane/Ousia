@@ -171,3 +171,7 @@ username_friend1 = serializers.SerializerMethodField(read_only=True)
 # since im using a custom exception handler, remove try-except from all views and test all APIs once
 
 # feed filtering according to user interest + an algorithm, merge user interests and tag
+
+# search for todo in frontend
+
+# proper commenting on frontend code

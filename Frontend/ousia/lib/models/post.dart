@@ -21,13 +21,17 @@ class MediaFile {
         mediaUrl: json['media_url'],
       );
 
-  // Cloudinary video thumbnail: swapping /video/upload/ → /video/upload/so_0/ and using .jpg
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'public_id': publicId,
+        'is_video': isVideo,
+        'upload_order': uploadOrder,
+        'media_url': mediaUrl,
+      };
+
   String get videoThumbnailUrl {
     if (!isVideo) return mediaUrl;
-    final thumb = mediaUrl.replaceFirst('/video/upload/', '/video/upload/so_0/');
-    final dotIndex = thumb.lastIndexOf('.');
-    if (dotIndex != -1) return '${thumb.substring(0, dotIndex)}.jpg';
-    return '$thumb.jpg';
+    return mediaUrl.replaceFirst('/video/upload/', '/video/upload/so_0,f_jpg/');
   }
 }
 
@@ -41,6 +45,11 @@ class PostedByProfile {
         pfpUrl: json['pfp_url'],
         username: json['username'] ?? '',
       );
+
+  Map<String, dynamic> toJson() => {
+        'pfp_url': pfpUrl,
+        'username': username,
+      };
 }
 
 class Post {
@@ -55,7 +64,6 @@ class Post {
   final List<MediaFile> mediaFiles;
   int postLikeCount;
   final int postCommentCount;
-
   bool isLiked;
   int? likeId;
 
@@ -94,4 +102,20 @@ class Post {
         isLiked: json['is_liked'] ?? false,
         likeId: json['user_like_id'],
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'caption': caption,
+        'visibility_label': visibilityLabel,
+        'created_at': createdAt.toIso8601String(),
+        'posted_by': postedBy,
+        'posted_by_username': postedByUsername,
+        'posted_by_profile': postedByProfile?.toJson(),
+        'type_of_post': typeOfPost,
+        'media_files': mediaFiles.map((m) => m.toJson()).toList(),
+        'post_like_count': postLikeCount,
+        'post_comment_count': postCommentCount,
+        'is_liked': isLiked,
+        'user_like_id': likeId,
+      };
 }
