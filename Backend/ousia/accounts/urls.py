@@ -1,7 +1,7 @@
 from django.urls import path
 
 from accounts.views import (
-    RegisterView, LoginView, UserPasswordUpdateAPI,
+    DeleteAccountAPI, RegisterView, LoginView, UserPasswordUpdateAPI,
     ProfileResponseAPI, ProfileUpdateAPI, ProfileAdminUpdateAPI, UserProfileDetailAPI,
     AreaOfInterestListCreateAPI, AreaOfInterestRetrieveAPI, AreaOfInterestUpdateAPI, AreaOfInterestDeleteAPI,
     UserAreaOfInterestListCreateAPI, UserAreaOfInterestRetrieveAPI, UserAreaOfInterestDeleteAPI,
@@ -14,6 +14,7 @@ urlpatterns = [
     path('user/profile_update/', ProfileUpdateAPI.as_view(), name='profile-update'),
     path("user/<int:user_id>/profile/", ProfileAdminUpdateAPI.as_view(), name='profile-update-for-admins'),
     path('user/profile/<int:user_id>/', UserProfileDetailAPI.as_view(), name='user-profile-detail'),
+    path('user/delete-account/', DeleteAccountAPI.as_view(), name='delete_account'),
 
     path("interests/", AreaOfInterestListCreateAPI.as_view(), name="interest-list-create"),
     path("interests/<int:id>/", AreaOfInterestRetrieveAPI.as_view(), name="interest-retrieve"),

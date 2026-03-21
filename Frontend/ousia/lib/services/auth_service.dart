@@ -1062,6 +1062,24 @@ class AuthService {
     }
   }
 
+  // Delete Account
+  Future<Map<String, dynamic>> deleteAccount() async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'DELETE',
+        endpoint: '/user/delete-account/',
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        await logout();
+        return {'success': true};
+      }
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   // Helper method to make authenticated requests with auto-retry on token refresh
   Future<http.Response> authenticatedRequest({
     required String method,

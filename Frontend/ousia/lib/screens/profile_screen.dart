@@ -337,6 +337,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   activeColor: Theme.of(context).colorScheme.primary,
                 ),
               ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.delete_forever, color: Colors.red),
+                title: Text('Delete Account',
+                    style: GoogleFonts.inter(color: Colors.red)),
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      title: Text('Delete Account',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                      content: Text(
+                        'Are you sure you want to delete your account? This action cannot be undone.',
+                        style: GoogleFonts.inter(fontSize: 16, color: const Color.fromARGB(255, 166, 61, 61), fontWeight: FontWeight.w600),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text('Cancel',
+                              style: GoogleFonts.inter(color: const Color.fromARGB(255, 167, 162, 162))),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: Text('Delete',
+                              style: GoogleFonts.inter(
+                                  color: Colors.white, fontWeight: FontWeight.w500, fontSize: 16)),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    final authService = AuthService();
+                    final result = await authService.deleteAccount();
+                    if (!mounted) return;
+                    if (result['success'] == true) {
+                      Navigator.of(context).pushNamedAndRemoveUntil(
+                        '/login',
+                        (route) => false,
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(result['message'] ?? 'Failed to delete account')),
+                      );
+                    }
+                  }
+                },
+              ),
             ],
           ),
         ),

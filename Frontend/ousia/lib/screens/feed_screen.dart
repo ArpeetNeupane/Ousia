@@ -161,7 +161,7 @@ class _FeedPageState extends State<FeedPage> {
             onPressed: () => Navigator.pushNamed(context, '/friend-requests'),
           ),
           IconButton(
-            icon: Icon(Icons.notifications_none, color: onSurface),
+            icon: Icon(Icons.search_outlined, color: onSurface),
             onPressed: () {},
           ),
         ],
@@ -193,7 +193,7 @@ class _FeedPageState extends State<FeedPage> {
     if (_posts.isEmpty) {
       return const Center(
         child: Text(
-          'No posts have been made by any other user yet!\nWhy don\'t you be the first one?.',
+          'No posts have been made by any other user yet!\nWhy don\'t you be the first one?\nAdd friends to see their posts too.',
           style: TextStyle(color: Colors.grey),
           textAlign: TextAlign.center,
         ),

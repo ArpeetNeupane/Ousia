@@ -227,6 +227,11 @@ class UserLoginSerializer(serializers.Serializer): #using Serializer here instea
             raise serializers.ValidationError(
                 {"message": "Please activate your account by contacting the admin before attempting login."}
             )
+        
+        if user.is_deleted:
+            raise serializers.ValidationError(
+                {"message": "This account does not exist anymore because it has been deleted."}
+            )
 
         self.user = user #storing for use in to_representation
         return data

@@ -75,6 +75,7 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
     is_admin = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
+    is_deleted = models.BooleanField(default=False)
 
     selfie_public_id = models.CharField(max_length=2056, blank=True, null=True, help_text=_("Public id of the selfie."))
     idcard_public_id = models.CharField(max_length=2056, blank=True, null=True, help_text=_("Public id of the id card."))
@@ -109,6 +110,11 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
         if self.is_superuser:
             return True
         return False
+
+    def soft_delete(self):
+        if not self.is_deleted:
+            self.is_deleted = True
+            self.save()
 
     def send_email_to_user(self, subject, message, sender_email=None, **kwargs):
         send_mail(subject, message, sender_email, [self.email], **kwargs)

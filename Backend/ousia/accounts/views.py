@@ -746,3 +746,18 @@ class UserAreaOfInterestDeleteAPI(generics.DestroyAPIView):
             result={"message": f"User's Area of Interest deleted successfully."},
             status_code=status.HTTP_200_OK
         )
+
+
+class DeleteAccountAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+        user.soft_delete()
+        return api_response(
+            is_success=True,
+            result={"message": "Account deleted successfully."},
+            status_code=status.HTTP_200_OK
+        )
+
+
