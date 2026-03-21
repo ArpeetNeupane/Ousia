@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ousia/screens/quiz_screen.dart';
 // import 'package:ousia/services/auth_service.dart';
 import 'feed_screen.dart';
 // import 'message_screen.dart';
@@ -23,7 +24,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const FeedPage(),
     const _PlaceholderScreen(label: 'Messages'),
     const CreatePostPage(),
-    const _PlaceholderScreen(label: 'Quiz'),
+    const PlayPage(),
     const ProfileScreen(),
   ];
 

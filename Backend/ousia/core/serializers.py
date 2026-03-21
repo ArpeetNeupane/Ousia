@@ -325,11 +325,12 @@ class FriendRequestCreateSerializer(serializers.ModelSerializer):
     to_user = serializers.SlugRelatedField(read_only=True, slug_field='username')
     to_username = serializers.CharField(write_only=True)
     posted_by_profile = serializers.SerializerMethodField(read_only=True)
+    from_user_id = serializers.IntegerField(source='from_user.id', read_only=True)
 
     class Meta:
         model = FriendRequest
-        fields = ['id', 'from_user', 'to_username', 'to_user', 'status', 'created_at', 'responded_at', 'posted_by_profile']
-        read_only_fields = ['id', 'from_user', 'to_user', 'created_at', 'responded_at', 'posted_by_profile']
+        fields = ['id', 'from_user', 'from_user_id', 'to_username', 'to_user', 'status', 'created_at', 'responded_at', 'posted_by_profile']
+        read_only_fields = ['id', 'from_user', 'from_user_id', 'to_user', 'created_at', 'responded_at', 'posted_by_profile']
 
     def get_posted_by_profile(self, obj):
         try:

@@ -77,7 +77,7 @@ class OusiaApp extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color.fromARGB(255, 114, 43, 113), width: 2),
         ),
-        fillColor: const Color(0xFF21262d),
+        fillColor: const Color(0xFFF5F5F5),
         filled: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         hintStyle: const TextStyle(color: Color(0xFF7d8590)),
@@ -85,10 +85,15 @@ class OusiaApp extends StatelessWidget {
         suffixIconColor: const Color(0xFF7d8590),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF0d1117),
+        backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: IconThemeData(color: Color(0xFFC3B7F5)),
-        titleTextStyle: TextStyle(color: Color.fromARGB(255, 164, 114, 151)),
+        titleTextStyle: TextStyle(
+          color: Color(0xFF1A1A2E),
+          fontFamily: 'Inter',
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
       ),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith<Color?>((states) {

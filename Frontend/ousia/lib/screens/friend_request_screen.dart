@@ -194,7 +194,7 @@ class _FriendRequestCardState extends State<_FriendRequestCard> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Cancel',
-                style: GoogleFonts.inter(color: Colors.grey.shade600)),
+                style: GoogleFonts.inter(color: Colors.grey.shade600, fontSize: 12)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -209,7 +209,7 @@ class _FriendRequestCardState extends State<_FriendRequestCard> {
             ),
             child: Text('Decline',
                 style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                    fontWeight: FontWeight.w600, color: Colors.grey.shade700, fontSize: 16)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -224,7 +224,7 @@ class _FriendRequestCardState extends State<_FriendRequestCard> {
             ),
             child: Text('Confirm',
                 style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w600, color: Colors.white)),
+                    fontWeight: FontWeight.w600, color: Colors.white, fontSize: 16)),
           ),
         ],
       ),

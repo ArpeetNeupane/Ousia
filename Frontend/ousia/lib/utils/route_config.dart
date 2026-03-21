@@ -10,6 +10,7 @@ import '../screens/signup_continue_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/user_profile_screen.dart';
 import '../screens/friend_request_screen.dart';
+import '../screens/quiz_screen.dart';
 import 'route_names.dart';
 
 class RouteConfig {
@@ -46,6 +47,9 @@ class RouteConfig {
 
       case RouteNames.createPost:
         return MaterialPageRoute(builder: (_) => const CreatePostPage());
+      
+      case RouteNames.quiz:
+        return MaterialPageRoute(builder: (_) => const PlayPage());
 
       case RouteNames.signupContinue:
         final args = settings.arguments as Map<String, dynamic>;

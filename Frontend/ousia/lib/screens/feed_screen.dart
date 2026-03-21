@@ -73,7 +73,6 @@ class _FeedPageState extends State<FeedPage> {
         _isLoading = false;
       });
       _prewarmImageCache(newPosts);
-      print('fetchPosts result: success=${result['success']}, fromCache=${result['fromCache']}, postCount=${(result['posts'] as List?)?.length}');
     } else {
       setState(() {
         _errorMessage = result['message'];
