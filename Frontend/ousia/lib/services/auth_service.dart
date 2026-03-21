@@ -1098,6 +1098,52 @@ class AuthService {
     }
   }
 
+  // Messages
+  Future<Map<String, dynamic>> fetchConversations() async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/conversation-list/',
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        final results = body['Result']['data']['results'] as List;
+        return {'success': true, 'conversations': results};
+      }
+      return {'success': false, 'message': 'Failed to load conversations'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> createOrGetConversation(int userId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/conversation-create/',
+        body: {'participants': [userId], 'is_group': false},
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        final data = body['Result']['data'];
+        final currentUsername = AuthService.currentUsername;
+        final pfpInfo = data['pfp_info'] as List? ?? [];
+        final other = pfpInfo.firstWhere(
+          (p) => p['username'] != currentUsername,
+          orElse: () => <String, dynamic>{},
+        );
+        return {
+          'success': true,
+          'conversation_id': data['id'],
+          'pfp_url': other['pfp_url'],
+        };
+      }
+      return {'success': false, 'message': 'Failed to create conversation'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   // Helper method to make authenticated requests with auto-retry on token refresh
   Future<http.Response> authenticatedRequest({
     required String method,

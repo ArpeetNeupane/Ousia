@@ -31,7 +31,11 @@ class ConversationCreateSerializer(serializers.ModelSerializer):
     participants = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         many=True,
-        write_only=True
+        write_only=True,
+        error_messages={
+            "does_not_exist": "One or more users do not exist.",
+            "incorrect_type": "User ID must be an integer."
+        }
     )
     participants_detail = UserSerializer(many=True, read_only=True, source='participants')
 

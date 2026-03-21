@@ -21,16 +21,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_group_name = f'chat_{self.conversation_id}'
         self.user = self.scope['user']
 
-        # #rejecting unauthenticated users
-        # if not self.user.is_authenticated:
-        #     await self.close()
-        #     return
+        #rejecting unauthenticated users
+        if not self.user.is_authenticated:
+            await self.close()
+            return
 
-        # #verifying that the user is participant of this conversation
-        # is_participant = await self.check_user_is_participant()
-        # if not is_participant:
-        #     await self.close()
-        #     return
+        #verifying that the user is participant of this conversation
+        is_participant = await self.check_user_is_participant()
+        if not is_participant:
+            await self.close()
+            return
 
         #joining room group
         await self.channel_layer.group_add(
@@ -44,6 +44,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'Connected to chat'
+        }))
+
+        # send message history on connect
+        history = await self.get_message_history()
+        await self.send(text_data=json.dumps({
+            'type': 'message_history',
+            'messages': history
         }))
 
     async def disconnect(self, close_code):
@@ -302,3 +309,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'type': 'error',
             'message': error_message
         }))
+    
+    @database_sync_to_async
+    def get_message_history(self, limit=50):
+        messages = Message.objects.filter(
+            conversation_id=self.conversation_id,
+            is_deleted=False
+        ).select_related('sender').order_by('-created_at')[:limit]
+        serializer = MessageCreateSerializer(reversed(list(messages)), many=True)
+        return serializer.data

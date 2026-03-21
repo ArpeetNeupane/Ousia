@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ousia/screens/conversation_screen.dart';
 import 'package:ousia/screens/quiz_screen.dart';
 // import 'package:ousia/services/auth_service.dart';
 import 'feed_screen.dart';
@@ -22,7 +23,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   final List<Widget> _screens = [
     const FeedPage(),
-    const _PlaceholderScreen(label: 'Messages'),
+    const MessagesPage(),
     const CreatePostPage(),
     const PlayPage(),
     const ProfileScreen(),
