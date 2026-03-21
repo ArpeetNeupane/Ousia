@@ -664,20 +664,34 @@ class _MediaCarouselState extends State<_MediaCarousel> {
     return Stack(
       children: [
         // Pages
-        ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxHeight: 500,
+        Container(
+          decoration: BoxDecoration(
+            border: Border.symmetric(
+              vertical: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1,
+              ),
+              horizontal: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1,
+              ),
+            ),
           ),
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: total,
-            onPageChanged: (i) => setState(() => _currentIndex = i),
-            itemBuilder: (context, i) {
-              final media = widget.mediaFiles[i];
-              return media.isVideo
-                  ? _VideoItem(media: media)
-                  : _ImageItem(media: media);
-            },
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxHeight: 500,
+            ),
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: total,
+              onPageChanged: (i) => setState(() => _currentIndex = i),
+              itemBuilder: (context, i) {
+                final media = widget.mediaFiles[i];
+                return media.isVideo
+                    ? _VideoItem(media: media)
+                    : _ImageItem(media: media);
+              },
+            ),
           ),
         ),
 

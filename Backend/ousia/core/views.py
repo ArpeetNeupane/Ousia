@@ -590,8 +590,18 @@ class PostListCreateAPI(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        posted_by_username = self.request.query_params.get('posted_by')
         
-        #getting current user's friends
+        #when viewing a specific user's posts, skip visibility filter
+        if posted_by_username:
+            return Post.objects.prefetch_related("like_on_post").annotate(
+                like_count=Count('like_on_post')
+            ).filter(
+                moderation_status="approved",
+                posted_by__username=posted_by_username
+            ).distinct().order_by('-created_at') #default ordering newest first for profile grid
+        
+        #feed with visibility filtering + scoring
         friends = Friend.objects.filter(
             Q(user1=user) | Q(user2=user),
             is_blocked=False
@@ -611,7 +621,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
         ).filter(
             Q(visibility=Post.VisibilityEnum.PUBLIC) |
             Q(visibility=Post.VisibilityEnum.FRIENDS_ONLY, posted_by__in=friend_ids) |
-            Q(posted_by=user)  #always showing own posts
+            Q(posted_by=user)
         ).distinct()
 
     def create(self, request, *args, **kwargs):
@@ -719,12 +729,33 @@ class PostListCreateAPI(generics.ListCreateAPIView):
     def list(self, request, *args, **kwargs):
         try:
             queryset = self.get_queryset()
+            posted_by = request.query_params.get('posted_by')
+
+            if posted_by:
+                #no scoring for profile grid
+                page = self.paginate_queryset(queryset)
+                if page is not None:
+                    serializer = self.get_serializer(page, many=True)
+                    paginated = self.get_paginated_response(serializer.data)
+                    return api_response(
+                        is_success=True,
+                        result={"message": "Successfully retrieved posts.", "data": paginated.data},
+                        status_code=status.HTTP_200_OK
+                    )
+                serializer = self.get_serializer(queryset, many=True)
+                return api_response(
+                    is_success=True,
+                    result={"message": "Successfully retrieved posts.", "data": serializer.data},
+                    status_code=status.HTTP_200_OK
+                )
+
+            #feed scoring
             now = timezone.now()
+            import datetime
             daily_seed = int(datetime.date.today().strftime('%Y%m%d')) + request.user.id
             rng = random.Random(daily_seed)
 
             posts = list(queryset)
-
             scored = []
             for post in posts:
                 hours_old = max((now - post.created_at).total_seconds() / 3600, 1)
@@ -743,25 +774,18 @@ class PostListCreateAPI(generics.ListCreateAPIView):
                 paginated = self.get_paginated_response(serializer.data)
                 return api_response(
                     is_success=True,
-                    result={
-                        "message": "Successfully retrieved posts.",
-                        "data": paginated.data
-                    },
+                    result={"message": "Successfully retrieved posts.", "data": paginated.data},
                     status_code=status.HTTP_200_OK
                 )
 
             serializer = self.get_serializer(sorted_posts, many=True)
             return api_response(
                 is_success=True,
-                result={
-                    "message": "Successfully retrieved posts.",
-                    "data": serializer.data
-                },
+                result={"message": "Successfully retrieved posts.", "data": serializer.data},
                 status_code=status.HTTP_200_OK
             )
 
         except Exception as e:
-            print(str(e))
             return api_response(
                 is_success=False,
                 error_message=str(e),
