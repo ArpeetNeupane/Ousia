@@ -22,9 +22,6 @@ TEXT_LARGE_PATH = os.path.abspath(
 IMAGE_SMALL_PATH = os.path.abspath(
     os.path.join(BASE_DIR, "../../ML Models", "Image Small")
 )
-IMAGE_LARGE_PATH = os.path.abspath(
-    os.path.join(BASE_DIR, "../../ML Models", "Image Large")
-)
 
 BLOCK_THRESHOLD = 0.85
 REVIEW_THRESHOLD = 0.50
@@ -291,8 +288,6 @@ class NSFWTextClassifier:
 
 class NSFWImageClassifier:
     _small_model = None   #YOLOv9
-    _large_pipeline = None  #SigLIP
-    _large_processor = None
     _loaded = False
 
     @classmethod
@@ -302,36 +297,22 @@ class NSFWImageClassifier:
 
         #loading image small (YOLO)
         try:
-            logger.info("Loading Image Small (FalconSAI YOLOv9) NSFW model...")
-            model_path = os.path.join(IMAGE_SMALL_PATH, "falconsai_yolov9_nsfw_model_quantized.pt")
-            cls._small_model = torch.hub.load(
-                'WongKinYiu/yolov9',
-                'custom',
-                path=model_path,
-                source='github',
-                force_reload=False,
-            )
-            cls._small_model.eval()
-            if torch.cuda.is_available():
-                cls._small_model = cls._small_model.cuda()
-            logger.info("Image Small model loaded.")
-        except Exception as e:
-            logger.error(f"Failed to load Image Small model: {e}")
-            cls._small_model = None
-
-        #loading image large (SigLIP2)
-        try:
-            logger.info("Loading Image Large (SigLIP2) NSFW model...")
-            cls._large_pipeline = pipeline(
+            logger.info("Loading Image Small (FalconSAI) NSFW model...")
+            original_load = torch.load
+            torch.load = lambda *args, **kwargs: original_load(*args, **{**kwargs, 'weights_only': False})
+            
+            cls._small_model = pipeline(
                 "image-classification",
-                model=IMAGE_LARGE_PATH,
+                model=IMAGE_SMALL_PATH,
                 device=0 if torch.cuda.is_available() else -1,
             )
-            logger.info("Image Large model loaded.")
+            
+            torch.load = original_load
+            logger.info("Image Small model loaded.")
         except Exception as e:
-            logger.error(f"Failed to load Image Large model: {e}")
-            cls._large_pipeline = None
-
+            torch.load = original_load
+            logger.error(f"Failed to load Image Small model: {e}")
+            cls._small_model = None
         cls._loaded = True
 
     @classmethod
@@ -342,87 +323,31 @@ class NSFWImageClassifier:
 
     @classmethod
     def _run_yolo(cls, image: Image.Image) -> tuple[float, str]:
-        """Returns (nsfw_score, label) from YOLOv9."""
-        logger.info(f"YOLO input type: {type(image)}")
-        results = cls._small_model(image)
-        detections = results.pandas().xyxy[0]  #dataframe of detections
-
-        if detections.empty:
-            return 0.0, "normal"
-
-        #filter for nsfw class (label "1" = nsfw per labels.json)
-        nsfw_dets = detections[detections['name'] == 'nsfw']
-        if nsfw_dets.empty:
-            return 0.0, "normal"
-
-        #taking highest confidence nsfw detection
-        max_score = float(nsfw_dets['confidence'].max())
-        return max_score, "nsfw"
-
-    @classmethod
-    def _run_large(cls, image: Image.Image) -> tuple[float, str]:
-        """Returns (nsfw_score, label) from SigLIP2 pipeline."""
-        results = cls._large_pipeline(image, top_k=None)
+        results = cls._small_model(image, top_k=None)
+        print(f"FalconSAI RAW RESULTS: {results}")
         for r in results:
-            if cls._is_nsfw_label(r["label"]):
-                return r["score"], r["label"]
-        top = results[0]
-        return top["score"], top["label"]
-
-    @classmethod
-    def _verdict_from_scores(cls, score: float, label: str, model_used: str) -> NSFWResult:
-        is_nsfw = cls._is_nsfw_label(label) or label == "nsfw"
-        if is_nsfw and score >= BLOCK_THRESHOLD:
-            return NSFWResult(verdict=NSFWVerdict.BLOCK, score=score, label=label, model_used=model_used, reason=f"High confidence NSFW image (score={score:.3f}).")
-        if is_nsfw and score >= REVIEW_THRESHOLD:
-            return NSFWResult(verdict=NSFWVerdict.REVIEW, score=score, label=label, model_used=model_used, reason=f"Uncertain NSFW image, flagged for review (score={score:.3f}).")
-        return NSFWResult(verdict=NSFWVerdict.PASS, score=score, label=label, model_used=model_used, reason=f"Image cleared (score={score:.3f}).")
+            if r["label"].lower() == "nsfw":
+                return r["score"], "nsfw"
+        return 0.0, "normal"
 
     @classmethod
     def classify_image(cls, image: Image.Image) -> NSFWResult:
         cls._load_models()
+        
+        if cls._small_model is None:
+            return NSFWResult(verdict=NSFWVerdict.BLOCK, score=0.0, label="unknown", model_used="none", reason="Image model unavailable, blocking for safety.")
 
-        if cls._small_model is None and cls._large_pipeline is None:
-            logger.warning("No image models available.")
-            return NSFWResult(verdict=NSFWVerdict.PASS, score=0.0, label="unknown", model_used="none", reason="No image models available.")
+        try:
+            score, label = cls._run_yolo(image)
+            is_nsfw = label == "nsfw"
 
-        #running small model first
-        if cls._small_model is not None:
-            try:
-                score, label = cls._run_yolo(image)
-                is_nsfw = label == "nsfw"
+            if is_nsfw and score >= BLOCK_THRESHOLD:
+                return NSFWResult(verdict=NSFWVerdict.BLOCK, score=score, label=label, model_used="image_small", reason=f"YOLOv9 high confidence NSFW (score={score:.3f}).")
+            return NSFWResult(verdict=NSFWVerdict.PASS, score=score, label=label, model_used="image_small", reason=f"Image cleared by YOLOv9 (score={score:.3f}).")
 
-                if is_nsfw and score >= BLOCK_THRESHOLD:
-                    return NSFWResult(verdict=NSFWVerdict.BLOCK, score=score, label=label, model_used="image_small", reason=f"YOLOv9 high confidence NSFW (score={score:.3f}).")
-
-                if is_nsfw and score >= REVIEW_THRESHOLD:
-                    #escalating to large model
-                    if cls._large_pipeline is not None:
-                        try:
-                            large_score, large_label = cls._run_large(image)
-                            return cls._verdict_from_scores(large_score, large_label, "image_large")
-                        except Exception as e:
-                            logger.error(f"Image Large inference error: {e}")
-                            return NSFWResult(verdict=NSFWVerdict.REVIEW, score=score, label=label, model_used="image_small", reason=f"Large model error, flagging cautiously (score={score:.3f}).")
-                    else:
-                        return NSFWResult(verdict=NSFWVerdict.REVIEW, score=score, label=label, model_used="image_small", reason=f"Uncertain NSFW, flagged for review (score={score:.3f}).")
-
-                #score below review passes
-                return NSFWResult(verdict=NSFWVerdict.PASS, score=score, label=label, model_used="image_small", reason=f"Image cleared by YOLOv9 (score={score:.3f}).")
-
-            except Exception as e:
-                logger.error(f"Image Small inference error: {e}")
-
-        #fallback: large model only
-        if cls._large_pipeline is not None:
-            try:
-                score, label = cls._run_large(image)
-                return cls._verdict_from_scores(score, label, "image_large")
-            except Exception as e:
-                logger.error(f"Image Large fallback error: {e}")
-
-        return NSFWResult(verdict=NSFWVerdict.PASS, score=0.0, label="unknown", model_used="none", reason="All image models failed.")
-
+        except Exception as e:
+            logger.error(f"Image Small inference error: {e}")
+            return NSFWResult(verdict=NSFWVerdict.BLOCK, score=0.0, label="unknown", model_used="none", reason="Inference error, blocking for safety.")
 
 #video frame extractor
 

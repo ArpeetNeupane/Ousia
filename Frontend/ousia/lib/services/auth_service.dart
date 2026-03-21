@@ -932,6 +932,120 @@ class AuthService {
     }
   }
 
+  // Send friend request
+  Future<Map<String, dynamic>> sendFriendRequest(String toUsername) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/friend_request/',
+        body: {'to_username': toUsername},
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        return {'success': true, 'data': body['Result']['data']};
+      }
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> checkFriendRequestStatus(String toUsername) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/friend_request/',
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        final requests = body['Result']['data']['results'] as List;
+        final sent = requests.any((r) =>
+            r['to_user'] == toUsername && r['status'] == 'pending');
+        return {'success': true, 'sent': sent};
+      }
+      return {'success': false, 'sent': false};
+    } catch (e) {
+      return {'success': false, 'sent': false};
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchFriendRequests() async {
+    try {
+      final currentUsername = _currentUser?.username ?? '';
+
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/friend_request/',
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        final results = body['Result']['data']['results'] as List;
+        final requests = results
+            .map((r) => {
+                  ...Map<String, dynamic>.from(r),
+                  'is_received': r['to_user'] == currentUsername,
+                })
+            .toList();
+        return {'success': true, 'requests': requests};
+      }
+      return {'success': false, 'message': 'Failed to load requests'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> respondFriendRequest(int id, String status) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'PATCH',
+        endpoint: '/friend_request_response/$id/',
+        body: {'status': status},
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        return {'success': true};
+      }
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteFriendRequest(int id) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'DELETE',
+        endpoint: '/friend_request_delete/$id/',
+      );
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        return {'success': true};
+      }
+      final body = jsonDecode(response.body);
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> checkFriendship(int userId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/friends/',
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        final results = body['Result']['data']['results'] as List;
+        final isFriend = results.any((r) =>
+            r['user1'] == userId || r['user2'] == userId);
+        return {'success': true, 'is_friend': isFriend};
+      }
+      return {'success': false, 'is_friend': false};
+    } catch (e) {
+      return {'success': false, 'is_friend': false};
+    }
+  }
+
   // Helper method to make authenticated requests with auto-retry on token refresh
   Future<http.Response> authenticatedRequest({
     required String method,

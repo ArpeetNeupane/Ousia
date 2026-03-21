@@ -9,6 +9,7 @@ import '../screens/create_post_screen.dart';
 import '../screens/signup_continue_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/user_profile_screen.dart';
+import '../screens/friend_request_screen.dart';
 import 'route_names.dart';
 
 class RouteConfig {
@@ -36,6 +37,9 @@ class RouteConfig {
         final userId = settings.arguments as int;
         return MaterialPageRoute(builder: (_) => UserProfileScreen(userId: userId));
       
+      case RouteNames.friendRequests:
+        return MaterialPageRoute(builder: (_) => const FriendRequestsPage());
+
       case RouteNames.home:
       case RouteNames.feed:
         return MaterialPageRoute(builder: (_) => const FeedPage());

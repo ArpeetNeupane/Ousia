@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:ousia/services/auth_service.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/profile.dart';
 import '../models/post.dart';
 
@@ -21,6 +22,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _hasError = false;
   String? _nextUrl;
   bool _isLoadingMore = false;
+  bool _friendRequestSent = false;
+  bool _isFriend = false;
   final ScrollController _scrollController = ScrollController();
 
   static const Color _primary = Color(0xFF7B5CF0);
@@ -59,17 +62,29 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       return;
     }
     final profile = profileResult['profile'] as Profile;
-    final postsResult = await _service.fetchPosts(username: profile.username);
-    // print('nextUrl: ${postsResult['next']}, postCount: ${(postsResult['posts'] as List?)?.length}');
+
+    final results = await Future.wait([
+      _service.fetchPosts(username: profile.username),
+      _service.checkFriendRequestStatus(profile.username),
+      _service.checkFriendship(widget.userId),
+    ]);
     if (!mounted) return;
+
+    final postsResult = results[0];
+    final friendResult = results[1];
+    final friendshipResult = results[2];
+
     setState(() {
       _profile = profile;
       if (postsResult['success'] == true) {
         _posts = postsResult['posts'] as List<Post>;
         _nextUrl = postsResult['next'];
       }
+      _friendRequestSent = friendResult['sent'] == true;
+      _isFriend = friendshipResult['is_friend'] == true;
       _isLoading = false;
     });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients &&
           _scrollController.position.maxScrollExtent == 0 &&
@@ -90,6 +105,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       });
     }
     setState(() => _isLoadingMore = false);
+  }
+
+  Future<void> _sendFriendRequest() async {
+    if (_profile == null || _friendRequestSent) return;
+    final result = await _service.sendFriendRequest(_profile!.username);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() => _friendRequestSent = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Friend request sent!')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Failed to send request')),
+      );
+    }
   }
 
   @override
@@ -201,6 +232,55 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     color: Theme.of(context).colorScheme.onSurface)),
             Text('Posts', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade600)),
           ]),
+          const SizedBox(height: 16),
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: Opacity(
+                  opacity: (_friendRequestSent || _isFriend) ? 0.8 : 1.0,
+                  child: ElevatedButton(
+                    onPressed: (_friendRequestSent || _isFriend) ? null : _sendFriendRequest,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isFriend ? Colors.green : _primary,
+                      disabledBackgroundColor: _isFriend ? Colors.green : _primary.withOpacity(0.6),
+                      disabledForegroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_isFriend) ...[
+                          const Icon(Icons.check, color: Colors.white, size: 16),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(
+                          _isFriend ? 'Friends' : _friendRequestSent ? 'Request Sent' : 'Add Friend',
+                          style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w600, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Share.share('Check out ${_profile?.username}\'s profile on Ousia!'),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: const Color.fromARGB(255, 174, 170, 170)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  child: Text('Share Profile',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w500,
+                          color: Theme.of(context).colorScheme.onSurface)),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           const Divider(),
         ],

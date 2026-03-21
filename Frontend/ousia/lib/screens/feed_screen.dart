@@ -158,8 +158,8 @@ class _FeedPageState extends State<FeedPage> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.search, color: onSurface),
-            onPressed: () {},
+            icon: Icon(Icons.person_2_outlined, color: onSurface),
+            onPressed: () => Navigator.pushNamed(context, '/friend-requests'),
           ),
           IconButton(
             icon: Icon(Icons.notifications_none, color: onSurface),
@@ -341,10 +341,10 @@ class _PostCard extends StatelessWidget {
                       if (confirmed == true) onDeleteTap?.call();
                     },
                     child: Container(
-                      width: 22,
-                      height: 22,
+                      width: 17,
+                      height: 17,
                       decoration: const BoxDecoration(
-                        color: Colors.red,
+                        color: Color.fromARGB(255, 129, 26, 19),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.close, color: Colors.white, size: 14),
@@ -515,8 +515,10 @@ class _MediaCarouselState extends State<_MediaCarousel> {
     return Stack(
       children: [
         // Pages
-        AspectRatio(
-          aspectRatio: 1,
+        ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxHeight: 500,
+          ),
           child: PageView.builder(
             controller: _pageController,
             itemCount: total,
@@ -612,7 +614,7 @@ class _ImageItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return CachedNetworkImage(
       imageUrl: media.mediaUrl,
-      fit: BoxFit.cover,
+      fit: BoxFit.contain,
       fadeInDuration: const Duration(milliseconds: 150),
       fadeOutDuration: const Duration(milliseconds: 50),
       placeholder: (_, __) => const _ShimmerBox(),
@@ -720,7 +722,7 @@ class _VideoItemState extends State<_VideoItem> {
           if (!_initialized)
             CachedNetworkImage(
               imageUrl: widget.media.videoThumbnailUrl,
-              fit: BoxFit.cover,
+              fit: BoxFit.contain,
               placeholder: (_, __) => Container(color: const Color(0xFFEEEEEE)),
               errorWidget: (_, __, ___) => Container(color: Colors.black),
             ),
@@ -728,7 +730,7 @@ class _VideoItemState extends State<_VideoItem> {
           // Video player
           if (_initialized)
             FittedBox(
-              fit: BoxFit.cover,
+              fit: BoxFit.contain,
               child: SizedBox(
                 width: _controller.value.size.width,
                 height: _controller.value.size.height,

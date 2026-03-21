@@ -1,5 +1,7 @@
 absl-py==2.4.0
 aistudio-sdk==0.3.8
+albucore==0.0.24
+albumentations==2.0.8
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.12.1
@@ -50,6 +52,8 @@ fsspec==2026.2.0
 future==1.0.0
 gast==0.7.0
 gdown==5.2.1
+gitdb==4.0.12
+gitpython==3.1.46
 google-pasta==0.2.0
 grpcio==1.78.0
 gunicorn==25.1.0
@@ -115,6 +119,7 @@ py-cpuinfo==9.0.0
 pyasn1==0.6.1
 pyasn1-modules==0.4.2
 pyclipper==1.4.0
+pycocotools==2.0.11
 pycparser==2.22
 pycryptodome==3.23.0
 pydantic==2.12.5
@@ -146,10 +151,13 @@ service-identity==24.2.0
 setuptools==80.1.0
 shapely==2.1.2
 shellingham==1.5.4
+simsimd==6.5.16
 six==1.17.0
+smmap==5.0.3
 soupsieve==2.8.3
 sqlparse==0.5.3
 stack-data==0.6.3
+stringzilla==4.6.0
 sympy==1.14.0
 tensorboard==2.20.0
 tensorboard-data-server==0.7.2

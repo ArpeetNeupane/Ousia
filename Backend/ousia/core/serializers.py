@@ -324,10 +324,19 @@ class FriendRequestCreateSerializer(serializers.ModelSerializer):
     from_user = serializers.SlugRelatedField(read_only=True, slug_field='username')
     to_user = serializers.SlugRelatedField(read_only=True, slug_field='username')
     to_username = serializers.CharField(write_only=True)
+    posted_by_profile = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = FriendRequest
-        fields = ['id', 'from_user', 'to_username', 'to_user', 'status', 'created_at', 'responded_at']
-        read_only_fields = ['id', 'from_user', 'to_user', 'created_at', 'responded_at']
+        fields = ['id', 'from_user', 'to_username', 'to_user', 'status', 'created_at', 'responded_at', 'posted_by_profile']
+        read_only_fields = ['id', 'from_user', 'to_user', 'created_at', 'responded_at', 'posted_by_profile']
+
+    def get_posted_by_profile(self, obj):
+        try:
+            profile = Profile.objects.get(user=obj.from_user)
+            return ProfilePictureSerializer(profile).data
+        except Profile.DoesNotExist:
+            return None
 
     def validate_to_username(self, username):
         try:
@@ -399,8 +408,8 @@ class FriendRequestResponseSerializer(serializers.ModelSerializer):
 
         #if receiver is responding (accept/reject)
         if user == self.instance.to_user: #self means current serializer, self.instance is current serializer's model
-            if new_status not in [FriendRequest.RequestStatusEnum.ACCEPTED, FriendRequest.RequestStatusEnum.REJECTED]:
-                raise serializers.ValidationError("You can only accept or reject the request.")
+            if new_status not in [FriendRequest.RequestStatusEnum.ACCEPTED, FriendRequest.RequestStatusEnum.REJECTED, FriendRequest.RequestStatusEnum.DELETED]:
+                raise serializers.ValidationError("You can only accept, reject or delete the request.")
 
         #if sender is cancelling the request
         elif user == self.instance.from_user:

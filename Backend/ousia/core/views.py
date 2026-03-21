@@ -596,6 +596,9 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             caption = request.data.get('caption', '') or ''
             media_uploads = request.FILES.getlist('media')
 
+            for upload in media_uploads:
+                upload.seek(0)
+
             # Save uploaded files to temp paths for moderation
             temp_files = []
             media_for_moderation = []
@@ -610,7 +613,13 @@ class PostListCreateAPI(generics.ListCreateAPIView):
                     temp_files.append(tmp.name)
                     media_for_moderation.append({'path': tmp.name, 'is_video': is_video})
 
+                print(f"CAPTION: {caption}")
+                print(f"MEDIA FILES: {[(m['path'], os.path.getsize(m['path'])) for m in media_for_moderation]}")
                 mod_result = moderate_post(caption=caption, media_files=media_for_moderation)
+                print(f"MOD RESULT: {mod_result}")
+
+                for upload in media_uploads:
+                    upload.seek(0)
 
             finally:
                 for path in temp_files:
@@ -623,7 +632,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
                 return api_response(
                     is_success=False,
                     error_message={
-                        "caption": f"Post blocked: content violates community guidelines."
+                        "caption": f"Post blocked due to content violating community guidelines: {mod_result.reason} (model: {mod_result.model_used}, score: {mod_result.score:.3f}, label: {mod_result.label})"
                     },
                     status_code=status.HTTP_400_BAD_REQUEST
                 )
@@ -802,7 +811,7 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
         except Exception as e:
             return api_response(
                 is_success=False,
-                error_message=f"Failed to delete hashtag. {str(e)}",
+                error_message=f"Failed to delete post. {str(e)}",
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -1109,8 +1118,8 @@ class FriendRequestListCreateAPI(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         return FriendRequest.objects.filter(
-            to_user=user, status=FriendRequest.RequestStatusEnum.PENDING
-        ).select_related('from_user') #optimizing lookup in case we need info about the sender
+            Q(to_user=user) | Q(from_user=user)
+        ).select_related('from_user', 'to_user') #optimizing lookup in case we need info about the sender
 
     def create(self, request, *args, **kwargs):
         try:
