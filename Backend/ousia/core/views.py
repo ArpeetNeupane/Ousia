@@ -574,9 +574,9 @@ class PostListCreateAPI(generics.ListCreateAPIView):
     permission_classes = []
     serializer_class = PostResponseCreateSerializer
     #reverse relationship name of fk of post on like model is like_on_post
-    queryset = Post.objects.prefetch_related("like_on_post").filter(
-        moderation_status = "approved"
-    )
+    # queryset = Post.objects.prefetch_related("like_on_post").filter(
+    #     moderation_status = "approved"
+    # )
     parser_classes = [FormParser, MultiPartParser]
     pagination_class = DefaultPagination
     http_method_names = ['get', 'post']
@@ -587,6 +587,30 @@ class PostListCreateAPI(generics.ListCreateAPIView):
 
     def get_permissions(self):
         return [IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        
+        #getting current user's friends
+        friends = Friend.objects.filter(
+            Q(user1=user) | Q(user2=user),
+            is_blocked=False
+        ).values_list('user1', 'user2')
+        
+        friend_ids = set()
+        for user1_id, user2_id in friends:
+            if user1_id == user.id:
+                friend_ids.add(user2_id)
+            else:
+                friend_ids.add(user1_id)
+
+        return Post.objects.prefetch_related("like_on_post").filter(
+            moderation_status="approved"
+        ).filter(
+            Q(visibility=Post.VisibilityEnum.PUBLIC) |
+            Q(visibility=Post.VisibilityEnum.FRIENDS_ONLY, posted_by__in=friend_ids) |
+            Q(posted_by=user)  #always showing own posts
+        ).order_by('-created_at')
 
     def create(self, request, *args, **kwargs):
         try:

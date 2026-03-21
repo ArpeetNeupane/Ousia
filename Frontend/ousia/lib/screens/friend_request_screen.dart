@@ -327,12 +327,46 @@ class _FriendRequestCardState extends State<_FriendRequestCard> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _isResponding || _isDeleting
-                            ? null
-                            : () async {
+                          ? null
+                          : () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  title: Text('Delete Request',
+                                      style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                                  content: Text(
+                                    'Are you sure you want to delete this friend request?',
+                                    style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade600),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, false),
+                                      child: Text('Cancel',
+                                          style: GoogleFonts.inter(color: Colors.grey.shade600)),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFFFFEBEE),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      child: Text('Delete',
+                                          style: GoogleFonts.inter(
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.red.shade400,
+                                              fontSize: 13)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
                                 setState(() => _isDeleting = true);
                                 await Future.microtask(widget.onDelete);
                                 if (mounted) setState(() => _isDeleting = false);
-                              },
+                              }
+                            },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color.fromARGB(255, 236, 115, 133),
                           padding: const EdgeInsets.symmetric(vertical: 8),

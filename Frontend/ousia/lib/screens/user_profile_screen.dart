@@ -24,6 +24,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _isLoadingMore = false;
   bool _friendRequestSent = false;
   bool _isFriend = false;
+  bool _hasReceivedRequest = false;
+  int? _receivedRequestId;
   final ScrollController _scrollController = ScrollController();
 
   static const Color _primary = Color(0xFF7B5CF0);
@@ -82,6 +84,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
       _friendRequestSent = friendResult['sent'] == true;
       _isFriend = friendshipResult['is_friend'] == true;
+      _friendRequestSent = friendResult['sent'] == true;
+      _hasReceivedRequest = friendResult['received'] == true;
+      _receivedRequestId = friendResult['received_request_id'];
       _isLoading = false;
     });
 
@@ -237,33 +242,94 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           Row(
             children: [
               Expanded(
-                child: Opacity(
-                  opacity: (_friendRequestSent || _isFriend) ? 0.8 : 1.0,
-                  child: ElevatedButton(
-                    onPressed: (_friendRequestSent || _isFriend) ? null : _sendFriendRequest,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isFriend ? Colors.green : _primary,
-                      disabledBackgroundColor: _isFriend ? Colors.green : _primary.withOpacity(0.6),
-                      disabledForegroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_isFriend) ...[
-                          const Icon(Icons.check, color: Colors.white, size: 16),
-                          const SizedBox(width: 6),
-                        ],
-                        Text(
-                          _isFriend ? 'Friends' : _friendRequestSent ? 'Request Sent' : 'Add Friend',
-                          style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w600, color: Colors.white),
+                child: _hasReceivedRequest
+                    ? ElevatedButton(
+                        onPressed: () async {
+                          if (_receivedRequestId == null) return;
+                          final result = await showDialog<String>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              title: Text('Friend Request',
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                              content: Text(
+                                '${_profile?.username} sent you a friend request.',
+                                style: GoogleFonts.inter(fontSize: 14, color: const Color.fromARGB(255, 183, 179, 179)),
+                              ),
+                              actions: [
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(context, 'rejected'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color.fromARGB(255, 236, 115, 133),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14)),
+                                  ),
+                                  child: Text('Decline',
+                                      style: GoogleFonts.inter(
+                                          color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(context, 'accepted'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _primary,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14)),
+                                  ),
+                                  child: Text('Confirm',
+                                      style: GoogleFonts.inter(
+                                          color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (result != null) {
+                            final response = await _service.respondFriendRequest(_receivedRequestId!, result);
+                            if (!mounted) return;
+                            if (response['success'] == true) {
+                              setState(() {
+                                _hasReceivedRequest = false;
+                                if (result == 'accepted') _isFriend = true;
+                              });
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color.fromARGB(255, 170, 214, 24),
+                          disabledBackgroundColor: _primary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                        child: Text('Respond',
+                            style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w600, color: Colors.black)),
+                      )
+                    : Opacity(
+                        opacity: (_friendRequestSent || _isFriend) ? 0.8 : 1.0,
+                        child: ElevatedButton(
+                          onPressed: (_friendRequestSent || _isFriend) ? null : _sendFriendRequest,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isFriend ? Colors.green : _primary,
+                            disabledBackgroundColor: _isFriend ? Colors.green : _primary.withOpacity(0.6),
+                            disabledForegroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (_isFriend) ...[
+                                const Icon(Icons.check, color: Colors.white, size: 16),
+                                const SizedBox(width: 6),
+                              ],
+                              Text(
+                                _isFriend ? 'Friends' : _friendRequestSent ? 'Request Sent' : 'Add Friend',
+                                style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600, color: Colors.white),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
               ),
               const SizedBox(width: 8),
               Expanded(

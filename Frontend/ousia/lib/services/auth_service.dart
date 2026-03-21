@@ -39,6 +39,7 @@ class AuthService {
   // Getters
   static String? get accessToken => _accessToken;
   static Profile? get currentUser => _currentUser;
+  static String get currentUsername => _currentUser?.user?.username ?? _currentUser?.syncedUsername ?? '';
   static bool get isLoggedIn => _accessToken != null && _currentUser != null;
   
   bool _hasCompletedInterests = false;
@@ -952,6 +953,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> checkFriendRequestStatus(String toUsername) async {
     try {
+      final currentUsername = AuthService.currentUsername;
       final response = await authenticatedRequest(
         method: 'GET',
         endpoint: '/friend_request/',
@@ -960,12 +962,26 @@ class AuthService {
       if (body['IsSuccess'] == true) {
         final requests = body['Result']['data']['results'] as List;
         final sent = requests.any((r) =>
-            r['to_user'] == toUsername && r['status'] == 'pending');
-        return {'success': true, 'sent': sent};
+            r['from_user'] == currentUsername &&
+            r['to_user'] == toUsername &&
+            r['status'] == 'pending');
+        final receivedRequest = requests.firstWhere(
+          (r) =>
+              r['from_user'] == toUsername &&
+              r['to_user'] == currentUsername &&
+              r['status'] == 'pending',
+          orElse: () => null,
+        );
+        return {
+          'success': true,
+          'sent': sent,
+          'received': receivedRequest != null,
+          'received_request_id': receivedRequest?['id'],
+        };
       }
-      return {'success': false, 'sent': false};
+      return {'success': false, 'sent': false, 'received': false, 'received_request_id': null};
     } catch (e) {
-      return {'success': false, 'sent': false};
+      return {'success': false, 'sent': false, 'received': false, 'received_request_id': null};
     }
   }
 
