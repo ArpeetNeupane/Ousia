@@ -38,13 +38,13 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.http import Http404
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 
-import cloudinary, os, tempfile
+import cloudinary, os, tempfile, random, datetime
 from datetime import timedelta
 
 
@@ -604,13 +604,15 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             else:
                 friend_ids.add(user1_id)
 
-        return Post.objects.prefetch_related("like_on_post").filter(
+        return Post.objects.prefetch_related("like_on_post").annotate(
+            like_count=Count('like_on_post')
+        ).filter(
             moderation_status="approved"
         ).filter(
             Q(visibility=Post.VisibilityEnum.PUBLIC) |
             Q(visibility=Post.VisibilityEnum.FRIENDS_ONLY, posted_by__in=friend_ids) |
             Q(posted_by=user)  #always showing own posts
-        ).order_by('-created_at')
+        ).distinct()
 
     def create(self, request, *args, **kwargs):
         try:
@@ -716,17 +718,50 @@ class PostListCreateAPI(generics.ListCreateAPIView):
 
     def list(self, request, *args, **kwargs):
         try:
-            response = super().list(request, *args, **kwargs)
+            queryset = self.get_queryset()
+            now = timezone.now()
+            daily_seed = int(datetime.date.today().strftime('%Y%m%d')) + request.user.id
+            rng = random.Random(daily_seed)
+
+            posts = list(queryset)
+
+            scored = []
+            for post in posts:
+                hours_old = max((now - post.created_at).total_seconds() / 3600, 1)
+                recency_score = 1 / (hours_old ** 0.5)
+                like_score = post.like_count * 0.3
+                random_score = rng.uniform(0, 0.3)
+                total = recency_score + like_score + random_score
+                scored.append((total, post))
+
+            scored.sort(key=lambda x: x[0], reverse=True)
+            sorted_posts = [p for _, p in scored]
+
+            page = self.paginate_queryset(sorted_posts)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                paginated = self.get_paginated_response(serializer.data)
+                return api_response(
+                    is_success=True,
+                    result={
+                        "message": "Successfully retrieved posts.",
+                        "data": paginated.data
+                    },
+                    status_code=status.HTTP_200_OK
+                )
+
+            serializer = self.get_serializer(sorted_posts, many=True)
             return api_response(
                 is_success=True,
                 result={
                     "message": "Successfully retrieved posts.",
-                    "data": response.data
+                    "data": serializer.data
                 },
                 status_code=status.HTTP_200_OK
             )
 
         except Exception as e:
+            print(str(e))
             return api_response(
                 is_success=False,
                 error_message=str(e),
