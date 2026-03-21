@@ -10,8 +10,8 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 from django.shortcuts import get_object_or_404
 
-from accounts.models import Profile, AreaOfInterest, UserAreaOfInterest
-from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer, AreaOfInterestSerializer, UserAreaOfInterestSerializer
+from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest
+from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer, AreaOfInterestSerializer, UserAreaOfInterestSerializer, UserSearchSerializer
 from accounts.permissions import IsAuthenticatedOrAdmin, IsOwnerOfProfile, CreatorOfInterest, IsOwnerOfUserInterest
 from accounts.paginations import DefaultPagination
 from myproject.utils import api_response, blacklist_user_tokens
@@ -761,3 +761,28 @@ class DeleteAccountAPI(APIView):
         )
 
 
+class UserSearchAPI(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSearchSerializer
+
+    def get_queryset(self):
+        query = self.request.query_params.get('q', '').strip()
+        if not query:
+            return User.objects.none()
+        return User.objects.filter(
+            username__icontains=query,
+            is_deleted=False,
+            is_active=True,
+        ).exclude(id=self.request.user.id)[:20]
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return api_response(
+            is_success=True,
+            result={
+                'message': "User search results retrieved successfully.",
+                'data': serializer.data
+            },
+            status_code=status.HTTP_200_OK
+        )

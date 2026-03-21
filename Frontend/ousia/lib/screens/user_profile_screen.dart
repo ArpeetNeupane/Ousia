@@ -254,7 +254,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
                               content: Text(
                                 '${_profile?.username} sent you a friend request.',
-                                style: GoogleFonts.inter(fontSize: 14, color: const Color.fromARGB(255, 183, 179, 179)),
+                                style: GoogleFonts.inter(fontSize: 14, color: const Color.fromARGB(255, 154, 152, 152)),
                               ),
                               actions: [
                                 ElevatedButton(

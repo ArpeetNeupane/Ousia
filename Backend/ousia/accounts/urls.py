@@ -4,7 +4,7 @@ from accounts.views import (
     DeleteAccountAPI, RegisterView, LoginView, UserPasswordUpdateAPI,
     ProfileResponseAPI, ProfileUpdateAPI, ProfileAdminUpdateAPI, UserProfileDetailAPI,
     AreaOfInterestListCreateAPI, AreaOfInterestRetrieveAPI, AreaOfInterestUpdateAPI, AreaOfInterestDeleteAPI,
-    UserAreaOfInterestListCreateAPI, UserAreaOfInterestRetrieveAPI, UserAreaOfInterestDeleteAPI,
+    UserAreaOfInterestListCreateAPI, UserAreaOfInterestRetrieveAPI, UserAreaOfInterestDeleteAPI, UserSearchAPI,
 )
 urlpatterns = [
     path("register/", RegisterView.as_view(), name='register'),
@@ -14,7 +14,8 @@ urlpatterns = [
     path('user/profile_update/', ProfileUpdateAPI.as_view(), name='profile-update'),
     path("user/<int:user_id>/profile/", ProfileAdminUpdateAPI.as_view(), name='profile-update-for-admins'),
     path('user/profile/<int:user_id>/', UserProfileDetailAPI.as_view(), name='user-profile-detail'),
-    path('user/delete-account/', DeleteAccountAPI.as_view(), name='delete_account'),
+    path('user/delete-account/', DeleteAccountAPI.as_view(), name='delete-account'),
+    path('user/search/', UserSearchAPI.as_view(), name='user-search'),
 
     path("interests/", AreaOfInterestListCreateAPI.as_view(), name="interest-list-create"),
     path("interests/<int:id>/", AreaOfInterestRetrieveAPI.as_view(), name="interest-retrieve"),

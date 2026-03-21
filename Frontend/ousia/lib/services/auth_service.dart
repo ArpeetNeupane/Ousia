@@ -1080,6 +1080,24 @@ class AuthService {
     }
   }
 
+  // Search users
+  Future<Map<String, dynamic>> searchUsers(String query, {String? nextUrl}) async {
+    try {
+      final endpoint = nextUrl != null
+          ? '/user/search/?${Uri.parse(nextUrl).query}'
+          : '/user/search/?q=${Uri.encodeComponent(query)}';
+      final response = await authenticatedRequest(method: 'GET', endpoint: endpoint);
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        final results = body['Result']['data'] as List;
+        return {'success': true, 'users': results, 'next': null};
+      }
+      return {'success': false, 'users': []};
+    } catch (e) {
+      return {'success': false, 'users': []};
+    }
+  }
+
   // Helper method to make authenticated requests with auto-retry on token refresh
   Future<http.Response> authenticatedRequest({
     required String method,

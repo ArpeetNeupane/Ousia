@@ -24,6 +24,13 @@ class _FeedPageState extends State<FeedPage> {
   String? _nextUrl;
   String? _errorMessage;
 
+  //search bar variables
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearchLoading = false;
+  final FocusNode _searchFocusNode = FocusNode();
+
   static const Color _primary = Color(0xFF7B5CF0);
 
   @override
@@ -46,6 +53,8 @@ class _FeedPageState extends State<FeedPage> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -56,6 +65,38 @@ class _FeedPageState extends State<FeedPage> {
         _nextUrl != null) {
       _loadMore();
     }
+  }
+
+  void _startSearch() {
+    setState(() => _isSearching = true);
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _searchFocusNode.requestFocus();
+    });
+  }
+
+  void _stopSearch() {
+    setState(() {
+      _isSearching = false;
+      _searchResults = [];
+      _searchController.clear();
+    });
+    _searchFocusNode.unfocus();
+  }
+
+  Future<void> _onSearch(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() => _searchResults = []);
+      return;
+    }
+    setState(() => _isSearchLoading = true);
+    final result = await _service.searchUsers(query);
+    if (!mounted) return;
+    setState(() {
+      _searchResults = result['success'] == true
+          ? List<Map<String, dynamic>>.from(result['users'])
+          : [];
+      _isSearchLoading = false;
+    });
   }
 
   Future<void> _loadPosts() async {
@@ -139,34 +180,139 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final onSurface = colorScheme.onSurface;
-
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
+      appBar: _isSearching ? null : AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        title: Text(
-          'Your Feed',
-          style: TextStyle(
-            color: onSurface,
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
-          ),
-        ),
+        title: Text('Your Feed',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 22)),
         actions: [
           IconButton(
-            icon: Icon(Icons.person_2_outlined, color: onSurface),
-            onPressed: () => Navigator.pushNamed(context, '/friend-requests'),
+            icon: Icon(Icons.search_outlined, color: Theme.of(context).colorScheme.onSurface,),
+            onPressed: _startSearch,
           ),
           IconButton(
-            icon: Icon(Icons.search_outlined, color: onSurface),
-            onPressed: () {},
+            icon: Icon(Icons.person_2_outlined, color: Theme.of(context).colorScheme.onSurface),
+            onPressed: () => Navigator.pushNamed(context, '/friend-requests'),
           ),
         ],
       ),
-      body: _buildBody(),
+      body: Stack(
+        children: [
+          _buildBody(),
+          AnimatedSlide(
+            offset: _isSearching ? Offset.zero : const Offset(1, 0),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            child: AnimatedOpacity(
+              opacity: _isSearching ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: _buildSearchOverlay(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchOverlay() {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Search bar row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.arrow_back, color: cs.onSurface),
+                    onPressed: _stopSearch,
+                  ),
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        onChanged: _onSearch,
+                        style: TextStyle(color: cs.onSurface),
+                        decoration: InputDecoration(
+                          hintText: 'Search users...',
+                          hintStyle: TextStyle(color: cs.onSurfaceVariant),
+                          border: InputBorder.none,
+                          prefixIcon: Icon(Icons.search, color: cs.onSurfaceVariant),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Results
+            Expanded(
+              child: _isSearchLoading
+                  ? Center(child: CircularProgressIndicator(color: _primary))
+                  : _searchController.text.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.person_search, size: 64,
+                                  color: cs.onSurfaceVariant.withOpacity(0.4)),
+                              const SizedBox(height: 12),
+                              Text('Search for users',
+                                  style: TextStyle(
+                                      color: cs.onSurfaceVariant, fontSize: 16)),
+                            ],
+                          ),
+                        )
+                      : _searchResults.isEmpty
+                          ? Center(
+                              child: Text('No users found',
+                                  style: TextStyle(color: cs.onSurfaceVariant)),
+                            )
+                          : ListView.builder(
+                              itemCount: _searchResults.length,
+                              itemBuilder: (context, index) {
+                                final user = _searchResults[index];
+                                return ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: cs.primaryContainer,
+                                    backgroundImage: user['pfp_url'] != null
+                                        ? CachedNetworkImageProvider(user['pfp_url'])
+                                        : null,
+                                    child: user['pfp_url'] == null
+                                        ? Icon(Icons.person, color: cs.primary)
+                                        : null,
+                                  ),
+                                  title: Text(user['username'],
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          color: cs.onSurface)),
+                                  onTap: () {
+                                    _stopSearch();
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/others-profile',
+                                      arguments: user['id'],
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -319,12 +465,16 @@ class _PostCard extends StatelessWidget {
                       final confirmed = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Delete Post'),
+                          title: const Text('Delete Post', style: TextStyle(fontWeight: FontWeight.bold)),
                           content: const Text(
-                              'Are you sure you want to delete this post?'),
+                              'Are you sure you want to delete this post?',
+                            ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context, false),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color.fromARGB(255, 159, 82, 182),
+                              ),
                               child: const Text('Cancel'),
                             ),
                             TextButton(

@@ -495,3 +495,21 @@ class UserAreaOfInterestSerializer(serializers.ModelSerializer):
                 {"users_interest": "You have already selected this interest."}
             )
         return data
+
+
+class UserSearchSerializer(serializers.ModelSerializer):
+    pfp_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'pfp_url']
+
+    def get_pfp_url(self, obj):
+        try:
+            profile = Profile.objects.get(user=obj)
+            url, _ = cloudinary_url(profile.pfp_public_id, resource_type="image", secure=True)
+            return url
+        except Profile.DoesNotExist:
+            return None
+        except Exception:
+            return None
