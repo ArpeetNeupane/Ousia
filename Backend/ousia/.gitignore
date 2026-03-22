@@ -1,0 +1,9 @@
+#Ignore .env file
+.env
+
+#Ignore virtual environment
+venv/
+.venv/
+
+#Ignore ML Models file which stores the pre-trained models
+ML Models/
