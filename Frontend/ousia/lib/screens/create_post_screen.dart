@@ -143,7 +143,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 20)));
+        .showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 5)));
   }
 
   void _showVisibilitySheet() {

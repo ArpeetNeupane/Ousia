@@ -26,6 +26,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _isFriend = false;
   bool _hasReceivedRequest = false;
   int? _receivedRequestId;
+  int? _sentRequestId;
   final ScrollController _scrollController = ScrollController();
 
   static const Color _primary = Color(0xFF7B5CF0);
@@ -85,6 +86,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       _friendRequestSent = friendResult['sent'] == true;
       _isFriend = friendshipResult['is_friend'] == true;
       _friendRequestSent = friendResult['sent'] == true;
+      _sentRequestId = friendResult['sent_request_id'];
       _hasReceivedRequest = friendResult['received'] == true;
       _receivedRequestId = friendResult['received_request_id'];
       _isLoading = false;
@@ -113,11 +115,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Future<void> _sendFriendRequest() async {
-    if (_profile == null || _friendRequestSent) return;
+    if (_profile == null) return;
     final result = await _service.sendFriendRequest(_profile!.username);
     if (!mounted) return;
     if (result['success'] == true) {
-      setState(() => _friendRequestSent = true);
+      setState(() {
+        _friendRequestSent = true;
+        _sentRequestId = result['data']?['id'];
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Friend request sent!')),
       );
@@ -125,6 +130,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result['message'] ?? 'Failed to send request')),
       );
+    }
+  }
+
+  Future<void> _cancelFriendRequest() async {
+    if (_sentRequestId == null) return;
+    final result = await _service.deleteFriendRequest(_sentRequestId!);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() {
+        _friendRequestSent = false;
+        _sentRequestId = null;
+      });
     }
   }
 
@@ -306,7 +323,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     : Opacity(
                         opacity: (_friendRequestSent || _isFriend) ? 0.8 : 1.0,
                         child: ElevatedButton(
-                          onPressed: (_friendRequestSent || _isFriend) ? null : _sendFriendRequest,
+                          onPressed: _isFriend ? null : _friendRequestSent ? _cancelFriendRequest : _sendFriendRequest,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _isFriend ? Colors.green : _primary,
                             disabledBackgroundColor: _isFriend ? Colors.green : _primary.withOpacity(0.6),
@@ -322,7 +339,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 const SizedBox(width: 6),
                               ],
                               Text(
-                                _isFriend ? 'Friends' : _friendRequestSent ? 'Request Sent' : 'Add Friend',
+                                _isFriend ? 'Friends' : _friendRequestSent ? 'Cancel Request' : 'Add Friend',
                                 style: GoogleFonts.inter(
                                     fontWeight: FontWeight.w600, color: Colors.white),
                               ),

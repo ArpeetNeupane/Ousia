@@ -125,6 +125,164 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _showUpdatePasswordSheet(BuildContext context) {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool isLoading = false;
+    bool showCurrent = false;
+    bool showNew = false;
+    bool showConfirm = false;
+    String? errorMessage;
+    String? successMessage;
+    final cs = Theme.of(context).colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => AnimatedPadding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              left: 20, right: 20, top: 16),
+          duration: const Duration(milliseconds: 50),
+          curve: Curves.easeOut,
+          child: SizedBox(
+            height: 420,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: cs.outlineVariant,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Update Password',
+                    style: GoogleFonts.inter(
+                        fontSize: 18, fontWeight: FontWeight.bold,
+                        color: cs.onSurface)),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: currentPasswordController,
+                  obscureText: !showCurrent,
+                  style: GoogleFonts.inter(color: cs.onSurface),
+                  decoration: InputDecoration(
+                    labelText: 'Current Password',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    suffixIcon: IconButton(
+                      icon: Icon(showCurrent ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setSheetState(() => showCurrent = !showCurrent),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: newPasswordController,
+                  obscureText: !showNew,
+                  style: GoogleFonts.inter(color: cs.onSurface),
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    suffixIcon: IconButton(
+                      icon: Icon(showNew ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setSheetState(() => showNew = !showNew),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: confirmPasswordController,
+                  obscureText: !showConfirm,
+                  style: GoogleFonts.inter(color: cs.onSurface),
+                  decoration: InputDecoration(
+                    labelText: 'Confirm New Password',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    suffixIcon: IconButton(
+                      icon: Icon(showConfirm ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setSheetState(() => showConfirm = !showConfirm),
+                    ),
+                  ),
+                ),
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    errorMessage!,
+                    style: GoogleFonts.inter(color: Colors.red, fontSize: 13),
+                  ),
+                ],
+                if (successMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(successMessage!,
+                      style: GoogleFonts.inter(color: Colors.green, fontSize: 13)),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: isLoading
+                        ? null
+                        : () async {
+                            final current = currentPasswordController.text.trim();
+                            final newPass = newPasswordController.text.trim();
+                            final confirm = confirmPasswordController.text.trim();
+
+                            if (current.isEmpty || newPass.isEmpty || confirm.isEmpty) {
+                              setSheetState(() => errorMessage = 'Please fill in all fields');
+                              return;
+                            }
+
+                            setSheetState(() => isLoading = true);
+                            final authService = AuthService();
+                            final result = await authService.updatePassword(
+                              currentPassword: current,
+                              newPassword: newPass,
+                              confirmNewPassword: confirm,
+                            );
+                            setSheetState(() => isLoading = false);
+
+                            if (result['success'] == true) {
+                              setSheetState(() => successMessage = 'Password updated successfully!');
+                              await Future.delayed(const Duration(seconds: 1));
+                              if (!ctx.mounted) return;
+                              Navigator.pop(ctx);
+                            } else {
+                              setSheetState(() => errorMessage = result['message'] ?? 'Failed to update password');
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: cs.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: isLoading
+                        ? const SizedBox(
+                            width: 20, height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : Text('Update Password',
+                            style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showEditProfileDialog() {
     final usernameController = TextEditingController(text: _profile?.username ?? '');
     final bioController = TextEditingController(text: _profile?.bio ?? '');
@@ -337,6 +495,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   activeColor: Theme.of(context).colorScheme.primary,
                 ),
               ),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.lock_outline),
+                title: Text('Update Password', style: GoogleFonts.inter()),
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      title: Text('Update Password',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                      content: Text(
+                        'You can only update your password once every 2 days.',
+                        style: GoogleFonts.inter(fontSize: 16, color: const Color.fromARGB(255, 166, 61, 61), fontWeight: FontWeight.w600),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text('Cancel',
+                              style: GoogleFonts.inter(
+                                  color: const Color.fromARGB(255, 167, 162, 162))),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)
+                              ),
+                          ),
+                          child: Text('Continue',
+                              style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 15)),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    _showUpdatePasswordSheet(context);
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.delete_forever, color: Colors.red),

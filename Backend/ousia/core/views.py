@@ -1205,32 +1205,17 @@ class FriendRequestListCreateAPI(generics.ListCreateAPIView):
         ).select_related('from_user', 'to_user') #optimizing lookup in case we need info about the sender
 
     def create(self, request, *args, **kwargs):
-        try:
-            serializer = self.get_serializer(data=request.data, context={'request': request})
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return api_response(
-                is_success=True,
-                result={
-                    "message": "Friend request sent successfully.",
-                    "data": serializer.data
-                },
-                status_code=status.HTTP_201_CREATED
-            )
-
-        except ValidationError as ve:
-            return api_response(
-                is_success=False,
-                error_message=ve.detail,
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-
-        except Exception as e:
-            return api_response(
-                is_success=False,
-                error_message=str(e),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return api_response(
+            is_success=True,
+            result={
+                "message": "Friend request sent successfully.",
+                "data": serializer.data
+            },
+            status_code=status.HTTP_201_CREATED
+        )
 
     @swagger_auto_schema(
         operation_description="Send a friend request to another user by specifying their user ID.",

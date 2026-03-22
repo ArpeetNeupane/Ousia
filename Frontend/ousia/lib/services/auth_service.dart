@@ -324,58 +324,76 @@ class AuthService {
     }
   }
 
-  // New password change functionality
-  Future<Map<String, dynamic>> changePassword(String currentPassword, String newPassword, String confirmNewPassword) async {
+  // Change password
+  Future<Map<String, dynamic>> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmNewPassword,
+  }) async {
     try {
       final response = await authenticatedRequest(
         method: 'PUT',
-        endpoint: '/user/password/update/',
+        endpoint: '/update_password/',
         body: {
           'current_password': currentPassword,
           'new_password': newPassword,
           'confirm_new_password': confirmNewPassword,
         },
       );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        return {'success': true};
+      }
+      final error = body['ErrorMessage'];
+      String message;
+      if (error is Map) {
+        message = error.values.map((v) => v is List ? v.join(', ') : v.toString()).join('\n');
+      } else {
+        message = error.toString();
+      }
+      return {'success': false, 'message': message};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  //Forgot password
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/forgot_password/'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'email': email}),
+      );
 
       final data = jsonDecode(response.body);
-
-      if (data['is_success'] == true) {
-        // Password changed successfully, logout and require re-login for security
-        await logout();
+      if (data['IsSuccess'] == true || data['is_success'] == true) {
         return {
           'success': true,
-          'message': data['result']['message'] ?? 'Password updated successfully. Please login again.',
+          'message': data['result']?['message'] ?? 'Password reset instructions sent to your email.',
         };
       } else {
+        String errorMessage = 'Failed to send password reset instructions.';
+        
+        if (data['ErrorMessage'] != null) {
+          errorMessage = _parseBackendErrorMessage(data['ErrorMessage']);
+        } else if (data['error_message'] != null) {
+          errorMessage = _parseErrorMessage(data['error_message'], errorMessage);
+        }
+
         return {
           'success': false,
-          'message': _parseErrorMessage(data['error_message'], 'Failed to update password'),
+          'message': errorMessage,
         };
       }
     } catch (e) {
-      print('Change password error: $e');
+      print('Forgot password error: $e');
       return {
         'success': false,
         'message': 'Network error: Please check your connection',
       };
-    }
-  }
-
-  Future<bool> forgotPassword(String email) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/forgot-password/'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'email': email,
-        }),
-      );
-
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
     }
   }
 
@@ -961,10 +979,12 @@ class AuthService {
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
         final requests = body['Result']['data']['results'] as List;
-        final sent = requests.any((r) =>
-            r['from_user'] == currentUsername &&
-            r['to_user'] == toUsername &&
-            r['status'] == 'pending');
+        final sentRequest = requests.firstWhere(
+          (r) => r['from_user'] == currentUsername &&
+                r['to_user'] == toUsername &&
+                r['status'] == 'pending',
+          orElse: () => null,
+        );
         final receivedRequest = requests.firstWhere(
           (r) =>
               r['from_user'] == toUsername &&
@@ -974,7 +994,8 @@ class AuthService {
         );
         return {
           'success': true,
-          'sent': sent,
+          'sent': sentRequest != null,
+          'sent_request_id': sentRequest?['id'],
           'received': receivedRequest != null,
           'received_request_id': receivedRequest?['id'],
         };
