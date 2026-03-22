@@ -80,7 +80,7 @@ class WelcomeScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.of(context).pushNamed('/login');
                   },
-                  child: const Text('Login'),
+                  child: const Text('Login', style: TextStyle(color: Colors.white)),
                 ),
               ),
               const SizedBox(height: 16),

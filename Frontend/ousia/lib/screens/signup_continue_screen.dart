@@ -39,6 +39,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -76,14 +77,15 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       'Date of Birth',
                       style: TextStyle(
                         fontSize: 15,
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _dateController,
+                    style: TextStyle(color: Colors.grey[900]),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please select your date of birth';
@@ -106,7 +108,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                     },
                     decoration: InputDecoration(
                       hintText: 'When were you born?',
-                      hintStyle: TextStyle(color: Colors.grey[500]),
+                      hintStyle: TextStyle(color: Colors.grey[600]),
                       filled: true,
                       fillColor: const Color.fromARGB(255, 255, 255, 255),
               
@@ -117,15 +119,23 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
               
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                        borderSide: BorderSide(color: Colors.grey[600]!),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                        borderSide: BorderSide(color: Colors.grey[600]!),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(color: Colors.purple[300]!),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: const Color.fromARGB(255, 225, 16, 16)!),
+                      ),
+                      errorStyle: TextStyle(
+                        color: Color.fromARGB(255, 225, 16, 16),
+                        fontSize: 12,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -142,8 +152,8 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       'Selfie',
                       style: TextStyle(
                         fontSize: 15,
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -168,7 +178,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       decoration: BoxDecoration(
                         color: const Color.fromARGB(255, 255, 255, 255),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
+                        border: Border.all(color: Colors.grey[600]!),
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
@@ -182,7 +192,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                                     ? Text(
                                         'Smile!!',
                                         style: TextStyle(
-                                          color: Colors.grey[500],
+                                          color: Colors.grey[600],
                                           fontSize: 16,
                                         ),
                                       )
@@ -214,8 +224,8 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       'Identity card',
                       style: TextStyle(
                         fontSize: 15,
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -239,7 +249,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       decoration: BoxDecoration(
                         color: const Color.fromARGB(255, 255, 255, 255),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
+                        border: Border.all(color: Colors.grey[600]!),
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
@@ -334,6 +344,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                         'Sign Up',
                         style: TextStyle(
                           fontSize: 18,
+                          color: Colors.white,
                         ),
                       ),
                     ),

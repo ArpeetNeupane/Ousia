@@ -30,6 +30,7 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -68,8 +69,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       'Username',
                       style: TextStyle(
                         fontSize: 15,
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -89,22 +90,31 @@ class _SignupScreenState extends State<SignupScreen> {
                       return null;
                     },
                     controller: _usernameController,
+                    style: TextStyle(color: Colors.grey[900]),
                     decoration: InputDecoration(
                       hintText: 'Enter your desired username.',
-                      hintStyle: TextStyle(color: Colors.grey[500]),
+                      hintStyle: TextStyle(color: Colors.grey[600]),
                       filled: true,
                       fillColor: const Color.fromARGB(255, 255, 255, 255),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                        borderSide: BorderSide(color: Colors.grey[600]!),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                        borderSide: BorderSide(color: Colors.grey[600]!),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(color: Colors.purple[300]!),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: const Color.fromARGB(255, 225, 16, 16)!),
+                      ),
+                      errorStyle: TextStyle(
+                        color: Color.fromARGB(255, 225, 16, 16),
+                        fontSize: 12,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -122,8 +132,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       'Parental Email',
                       style: TextStyle(
                         fontSize: 15,
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -140,23 +150,32 @@ class _SignupScreenState extends State<SignupScreen> {
                       return null;
                     },
                     controller: _emailController,
+                    style: TextStyle(color: Colors.grey[900]),
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       hintText: 'Enter your parent\'s email.',
-                      hintStyle: TextStyle(color: Colors.grey[500]),
+                      hintStyle: TextStyle(color: Colors.grey[600]),
                       filled: true,
                       fillColor: const Color.fromARGB(255, 255, 255, 255),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                        borderSide: BorderSide(color: Colors.grey[600]!),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                        borderSide: BorderSide(color: Colors.grey[600]!),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.purple[200]!),
+                        borderSide: BorderSide(color: Colors.purple[300]!),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: const Color.fromARGB(255, 225, 16, 16)!),
+                      ),
+                      errorStyle: TextStyle(
+                        color: Color.fromARGB(255, 225, 16, 16),
+                        fontSize: 12,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -174,14 +193,15 @@ class _SignupScreenState extends State<SignupScreen> {
                       'Password',
                       style: TextStyle(
                         fontSize: 15,
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _passwordController,
+                    style: TextStyle(color: Colors.grey[900]),
                     obscureText: !_isPasswordVisible,
                     validator: (value) {
                       final password = value?.trim();
@@ -195,7 +215,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     },
                     decoration: InputDecoration(
                       hintText: 'What\'s your secret code?',
-                      hintStyle: TextStyle(color: Colors.grey[500]),
+                      hintStyle: TextStyle(color: Colors.grey[600]),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _isPasswordVisible
@@ -212,15 +232,23 @@ class _SignupScreenState extends State<SignupScreen> {
                       fillColor: const Color.fromARGB(255, 255, 255, 255),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                        borderSide: BorderSide(color: Colors.grey[600]!),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                        borderSide: BorderSide(color: Colors.grey[600]!),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.purple[200]!),
+                        borderSide: BorderSide(color: Colors.purple[300]!),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: const Color.fromARGB(255, 225, 16, 16)!),
+                      ),
+                      errorStyle: TextStyle(
+                        color: Color.fromARGB(255, 225, 16, 16),
+                        fontSize: 12,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -238,8 +266,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       'Confirm Password',
                       style: TextStyle(
                         fontSize: 15,
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -256,6 +284,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       return null;
                     },
                     controller: _confirmPasswordController,
+                    style: TextStyle(color: Colors.grey[900]),
                     obscureText: !_isConfirmPasswordVisible,
                     decoration: InputDecoration(
                       suffixIcon: IconButton(
@@ -271,20 +300,28 @@ class _SignupScreenState extends State<SignupScreen> {
                         },
                       ),
                       hintText: 'What\'s your secret code again?',
-                      hintStyle: TextStyle(color: Colors.grey[500]),
+                      hintStyle: TextStyle(color: Colors.grey[600]),
                       filled: true,
                       fillColor: const Color.fromARGB(255, 255, 255, 255),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                        borderSide: BorderSide(color: Colors.grey[600]!),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                        borderSide: BorderSide(color: Colors.grey[600]!),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.purple[200]!),
+                        borderSide: BorderSide(color: Colors.purple[300]!),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: const Color.fromARGB(255, 225, 16, 16)!),
+                      ),
+                      errorStyle: TextStyle(
+                        color: Color.fromARGB(255, 225, 16, 16),
+                        fontSize: 12,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
