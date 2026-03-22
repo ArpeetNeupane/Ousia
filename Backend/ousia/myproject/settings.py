@@ -184,8 +184,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'login': '100/m', #5 requests per minute
-        'update_password': '100/h', #1 request per hour
-        'update_username': '100/h', #1 request per hour
+        'update_password': '1/h', #1 request per hour
+        'update_username': '5/h', #5 requests per hour
     },
     'EXCEPTION_HANDLER': 'myproject.exceptions.custom_exception_handler',
     'DEFAULT_FILTER_BACKENDS': [

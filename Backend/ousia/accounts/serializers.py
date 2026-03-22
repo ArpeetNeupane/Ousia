@@ -345,11 +345,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
         #checking image dimensions
         width,height =  get_image_dimensions(data)
-        max_width = 4000
-        max_height = 4000
+        max_width = 2500
+        max_height = 1500
         if width > max_width or height > max_height:
             raise serializers.ValidationError(
-                {"pfp": "Profile picture dimension should not exceed 4000x4000px."}
+                {"pfp": "Profile picture dimension should not exceed 2500x1500px."}
             )
 
         #checking allowed extensions
@@ -408,11 +408,11 @@ class ProfileAdminUpdateSerializer(serializers.ModelSerializer):
 
         #checking image dimensions
         width,height =  get_image_dimensions(data)
-        max_width = 4000
-        max_height = 4000
+        max_width = 2500
+        max_height = 1500
         if width > max_width or height > max_height:
             raise serializers.ValidationError(
-                {"pfp": "Profile picture dimension should not exceed 4000x4000px."}
+                {"pfp": "Profile picture dimension should not exceed 2500x1500px."}
             )
 
         #checking allowed extensions

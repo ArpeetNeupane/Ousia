@@ -471,7 +471,7 @@ class AuthService {
 
       request.headers['Authorization'] = 'Bearer $_accessToken';
 
-      if (username != null) request.fields['username'] = username;
+      if (username != null) request.fields['synced_username'] = username;
       if (bio != null) request.fields['bio'] = bio;
       if (imagePath != null) {
         request.files.add(await http.MultipartFile.fromPath('pfp', imagePath));

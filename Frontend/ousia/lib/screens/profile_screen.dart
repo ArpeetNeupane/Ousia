@@ -11,6 +11,7 @@ import '../utils/theme_provider.dart';
 import '../utils/route_names.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_cropper/image_cropper.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -315,16 +316,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       final picker = ImagePicker();
                       final picked = await picker.pickImage(
                         source: ImageSource.gallery,
-                        imageQuality: 80,
+                        imageQuality: 90,
                       );
-                      if (picked != null) {
-                        final bytes = await picked.readAsBytes();
-                        final ext = picked.path.split('.').last.toLowerCase();
+                      if (picked == null) return;
+
+                      final cropped = await ImageCropper().cropImage(
+                        sourcePath: picked.path,
+                        maxWidth: 1500,
+                        maxHeight: 1500,
+                        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+                        uiSettings: [
+                          AndroidUiSettings(
+                            toolbarTitle: 'Crop Profile Picture',
+                            toolbarColor: Theme.of(context).colorScheme.primary,
+                            toolbarWidgetColor: Colors.white,
+                            lockAspectRatio: true,
+                          ),
+                          IOSUiSettings(
+                            title: 'Crop Profile Picture',
+                            aspectRatioLockEnabled: true,
+                          ),
+                        ],
+                      );
+
+                      if (cropped != null) {
+                        final bytes = await cropped.readAsBytes();
+                        final ext = cropped.path.split('.').last.toLowerCase();
                         final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
                         setDialogState(() {
                           newPfpBase64 = base64Encode(bytes);
                           newPfpMimeType = mime;
-                          localPfpPath = picked.path;
+                          localPfpPath = cropped.path;
                         });
                       }
                     },
