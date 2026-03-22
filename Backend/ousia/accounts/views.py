@@ -10,9 +10,9 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 from django.shortcuts import get_object_or_404
 
-from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest
+from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest, PasswordResetOTP
 from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer, AreaOfInterestSerializer, UserAreaOfInterestSerializer, UserSearchSerializer
-from accounts.permissions import IsAuthenticatedOrAdmin, IsOwnerOfProfile, CreatorOfInterest, IsOwnerOfUserInterest
+from accounts.permissions import IsOwnerOfProfile, CreatorOfInterest, IsOwnerOfUserInterest
 from accounts.paginations import DefaultPagination
 from myproject.utils import api_response, blacklist_user_tokens
 
@@ -786,3 +786,118 @@ class UserSearchAPI(generics.ListAPIView):
             },
             status_code=status.HTTP_200_OK
         )
+
+
+class ForgotPasswordAPI(APIView):
+    permission_classes = []
+    authentication_classes = []
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        if not email:
+            return api_response(
+                is_success=False,
+                error_message='Email is required.',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            user = User.objects.get(email=email, is_deleted=False, is_active=True)
+        except User.DoesNotExist:
+            #shouldn't reveal if email exists
+            return api_response(
+                is_success=True,
+                result={
+                    'message': 'If this email exists, a reset code has been sent.'
+                },
+                status_code=status.HTTP_200_OK
+            )
+
+        otp = PasswordResetOTP.generate_for_user(user)
+        user.send_email_to_user(
+            subject='Your Ousia Password Reset Code',
+            message=f'Your password reset code is: {otp.otp}\n\nThis code expires in 10 minutes.',
+        )
+        return api_response(
+            is_success=True,
+            result={
+                'message': 'If this email exists, a reset code has been sent.'
+            },
+            status_code=status.HTTP_200_OK
+        )
+
+
+class VerifyOTPAPI(APIView):
+    permission_classes = []
+    authentication_classes = []
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        otp = request.data.get('otp', '').strip()
+        
+        try:
+            user = User.objects.get(email=email)
+            otp_obj = PasswordResetOTP.objects.filter(user=user, otp=otp, is_used=False).latest('created_at')
+            if not otp_obj.is_valid():
+                return api_response(
+                    is_success=False,
+                    error_message='OTP has expired.',
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+            return api_response(
+                is_success=True,
+                result={
+                    'message': 'OTP verified.'
+                },
+                status_code=status.HTTP_200_OK
+            )
+        except (User.DoesNotExist, PasswordResetOTP.DoesNotExist):
+            return api_response(
+                is_success=False,
+                error_message='Invalid OTP.',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class ResetPasswordAPI(APIView):
+    permission_classes = []
+    authentication_classes = []
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        otp = request.data.get('otp', '').strip()
+        new_password = request.data.get('new_password', '').strip()
+        confirm_password = request.data.get('confirm_password', '').strip()
+
+        if new_password != confirm_password:
+            return api_response(
+                is_success=False,
+                error_message='Passwords do not match.',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(email=email)
+            otp_obj = PasswordResetOTP.objects.filter(user=user, otp=otp, is_used=False).latest('created_at')
+            if not otp_obj.is_valid():
+                return api_response(
+                    is_success=False,
+                    error_message='OTP has expired.',
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+
+            user.set_password(new_password)
+            user.save()
+            otp_obj.is_used = True
+            otp_obj.save()
+            return api_response(
+                is_success=True,
+                result={'message': 'Password reset successful.'},
+                status_code=status.HTTP_200_OK
+            )
+        except (User.DoesNotExist, PasswordResetOTP.DoesNotExist):
+            return api_response(
+                is_success=False,
+                error_message='Invalid OTP.',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )

@@ -12,6 +12,7 @@ import '../screens/user_profile_screen.dart';
 import '../screens/friend_request_screen.dart';
 import '../screens/quiz_screen.dart';
 import '../screens/messages_screen.dart';
+import '../screens/forgot_password_screen.dart';
 import 'route_names.dart';
 
 class RouteConfig {
@@ -51,6 +52,9 @@ class RouteConfig {
       
       case RouteNames.quiz:
         return MaterialPageRoute(builder: (_) => const PlayPage());
+      
+      case RouteNames.forgotPassword:
+        return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
 
       case RouteNames.signupContinue:
         final args = settings.arguments as Map<String, dynamic>;
@@ -63,7 +67,7 @@ class RouteConfig {
           ),
         );
       
-      case '/chat':
+      case RouteNames.chat:
         final args = settings.arguments as Map<String, dynamic>;
         return MaterialPageRoute(
           builder: (_) => ChatScreen(

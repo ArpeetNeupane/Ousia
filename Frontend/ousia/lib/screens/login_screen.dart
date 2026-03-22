@@ -165,8 +165,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pushNamed(context, '/forgot-password'),
+                      child: Text(
+                        "Forgot password?",
+                        style: TextStyle(
+                          color: Colors.purple[300],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
                   
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 30),
                   
                   // Login Button
                   SizedBox(

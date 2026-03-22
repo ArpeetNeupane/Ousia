@@ -19,6 +19,7 @@ class RouteNames {
   static const String othersProfile = '/others-profile';
   static const String friendRequests = '/friend-requests';
   static const String quiz = '/quiz';
+  static const String chat = '/chat';
   
   // Settings and other routes
   static const String settings = '/settings';

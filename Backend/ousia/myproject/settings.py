@@ -236,7 +236,7 @@ cloudinary.config(
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-#media upload limits
+#MEDIA VALIDATION SETTINGS
 MAX_MEDIA_TOTAL_FILES = 5
 MAX_MEDIA_VIDEOS = 2
 MAX_MEDIA_IMAGES = 3
@@ -246,3 +246,12 @@ MAX_IMAGE_WIDTH = 2500
 MAX_IMAGE_HEIGHT = 1500
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.mkv'}
+
+#EMAIL SETTINGS
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = config('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL')

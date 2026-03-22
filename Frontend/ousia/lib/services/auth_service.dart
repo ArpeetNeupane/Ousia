@@ -357,45 +357,58 @@ class AuthService {
     }
   }
 
-  //Forgot password
+  //Forgot password, otp, reset password
   Future<Map<String, dynamic>> forgotPassword(String email) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/forgot_password/'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        Uri.parse('$baseUrl/forgot-password/'),
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
       );
-
-      final data = jsonDecode(response.body);
-      if (data['IsSuccess'] == true || data['is_success'] == true) {
-        return {
-          'success': true,
-          'message': data['result']?['message'] ?? 'Password reset instructions sent to your email.',
-        };
-      } else {
-        String errorMessage = 'Failed to send password reset instructions.';
-        
-        if (data['ErrorMessage'] != null) {
-          errorMessage = _parseBackendErrorMessage(data['ErrorMessage']);
-        } else if (data['error_message'] != null) {
-          errorMessage = _parseErrorMessage(data['error_message'], errorMessage);
-        }
-
-        return {
-          'success': false,
-          'message': errorMessage,
-        };
-      }
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) return {'success': true};
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
     } catch (e) {
-      print('Forgot password error: $e');
-      return {
-        'success': false,
-        'message': 'Network error: Please check your connection',
-      };
+      return {'success': false, 'message': e.toString()};
     }
   }
+
+  Future<Map<String, dynamic>> verifyOtp(String email, String otp) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/verify-otp/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'otp': otp}),
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) return {'success': true};
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> resetPassword(
+      String email, String otp, String newPassword, String confirmPassword) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/reset-password/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'otp': otp,
+          'new_password': newPassword,
+          'confirm_password': confirmPassword,
+        }),
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) return {'success': true};
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+  
 
   Future<void> _fetchUserProfile() async {
     try {

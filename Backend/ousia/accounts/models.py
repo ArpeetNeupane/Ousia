@@ -1,8 +1,12 @@
 from django.db import models
 from django.contrib.auth.models import BaseUserManager, AbstractBaseUser
 from django.core.mail import send_mail
-from django.core.exceptions import ValidationError
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+
+import random
+from datetime import timedelta
+
 
 class RoleEnum(models.TextChoices):
     SUPERUSER = 'superuser', _('SUPERUSER')
@@ -172,3 +176,20 @@ class UserAreaOfInterest(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.users_interest.name}"
+
+
+class PasswordResetOTP(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    otp = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def is_valid(self):
+        #otp is only valid if it's not used and created within the last 10 minutes
+        return not self.is_used and timezone.now() < self.created_at + timedelta(minutes=10)
+
+    @classmethod
+    def generate_for_user(cls, user):
+        cls.objects.filter(user=user, is_used=False).delete()
+        otp = str(random.randint(100000, 999999))
+        return cls.objects.create(user=user, otp=otp)

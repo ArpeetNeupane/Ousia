@@ -5,6 +5,7 @@ from accounts.views import (
     ProfileResponseAPI, ProfileUpdateAPI, ProfileAdminUpdateAPI, UserProfileDetailAPI,
     AreaOfInterestListCreateAPI, AreaOfInterestRetrieveAPI, AreaOfInterestUpdateAPI, AreaOfInterestDeleteAPI,
     UserAreaOfInterestListCreateAPI, UserAreaOfInterestRetrieveAPI, UserAreaOfInterestDeleteAPI, UserSearchAPI,
+    ForgotPasswordAPI, VerifyOTPAPI, ResetPasswordAPI
 )
 urlpatterns = [
     path("register/", RegisterView.as_view(), name='register'),
@@ -24,4 +25,8 @@ urlpatterns = [
     path("user-interests/", UserAreaOfInterestListCreateAPI.as_view(), name="user-interest-list-create"),
     path("user-interests/<int:id>/", UserAreaOfInterestRetrieveAPI.as_view(), name="user-interest-retrieve"),
     path("user-interests/<int:id>/delete/", UserAreaOfInterestDeleteAPI.as_view(), name="user-interest-delete"),
+
+    path('forgot-password/', ForgotPasswordAPI.as_view(), name='forgot_password'),
+    path('verify-otp/', VerifyOTPAPI.as_view(), name='verify_otp'),
+    path('reset-password/', ResetPasswordAPI.as_view(), name='reset_password'),
 ]
