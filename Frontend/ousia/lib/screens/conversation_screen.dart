@@ -105,6 +105,451 @@ class _MessagesPageState extends State<MessagesPage> {
     }
   }
 
+  void _showConversationOptions(Map<String, dynamic> convo) {
+    final isGroup = convo['is_group'] == true;
+    final currentUserId = AuthService.currentUser?.id;
+    final isAdmin = convo['group_admin'] == currentUserId;
+    final cs = Theme.of(context).colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: cs.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+
+            // View Members (group only)
+            if (isGroup)
+              ListTile(
+                leading: Icon(Icons.people_outline, color: cs.onSurface),
+                title: Text('View Members', style: GoogleFonts.inter(color: cs.onSurface)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showGroupMembers(convo);
+                },
+              ),
+
+            // Add Participant (group admin only)
+            if (isGroup && isAdmin)
+              ListTile(
+                leading: Icon(Icons.person_add_outlined, color: cs.onSurface),
+                title: Text('Add Participant', style: GoogleFonts.inter(color: cs.onSurface)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAddParticipant(convo);
+                },
+              ),
+
+            // Edit Group Name (group admin only)
+            if (isGroup && isAdmin)
+              ListTile(
+                leading: Icon(Icons.edit_outlined, color: cs.onSurface),
+                title: Text('Edit Group Name', style: GoogleFonts.inter(color: cs.onSurface)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showEditGroupName(convo);
+                },
+              ),
+
+            // Remove Participant (group admin only)
+            if (isGroup && isAdmin)
+              ListTile(
+                leading: Icon(Icons.person_remove_outlined, color: cs.onSurface),
+                title: Text('Remove Participant', style: GoogleFonts.inter(color: cs.onSurface)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showRemoveParticipant(convo);
+                },
+              ),
+
+            // Leave Group (group only, not admin or admin can still leave)
+            if (isGroup)
+              ListTile(
+                leading: const Icon(Icons.exit_to_app, color: Colors.orange),
+                title: Text('Leave Group', style: GoogleFonts.inter(color: Colors.orange)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmLeaveGroup(convo);
+                },
+              ),
+
+            // Delete Chat
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: Text('Delete Chat', style: GoogleFonts.inter(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDeleteChat(convo);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showGroupMembers(Map<String, dynamic> convo) {
+    final cs = Theme.of(context).colorScheme;
+    final participants = convo['participants'] as List? ?? [];
+    final pfpInfo = convo['pfp_info'] as List? ?? [];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Members', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: cs.onSurface)),
+            const SizedBox(height: 12),
+            ...participants.map((p) {
+              final pfp = pfpInfo.firstWhere(
+                (pi) => pi['username'] == p['username'],
+                orElse: () => <String, dynamic>{},
+              );
+              final isAdmin = convo['group_admin'] == p['id'];
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: cs.primaryContainer,
+                  backgroundImage: pfp['pfp_url'] != null
+                      ? CachedNetworkImageProvider(pfp['pfp_url'])
+                      : null,
+                  child: pfp['pfp_url'] == null
+                      ? Icon(Icons.person, color: cs.primary)
+                      : null,
+                ),
+                title: Text(p['username'], style: GoogleFonts.inter(color: cs.onSurface)),
+                trailing: isAdmin
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text('Admin', style: GoogleFonts.inter(color: _primary, fontSize: 11)),
+                      )
+                    : null,
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteChat(Map<String, dynamic> convo) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Delete Chat', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        content: Text('This will delete the chat for you only.',
+            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade600)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Delete', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      final result = await _service.deleteConversationForUser(convo['id']);
+      if (!mounted) return;
+      if (result['success'] == true) {
+        _loadConversations();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Failed to delete chat')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmLeaveGroup(Map<String, dynamic> convo) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Leave Group', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        content: Text('Are you sure you want to leave this group?',
+            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade600)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Leave', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      final result = await _service.leaveGroup(convo['id']);
+      if (!mounted) return;
+      if (result['success'] == true) {
+        _loadConversations();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Failed to leave group')),
+        );
+      }
+    }
+  }
+
+  void _showAddParticipant(Map<String, dynamic> convo) {
+    final cs = Theme.of(context).colorScheme;
+    final searchController = TextEditingController();
+    List<Map<String, dynamic>> results = [];
+    bool isLoading = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => AnimatedPadding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          child: SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.55,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Text('Add Participant', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: cs.onSurface)),
+                  const SizedBox(height: 12),
+                  Container(
+                    decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(24)),
+                    child: TextField(
+                      controller: searchController,
+                      autofocus: true,
+                      style: GoogleFonts.inter(color: cs.onSurface),
+                      onChanged: (q) async {
+                        if (q.trim().isEmpty) { setSheet(() => results = []); return; }
+                        setSheet(() => isLoading = true);
+                        final r = await _service.searchUsers(q);
+                        setSheet(() { results = r['success'] == true ? List<Map<String, dynamic>>.from(r['users']) : []; isLoading = false; });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Search users...',
+                        hintStyle: GoogleFonts.inter(color: cs.onSurfaceVariant),
+                        prefixIcon: Icon(Icons.search, color: cs.onSurfaceVariant),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: isLoading
+                        ? Center(child: CircularProgressIndicator(color: _primary))
+                        : ListView.builder(
+                            itemCount: results.length,
+                            itemBuilder: (_, i) => ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: cs.primaryContainer,
+                                backgroundImage: results[i]['pfp_url'] != null ? CachedNetworkImageProvider(results[i]['pfp_url']) : null,
+                                child: results[i]['pfp_url'] == null ? Icon(Icons.person, color: cs.primary) : null,
+                              ),
+                              title: Text(results[i]['username'], style: GoogleFonts.inter(color: cs.onSurface)),
+                              onTap: () async {
+                                final r = await _service.addParticipant(convo['id'], results[i]['id']);
+                                if (!ctx.mounted) return;
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(r['success'] == true ? 'Participant added!' : r['message'] ?? 'Failed')),
+                                );
+                              },
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditGroupName(Map<String, dynamic> convo) {
+    final cs = Theme.of(context).colorScheme;
+    final controller = TextEditingController(text: convo['group_name'] ?? '');
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Edit Group Name', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: GoogleFonts.inter(color: cs.onSurface),
+          decoration: InputDecoration(
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            labelText: 'Group Name',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isEmpty) return;
+              Navigator.pop(context);
+              final result = await _service.updateConversation(convo['id'], name);
+              if (!mounted) return;
+              if (result['success'] == true) {
+                _loadConversations();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(result['message'] ?? 'Failed to update')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRemoveParticipant(Map<String, dynamic> convo) {
+    final cs = Theme.of(context).colorScheme;
+    final participants = (convo['participants'] as List? ?? [])
+        .where((p) => p['id'] != AuthService.currentUser?.id)
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Remove Participant', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: cs.onSurface)),
+            const SizedBox(height: 12),
+            ...participants.map((p) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: cs.primaryContainer,
+                child: Icon(Icons.person, color: cs.primary),
+              ),
+              title: Text(p['username'], style: GoogleFonts.inter(color: cs.onSurface)),
+              trailing: IconButton(
+                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                onPressed: () async {
+                  Navigator.pop(context);
+                  final result = await _service.removeParticipant(convo['id'], p['id']);
+                  if (!mounted) return;
+                  if (result['success'] == true) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Participant removed!')),
+                    );
+                    _loadConversations();
+                    return;
+                  }
+
+                  if (result['requires_confirmation'] == true) {
+                    final deleteConfirm = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        title: Text('Confirm Conversation Deletion', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                        content: Text(
+                          result['message']?.toString() ?? 'Removing this participant will delete the conversation. Continue?',
+                          style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade600),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey)),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            child: Text('Confirm', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (deleteConfirm == true) {
+                      final confirmedResult = await _service.removeParticipant(
+                        convo['id'],
+                        p['id'],
+                        confirmation: true,
+                      );
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(confirmedResult['success'] == true ? 'Participant removed!' : confirmedResult['message'] ?? 'Failed')),
+                      );
+                      if (confirmedResult['success'] == true) _loadConversations();
+                    }
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(result['message'] ?? 'Failed')),
+                  );
+                },
+              ),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -223,6 +668,7 @@ class _MessagesPageState extends State<MessagesPage> {
                                       );
                                     _loadConversations();
                                     },
+                                    onLongPress: () => _showConversationOptions(convo),
                                   );
                                 },
                               ),
@@ -269,6 +715,7 @@ class _ConversationTile extends StatelessWidget {
   final String? pfpUrl;
   final Color primaryColor;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const _ConversationTile({
     required this.conversation,
@@ -276,6 +723,7 @@ class _ConversationTile extends StatelessWidget {
     required this.pfpUrl,
     required this.primaryColor,
     required this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -307,6 +755,7 @@ class _ConversationTile extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
+          onLongPress: onLongPress,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
@@ -409,9 +858,12 @@ class _NewConversationSheet extends StatefulWidget {
 
 class _NewConversationSheetState extends State<_NewConversationSheet> {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _groupNameController = TextEditingController();
   List<Map<String, dynamic>> _results = [];
+  final List<Map<String, dynamic>> _selectedUsers = [];
   bool _isLoading = false;
   bool _isCreating = false;
+  bool _isGroupMode = false;
 
   Future<void> _onSearch(String query) async {
     if (query.trim().isEmpty) {
@@ -429,19 +881,42 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
     });
   }
 
-  Future<void> _startConversation(Map<String, dynamic> user) async {
+  void _toggleUserSelection(Map<String, dynamic> user) {
+    setState(() {
+      final index = _selectedUsers.indexWhere((u) => u['id'] == user['id']);
+      if (index != -1) {
+        _selectedUsers.removeAt(index);
+      } else {
+        _selectedUsers.add(user);
+      }
+      if (_selectedUsers.isEmpty) _isGroupMode = false;
+    });
+  }
+
+  Future<void> _handleCreate() async {
     setState(() => _isCreating = true);
-    final result = await widget.service.createOrGetConversation(user['id']);
-    if (!mounted) return;
-    setState(() => _isCreating = false);
-    if (result['success'] == true) {
-      widget.onConversationCreated(
-        result['conversation_id'],
-        user['username'],
-        user['pfp_url'],
-        false,
+
+    bool shouldBeGroup = _selectedUsers.length > 1 || _groupNameController.text.trim().isNotEmpty;
+    
+    if (shouldBeGroup) {
+      final result = await widget.service.createGroup(
+        participantIds: _selectedUsers.map((u) => u['id'] as int).toList(),
+        groupName: _groupNameController.text.trim().isEmpty 
+          ? "New Group"
+          : _groupNameController.text.trim(),
       );
+      if (result['success']) {
+        widget.onConversationCreated(result['conversation_id'], result['name'], null, true);
+      }
+    } else {
+      // Create 1-on-1
+      final user = _selectedUsers.first;
+      final result = await widget.service.createOrGetConversation(user['id']);
+      if (result['success']) {
+        widget.onConversationCreated(result['conversation_id'], user['username'], user['pfp_url'], false);
+      }
     }
+    if (mounted) setState(() => _isCreating = false);
   }
 
   @override
@@ -453,45 +928,63 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeOut,
       child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.55,
+        height: MediaQuery.of(context).size.height * 0.585,
         child: Column(
           children: [
-            // Handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 16),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+            const SizedBox(height: 12),
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(_isGroupMode ? 'New Group' : 'New Message',
+                      style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: cs.onSurface)),
+                  if (_selectedUsers.isNotEmpty)
+                    TextButton(
+                      onPressed: _isCreating ? null : _handleCreate,
+                      child: Text('Create', style: TextStyle(color: widget.primaryColor, fontWeight: FontWeight.bold)),
+                    )
+                ],
               ),
             ),
+            // Group Name Input (Only in group mode)
+            if (_selectedUsers.length > 1 || _isGroupMode)
+              AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: _selectedUsers.length > 1
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: TextField(
+                          controller: _groupNameController,
+                          style: GoogleFonts.inter(color: cs.onSurface),
+                          decoration: InputDecoration(
+                            hintText: 'Enter group name...',
+                            hintStyle: GoogleFonts.inter(color: cs.onSurfaceVariant),
+                            prefixIcon: Icon(Icons.group_add_outlined, color: widget.primaryColor),
+                            filled: true,
+                            fillColor: cs.surfaceContainerHighest.withOpacity(0.4),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
+                      )
+                    : const SizedBox(width: double.infinity, height: 0),
+              ),
+            // Search Input
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text('New Message',
-                  style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: cs.onSurface)),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
               child: Container(
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(24),
-                ),
+                decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(24)),
                 child: TextField(
                   controller: _searchController,
                   onChanged: _onSearch,
-                  autofocus: true,
-                  style: GoogleFonts.inter(color: cs.onSurface),
                   decoration: InputDecoration(
                     hintText: 'Search people...',
-                    hintStyle: GoogleFonts.inter(color: cs.onSurfaceVariant),
                     prefixIcon: Icon(Icons.search, color: cs.onSurfaceVariant),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -499,43 +992,48 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            // Selected Users Horizontal List
+            if (_selectedUsers.isNotEmpty)
+              SizedBox(
+                height: 50,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _selectedUsers.length,
+                  itemBuilder: (context, i) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Chip(
+                      label: Text(_selectedUsers[i]['username']),
+                      onDeleted: () => _toggleUserSelection(_selectedUsers[i]),
+                    ),
+                  ),
+                ),
+              ),
             Expanded(
-              child: _isCreating
-                  ? Center(child: CircularProgressIndicator(color: widget.primaryColor))
-                  : _isLoading
-                      ? Center(child: CircularProgressIndicator(color: widget.primaryColor))
-                      : _results.isEmpty
-                          ? Center(
-                              child: Text(
-                                _searchController.text.isEmpty
-                                    ? 'Search for someone to message'
-                                    : 'No users found',
-                                style: GoogleFonts.inter(color: cs.onSurfaceVariant),
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: _results.length,
-                              itemBuilder: (context, index) {
-                                final user = _results[index];
-                                return ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: cs.primaryContainer,
-                                    backgroundImage: user['pfp_url'] != null
-                                        ? CachedNetworkImageProvider(user['pfp_url'])
-                                        : null,
-                                    child: user['pfp_url'] == null
-                                        ? Icon(Icons.person, color: cs.primary)
-                                        : null,
-                                  ),
-                                  title: Text(user['username'],
-                                      style: GoogleFonts.inter(
-                                          fontWeight: FontWeight.w600,
-                                          color: cs.onSurface)),
-                                  onTap: () => _startConversation(user),
-                                );
-                              },
-                            ),
+              child: _isLoading 
+                ? Center(child: CircularProgressIndicator(color: widget.primaryColor))
+                : ListView.builder(
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                    itemCount: _results.length,
+                    itemBuilder: (context, index) {
+                      final user = _results[index];
+                      final isSelected = _selectedUsers.any((u) => u['id'] == user['id']);
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: user['pfp_url'] != null ? CachedNetworkImageProvider(user['pfp_url']) : null,
+                          child: user['pfp_url'] == null ? const Icon(Icons.person) : null,
+                        ),
+                        title: Text(user['username'], style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                        trailing: Checkbox(
+                          value: isSelected,
+                          activeColor: widget.primaryColor,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                          onChanged: (_) => _toggleUserSelection(user),
+                        ),
+                        onTap: () => _toggleUserSelection(user),
+                      );
+                    },
+                  ),
             ),
           ],
         ),

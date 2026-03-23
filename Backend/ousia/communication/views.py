@@ -38,16 +38,19 @@ class ConversationListAPI(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        #finding conversations (doesn't matter if deleted by a user or not - returning all)
-        participant_qs = ConversationParticipant.objects.filter(user=user)#was deleted_for_user=False but removed it so that if they search fot a deleted convo to chat again, i'll be retrieved
+        username = self.request.query_params.get("username")
+        #finding conversations
+        participant_qs = ConversationParticipant.objects.filter(user=user)
+        if not username:
+            participant_qs = participant_qs.filter(deleted_for_user=False)
+
         #getting list of the convo ids
         conversation_ids = participant_qs.values_list('conversation_id', flat=True)
         #flat=True gives a plain list instead of a list of tuples.
-        queryset = Conversation.objects.filter(id__in=conversation_ids)
 
-        username = self.request.query_params.get("username")
+        queryset = Conversation.objects.filter(id__in=conversation_ids, is_deleted=False)
         if username:
-            queryset = queryset.filter(participants__username__icontains=username)#.exclude(participants=user)
+            queryset = queryset.filter(participants__username__icontains=username)
         return queryset
 
     def list(self, request, *args, **kwargs):
@@ -276,11 +279,21 @@ class ConversationSoftDBDeleteAPI(generics.DestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Conversation.objects.filter(participants=user, is_deleted=False)
+        return Conversation.objects.filter(
+            conversationparticipant__user=user,
+            conversationparticipant__deleted_for_user=False,
+            is_deleted=False
+        )
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        instance.soft_delete()
+        user = request.user
+        participant = ConversationParticipant.objects.get(
+            user=user,
+            conversation=instance
+        )
+        participant.delete_for_user()
+
         return api_response(
             is_success=True,
             result={
@@ -508,6 +521,19 @@ class RemoveParticipantAPI(APIView):
         users_to_remove = User.objects.filter(id__in=user_ids)
         if users_to_remove.count() != len(user_ids):
             raise ValidationError("One or more user IDs are invalid.")
+
+        remaining_count = conversation.participants.count()
+        to_remove_count = users_to_remove.count()
+        if remaining_count - to_remove_count <= 1 and not confirmation:
+            return api_response(
+                is_success=False,
+                result={
+                    "message": "Removing these participants will delete the conversation. Please confirm.",
+                    "requires_confirmation": True
+                },
+                status_code=status.HTTP_200_OK
+            )
+
         for user in users_to_remove:
             conversation.remove_participants(user, request.user, confirmation)
 
@@ -558,7 +584,26 @@ class LeaveGroupAPI(APIView):
 
         confirmation = request.data.get('confirmation', False)
 
-        conversation.leave_group(request.user, confirmation)
+        if conversation.group_admin == request.user:
+            remaining_count = conversation.participants.exclude(id=request.user.id).count()
+            if remaining_count == 1 and not confirmation:
+                return api_response(
+                    is_success=False,
+                    result={
+                        "message": "Leaving now will delete the conversation. Please confirm.",
+                        "requires_confirmation": True
+                    },
+                    status_code=status.HTTP_200_OK
+                )
+
+        try:
+            conversation.leave_group(request.user, confirmation)
+        except ValidationError as ve:
+            return api_response(
+                is_success=False,
+                error_message=ve.detail,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
 
         return api_response(
             is_success=True,

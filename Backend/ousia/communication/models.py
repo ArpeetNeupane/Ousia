@@ -24,6 +24,11 @@ class ConversationParticipant(models.Model):
 
     def __str__(self):
         return f"{self.user.username} in {self.conversation}"
+    
+    def delete_for_user(self):
+        if not self.deleted_for_user: #idempotent
+            self.deleted_for_user = True
+            self.save()
 
 
 class Conversation(models.Model):

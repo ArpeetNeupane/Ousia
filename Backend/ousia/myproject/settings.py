@@ -106,7 +106,7 @@ if IF_REDIS_IS_RUNNING:
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
-                "hosts": [('127.0.0.1', 6375)],
+                "hosts": [('127.0.0.1', 6379)],
             },
         },
     }
@@ -121,9 +121,6 @@ CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
         'LOCATION': 'redis://127.0.0.1:6379',
-        'OPTIONS': {
-            'IGNORE_EXCEPTIONS': True, #prevents crashes if Redis is down
-        }
     }
 }
 

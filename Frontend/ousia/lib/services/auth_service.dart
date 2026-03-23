@@ -1178,6 +1178,121 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> createGroup({
+    required List<int> participantIds,
+    required String groupName,
+  }) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/conversation-create/',
+        body: {
+          'participants': participantIds,
+          'is_group': true,
+          'group_name': groupName,
+        },
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        final data = body['Result']['data'];
+        return {
+          'success': true,
+          'conversation_id': data['id'],
+          'name': data['group_name'],
+        };
+      }
+      return {'success': false, 'message': 'Failed to create group'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  // Conversation options
+  Future<Map<String, dynamic>> deleteConversationForUser(String conversationId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'DELETE',
+        endpoint: '/conversation-soft-delete-for-user/$conversationId/',
+      );
+      if (response.statusCode == 200) return {'success': true};
+      final body = jsonDecode(response.body);
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> leaveGroup(String conversationId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/leave_group/$conversationId/',
+        body: {'confirmation': true},
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) return {'success': true};
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> addParticipant(String conversationId, int userId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/add_participant/$conversationId/',
+        body: {'user_ids': [userId]},
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) return {'success': true};
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> removeParticipant(String conversationId, int userId, {bool confirmation = false}) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/remove_participant/$conversationId/',
+        body: {'user_ids': [userId], 'confirmation': confirmation},
+      );
+      final body = jsonDecode(response.body);
+      if ((body['IsSuccess'] ?? body['is_success']) == true) return {'success': true};
+
+      final result = body['Result'] ?? body['result'];
+      if (result is Map && result['requires_confirmation'] == true) {
+        return {
+          'success': false,
+          'requires_confirmation': true,
+          'message': result['message']?.toString() ?? 'This action requires confirmation.',
+        };
+      }
+
+      final errorMessage = body['ErrorMessage'] ?? body['error_message'] ?? result?['message'];
+      return {'success': false, 'message': errorMessage?.toString() ?? 'Failed to remove participant'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> updateConversation(String conversationId, String groupName) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'PATCH',
+        endpoint: '/conversation-update/$conversationId/',
+        body: {'group_name': groupName},
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) return {'success': true};
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   // Helper method to make authenticated requests with auto-retry on token refresh
   Future<http.Response> authenticatedRequest({
     required String method,
