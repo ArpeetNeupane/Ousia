@@ -13,9 +13,11 @@ from rest_framework import serializers
 class ConversationResponseSerializer(serializers.ModelSerializer):
     participants = UserSerializer(many=True, read_only=True)
     pfp_info = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
+
     class Meta:
         model=Conversation
-        fields = ['id', 'participants', 'pfp_info', 'is_group', 'group_name', 'group_admin', 'created_at', 'updated_at', 'is_deleted']
+        fields = ['id', 'participants', 'pfp_info', 'is_group', 'group_name', 'group_admin', 'created_at', 'updated_at', 'is_deleted', 'unread_count']
         read_only_fields = ['id', 'is_group', 'group_admin', 'created_at', 'updated_at', 'is_deleted']
 
     def get_pfp_info(self, obj):
@@ -25,6 +27,19 @@ class ConversationResponseSerializer(serializers.ModelSerializer):
             user__in=other_participants
         )
         return ProfilePictureSerializer(profiles, many=True).data
+
+    def get_unread_count(self, obj):
+        user = self.context['request'].user
+        try:
+            participant = ConversationParticipant.objects.get(conversation=obj, user=user)
+            #counting messages in this convo created after the user's last_read_at
+            return Message.objects.filter(
+                conversation=obj,
+                created_at__gt=participant.last_read_at,
+                is_deleted=False
+            ).exclude(sender=user).count()
+        except ConversationParticipant.DoesNotExist:
+            return 0
 
 
 class ConversationCreateSerializer(serializers.ModelSerializer):
@@ -153,14 +168,16 @@ class MessageResponseSerializer(serializers.ModelSerializer):
 
 
 class MessageCreateSerializer(serializers.ModelSerializer):
+    sender_username = serializers.CharField(source='sender.username', read_only=True)
+
     class Meta:
         model=Message
         fields = [
-            'id', 'conversation', 'message_type', 'sender', 'content',
+            'id', 'conversation', 'message_type', 'sender', 'sender_username', 'content',
             'created_at', 'updated_at', 'is_edited', 'is_deleted'
         ]
         read_only_fields = [
-            'id', 'message_type', 'sender', 'created_at',
+            'id', 'message_type', 'sender', 'sender_username', 'created_at',
             'updated_at', 'is_edited', 'is_deleted'
         ]
     

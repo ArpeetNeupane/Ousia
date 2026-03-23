@@ -93,17 +93,38 @@ TEMPLATES = [
     },
 ]
 
+
+#REDIS AND CHANNEL LAYERS SETTINGS
 WSGI_APPLICATION = "myproject.wsgi.application"
 
 ASGI_APPLICATION = "myproject.asgi.application"
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [('127.0.0.1', 6379)]
+IF_REDIS_IS_RUNNING = config("IF_REDIS_IS_RUNNING", default=False, cast=bool)
+
+if IF_REDIS_IS_RUNNING:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                "hosts": [('127.0.0.1', 6375)],
+            },
         },
-    },
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer"
+        }
+    }
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379',
+        'OPTIONS': {
+            'IGNORE_EXCEPTIONS': True, #prevents crashes if Redis is down
+        }
+    }
 }
 
 

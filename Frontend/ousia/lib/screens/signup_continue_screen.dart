@@ -26,6 +26,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
   final _formKey = GlobalKey<FormState>();
   final _dateController = TextEditingController();
   final _picker = ImagePicker();
+  bool _isLoading = false;
 
   File? _selfieFile;
   File? _idCardFile;
@@ -293,60 +294,71 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                     width: 150,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () async {
-                        if (_formKey.currentState!.validate()) {
-                          if (_selfieFile == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please upload a selfie')),
-                            );
-                            return;
-                          }
-                          
-                          if (_idCardFile == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please upload your ID card')),
-                            );
-                            return;
-                          }
-                          
-                          final birthDate = _dateController.text;
-                          final authService = AuthService();
-                          
-                          final result = await authService.signup(
-                            username: widget.username,
-                            email: widget.email,
-                            password: widget.password, 
-                            confirmPassword: widget.confirmPassword, 
-                            birthDate: DateTime.parse(birthDate), 
-                            selfieImage: _selfieFile!,
-                            idCardImage: _idCardFile! //! means im sure the variable isn't null at this point of execution
-                          );
-                          
-                          if (result['success']) {
-                            // Navigate to feed or main screen
-                            Navigator.pushNamedAndRemoveUntil(
-                              context,
-                              '/user-interest',
-                              (route) => false,
-                            );
-                          } else {
-                            final errorMessage = result['message'] ?? 'Registration failed';
-                            // Show error message
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(errorMessage)),
-                            );
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                      ),
-                      child: const Text(
-                        'Sign Up',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.white,
-                        ),
-                      ),
+                      onPressed: _isLoading
+                          ? null
+                          : () async {
+                              if (_formKey.currentState!.validate()) {
+                                if (_selfieFile == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please upload a selfie')),
+                                  );
+                                  return;
+                                }
+
+                                if (_idCardFile == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please upload your ID card')),
+                                  );
+                                  return;
+                                }
+
+                                setState(() => _isLoading = true);
+
+                                final birthDate = _dateController.text;
+                                final authService = AuthService();
+
+                                final result = await authService.signup(
+                                    username: widget.username,
+                                    email: widget.email,
+                                    password: widget.password,
+                                    confirmPassword: widget.confirmPassword,
+                                    birthDate: DateTime.parse(birthDate),
+                                    selfieImage: _selfieFile!,
+                                    idCardImage: _idCardFile!);
+
+                                if (mounted) setState(() => _isLoading = false);
+
+                                if (result['success']) {
+                                  Navigator.pushNamedAndRemoveUntil(
+                                    context,
+                                    '/user-interest',
+                                    (route) => false,
+                                  );
+                                } else {
+                                  final errorMessage = result['message'] ?? 'Registration failed';
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(errorMessage)),
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : const Text(
+                              'Sign Up',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
                   

@@ -132,6 +132,7 @@ class _UserInterestScreenState extends State<UserInterestScreen> {
     final selectedCount = _selectedInterests.length;
 
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),

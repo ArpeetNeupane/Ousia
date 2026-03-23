@@ -14,6 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -205,48 +206,62 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: 150,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () async {
-                        if (_formKey.currentState!.validate()) {
-                          final username = _usernameController.text.trim();
-                          final password = _passwordController.text.trim();
+                      onPressed: _isLoading 
+                        ? null 
+                        : () async {
+                            if (_formKey.currentState!.validate()) {
+                              setState(() => _isLoading = true);
 
-                          final authService = AuthService();
-                          final result = await authService.login(username, password);
+                              final username = _usernameController.text.trim();
+                              final password = _passwordController.text.trim();
 
-                          if (result['success']) {
-                            final hasCompletedInterests = authService.hasCompletedInterests;
+                              final authService = AuthService();
+                              final result = await authService.login(username, password);
 
-                            // Navigate to interest selection screen or feed
-                            if (!hasCompletedInterests) {
-                              Navigator.pushNamedAndRemoveUntil(
-                                context,
-                                '/user-interest',
-                                (route) => false,
-                              );
-                            } else {
-                              Navigator.pushNamedAndRemoveUntil(
-                                context,
-                                '/main-navigation-screen',
-                                (route) => false,
-                              );
+                              if (mounted) setState(() => _isLoading = false);
+
+                              if (result['success']) {
+                                final hasCompletedInterests = authService.hasCompletedInterests;
+
+                                if (!hasCompletedInterests) {
+                                  Navigator.pushNamedAndRemoveUntil(
+                                    context,
+                                    '/user-interest',
+                                    (route) => false,
+                                  );
+                                } else {
+                                  Navigator.pushNamedAndRemoveUntil(
+                                    context,
+                                    '/main-navigation-screen',
+                                    (route) => false,
+                                  );
+                                }
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(result['message'] ?? "Login Failed")),
+                                );
+                              }
                             }
-                          } else {
-                            // Show error message
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(result['message'] ?? "Login Failed")),
-                            );
-                          }
-                        }
-                      },
+                          },
                       style: ElevatedButton.styleFrom(
+                        disabledBackgroundColor: const Color(0xFF7B5CF0).withOpacity(0.6),
                       ),
-                      child: const Text(
-                        'Login',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.white,
-                        ),
-                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : const Text(
+                              'Login',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
                   

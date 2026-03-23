@@ -16,42 +16,54 @@ class ChatConsumer(AsyncWebsocketConsumer):
     """
 
     async def connect(self):
-        """Called when WebSocket connection is established"""
-        self.conversation_id = self.scope['url_route']['kwargs']['conversation_id']
+        self.conversation_id = str(self.scope['url_route']['kwargs']['conversation_id'])
         self.room_group_name = f'chat_{self.conversation_id}'
         self.user = self.scope['user']
 
-        #rejecting unauthenticated users
         if not self.user.is_authenticated:
             await self.close()
             return
 
-        #verifying that the user is participant of this conversation
         is_participant = await self.check_user_is_participant()
         if not is_participant:
             await self.close()
             return
 
-        #joining room group
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
-
         await self.accept()
 
-        #sending connection confirmation
         await self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'Connected to chat'
         }))
 
-        # send message history on connect
-        history = await self.get_message_history()
-        await self.send(text_data=json.dumps({
-            'type': 'message_history',
-            'messages': history
-        }))
+        try:
+            history = await self.get_message_history()
+            await self.send(text_data=json.dumps({
+                'type': 'message_history',
+                'messages': history
+            }))
+        except Exception as e:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Failed to load history'
+            }))
+
+        try:
+            if self.channel_layer:
+                await self.channel_layer.group_add(
+                    self.room_group_name,
+                    self.channel_name
+                )
+        except Exception:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Real-time broadcast unavailable'
+            }))
+
+        try:
+            await self.mark_conversation_as_read()
+        except Exception:
+            pass
 
     async def disconnect(self, close_code):
         """Called when WebSocket connection is closed"""
@@ -110,12 +122,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
             #serializing the message
             message_data = await self.serialize_message(message)
 
+            message_data_updated = json.loads(json.dumps(message_data, default=str))
+
             #broadcasting to room group
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     'type': 'chat_message',
-                    'message': message_data
+                    'message': message_data_updated
                 }
             )
 
@@ -134,12 +148,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if message:
             message_data = await self.serialize_message(message)
 
+            message_data_updated = json.loads(json.dumps(message_data, default=str))
+
             #broadcasting edit to room group
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     'type': 'message_edited',
-                    'message': message_data
+                    'message': message_data_updated
                 }
             )
 
@@ -183,6 +199,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def chat_message(self, event):
         """Send message to WebSocket"""
         print(f"BROADCAST RECEIVED: {event['message']['content']}")
+        await self.mark_conversation_as_read()
         await self.send(text_data=json.dumps({
             'type': 'new_message',
             'message': event['message']
@@ -301,7 +318,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def serialize_message(self, message):
         """Serialize message object to dictionary"""
         serializer = MessageCreateSerializer(message)
-        return serializer.data
+        return json.loads(json.dumps(dict(serializer.data), default=str))
 
     async def send_error(self, error_message):
         """Send error message to WebSocket"""
@@ -312,9 +329,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def get_message_history(self, limit=50):
-        messages = Message.objects.filter(
-            conversation_id=self.conversation_id,
-            is_deleted=False
-        ).select_related('sender').order_by('-created_at')[:limit]
-        serializer = MessageCreateSerializer(reversed(list(messages)), many=True)
-        return serializer.data
+        try:
+            messages = Message.objects.filter(
+                conversation_id=self.conversation_id,
+                is_deleted=False
+            ).select_related('sender').order_by('-created_at')[:limit]
+            
+            serializer = MessageCreateSerializer(reversed(list(messages)), many=True)
+            return json.loads(json.dumps(list(serializer.data), default=str))
+        except Exception:
+            return []
+    
+    @database_sync_to_async
+    def mark_conversation_as_read(self):
+        """Update the last_read_at timestamp for this participant"""
+        try:
+            from django.utils import timezone
+            ConversationParticipant.objects.filter(
+                conversation_id=self.conversation_id,
+                user=self.user
+            ).update(last_read_at=timezone.now())
+        except Exception:
+            pass

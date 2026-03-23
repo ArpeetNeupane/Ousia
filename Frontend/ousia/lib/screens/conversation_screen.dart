@@ -100,6 +100,8 @@ class _MessagesPageState extends State<MessagesPage> {
           'is_group': false,
         },
       );
+      // Refresh conversations when returning
+      _loadConversations();
     }
   }
 
@@ -167,7 +169,7 @@ class _MessagesPageState extends State<MessagesPage> {
                         ),
                       ),
                     ),
-                    SizedBox(height: 12),
+                    SizedBox(height: 17),
                     // Conversation list
                     Expanded(
                       child: RefreshIndicator(
@@ -207,17 +209,20 @@ class _MessagesPageState extends State<MessagesPage> {
                                     name: _getConversationName(convo),
                                     pfpUrl: _getConversationPfp(convo),
                                     primaryColor: _primary,
-                                    onTap: () => Navigator.pushNamed(
-                                      context,
-                                      '/chat',
-                                      arguments: {
-                                        'conversation_id': convo['id'],
-                                        'name': _getConversationName(convo),
-                                        'pfp_url': _getConversationPfp(convo),
-                                        'is_group': convo['is_group'],
-                                        'group_name': convo['group_name'],
-                                      },
-                                    ),
+                                    onTap: () async {
+                                      await Navigator.pushNamed(
+                                        context,
+                                        '/chat',
+                                        arguments: {
+                                          'conversation_id': convo['id'],
+                                          'name': _getConversationName(convo),
+                                          'pfp_url': _getConversationPfp(convo),
+                                          'is_group': convo['is_group'],
+                                          'group_name': convo['group_name'],
+                                        },
+                                      );
+                                    _loadConversations();
+                                    },
                                   );
                                 },
                               ),
@@ -251,6 +256,7 @@ class _MessagesPageState extends State<MessagesPage> {
               'is_group': isGroup,
             },
           );
+          _loadConversations();
         },
       ),
     );
@@ -278,89 +284,107 @@ class _ConversationTile extends StatelessWidget {
     final isGroup = conversation['is_group'] == true;
     final updatedAt = DateTime.tryParse(conversation['updated_at'] ?? '');
 
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            // Avatar
-            Stack(
+    final int unreadCount = conversation['unread_count'] ?? 0;
+    final bool hasUnread = unreadCount > 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: hasUnread ? Colors.white : Colors.transparent, 
+            width: 2,
+          ),
+          boxShadow: hasUnread ? [
+            BoxShadow(
+              color: Colors.white.withOpacity(0.1),
+              blurRadius: 8,
+              spreadRadius: 1,
+            )
+          ] : [],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: cs.primaryContainer,
-                  backgroundImage: pfpUrl != null
-                      ? CachedNetworkImageProvider(pfpUrl!)
-                      : null,
-                  child: pfpUrl == null
-                      ? Icon(
-                          isGroup ? Icons.group : Icons.person,
-                          color: cs.primary,
-                          size: 28,
-                        )
-                      : null,
-                ),
-                if (isGroup)
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: primaryColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: Theme.of(context).scaffoldBackgroundColor,
-                            width: 1.5),
-                      ),
-                      child: const Icon(Icons.group, color: Colors.white, size: 10),
+                // Avatar
+                Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: cs.primaryContainer,
+                      backgroundImage: pfpUrl != null ? CachedNetworkImageProvider(pfpUrl!) : null,
+                      child: pfpUrl == null ? Icon(isGroup ? Icons.group : Icons.person, color: cs.primary, size: 28) : null,
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          name,
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                            color: cs.onSurface,
+                    if (hasUnread) // Show a small notification dot on the avatar
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (updatedAt != null)
-                        Text(
-                          timeago.format(updatedAt, locale: 'en_short'),
-                          style: GoogleFonts.inter(
-                              fontSize: 11, color: cs.onSurfaceVariant),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: GoogleFonts.inter(
+                                // Make text bold if unread
+                                fontWeight: hasUnread ? FontWeight.w900 : FontWeight.w600,
+                                fontSize: 15,
+                                color: cs.onSurface,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (updatedAt != null)
+                            Text(
+                              timeago.format(updatedAt, locale: 'en_short'),
+                              style: GoogleFonts.inter(
+                                fontSize: 11, 
+                                color: hasUnread ? Colors.white : cs.onSurfaceVariant,
+                                fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        // Show the unread count in the preview text
+                        hasUnread ? "New messages ($unreadCount)" : (isGroup ? '${(conversation['participants'] as List).length} members' : 'Tap to open chat'),
+                        style: GoogleFonts.inter(
+                          fontSize: 13, 
+                          color: hasUnread ? Colors.white.withOpacity(0.9) : cs.onSurfaceVariant,
+                          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    isGroup
-                        ? '${(conversation['participants'] as List).length} members'
-                        : 'Tap to open chat',
-                    style: GoogleFonts.inter(
-                        fontSize: 13, color: cs.onSurfaceVariant),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

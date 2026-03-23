@@ -40,7 +40,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _typingDebounce;
 
   static const Color _primary = Color(0xFF7B5CF0);
-  static const String _wsBaseUrl = 'ws://192.168.1.2:8000';
+  static const String _wsBaseUrl = 'ws://192.168.1.7:8000';
 
   String get _currentUsername => AuthService.currentUsername;
   String get _currentUserId => AuthService.currentUser?.id.toString() ?? '';
@@ -60,6 +60,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _typingDebounce?.cancel();
     _channel?.sink.close();
     super.dispose();
+  }
+
+  bool _isMoreThanOneHourApart(Map<String, dynamic> a, Map<String, dynamic> b) {
+    final dateA = DateTime.tryParse(a['created_at'] ?? '');
+    final dateB = DateTime.tryParse(b['created_at'] ?? '');
+    if (dateA == null || dateB == null) return false;
+    return dateB.difference(dateA).inMinutes >= 60;
   }
 
   void _connectWebSocket() async {
@@ -294,7 +301,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             fontStyle: FontStyle.italic))
                   else
                     Text(
-                      _isConnecting ? 'Connecting...' : _isConnected ? 'Online' : 'Offline',
+                      _isConnecting ? 'Connecting...' : _isConnected ? 'Connected' : 'Failed to connect',
                       style: GoogleFonts.inter(
                           fontSize: 11,
                           color: _isConnected ? Colors.green : cs.onSurfaceVariant),
@@ -345,6 +352,12 @@ class _ChatScreenState extends State<ChatScreen> {
                               final showDate = index == 0 ||
                                   _shouldShowDateDivider(
                                       _messages[index - 1], msg);
+
+                              // show avatar if first message or last message in a group (next message is from different sender or >1hr gap)
+                              final isLastInGroup = index == _messages.length - 1 ||
+                                  _messages[index + 1]['sender'].toString() != msg['sender'].toString() ||
+                                  _isMoreThanOneHourApart(msg, _messages[index + 1]);
+
                               return Column(
                                 children: [
                                   if (showDate) _buildDateDivider(msg['created_at'], cs),
@@ -352,6 +365,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     message: msg,
                                     isMine: mine,
                                     primaryColor: _primary,
+                                    showAvatar: !mine && isLastInGroup,
                                     onLongPress: mine && msg['is_deleted'] != true
                                         ? () => _showMessageOptions(msg)
                                         : null,
@@ -499,12 +513,14 @@ class _ChatScreenState extends State<ChatScreen> {
 class _MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
   final bool isMine;
+  final bool showAvatar;
   final Color primaryColor;
   final VoidCallback? onLongPress;
 
   const _MessageBubble({
     required this.message,
     required this.isMine,
+    required this.showAvatar,
     required this.primaryColor,
     this.onLongPress,
   });
@@ -524,17 +540,19 @@ class _MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMine) ...[
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: cs.primaryContainer,
-              child: Text(
-                (message['sender_username'] ?? '?')[0].toUpperCase(),
-                style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: cs.primary),
-              ),
-            ),
+            showAvatar
+              ? CircleAvatar(
+                radius: 14,
+                backgroundColor: cs.primaryContainer,
+                child: Text(
+                  (message['sender_username'] ?? '?')[0].toUpperCase(),
+                  style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: cs.primary),
+                ),
+              )
+              : const SizedBox(width: 28),
             const SizedBox(width: 6),
           ],
           Flexible(
