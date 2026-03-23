@@ -251,9 +251,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                             if (result['success'] == true) {
                               setSheetState(() => successMessage = 'Password updated successfully!');
-                              await Future.delayed(const Duration(seconds: 1));
-                              if (!ctx.mounted) return;
-                              Navigator.pop(ctx);
+                              await AuthService.logout();
+                              if (!mounted) return;
+                              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                                RouteNames.login,
+                                (Route<dynamic> route) => false,
+                              );
                             } else {
                               setSheetState(() => errorMessage = result['message'] ?? 'Failed to update password');
                             }
@@ -604,8 +607,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     final result = await authService.deleteAccount();
                     if (!mounted) return;
                     if (result['success'] == true) {
-                      Navigator.of(context).pushNamedAndRemoveUntil(
-                        '/login',
+                      Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                        RouteNames.login,
                         (route) => false,
                       );
                     } else {

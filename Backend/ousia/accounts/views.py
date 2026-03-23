@@ -14,6 +14,7 @@ from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest, P
 from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer, AreaOfInterestSerializer, UserAreaOfInterestSerializer, UserSearchSerializer
 from accounts.permissions import IsOwnerOfProfile, CreatorOfInterest, IsOwnerOfUserInterest
 from accounts.paginations import DefaultPagination
+from accounts.utils import SuccessfulUpdateThrottle
 from myproject.utils import api_response, blacklist_user_tokens
 
 from drf_yasg.utils import swagger_auto_schema
@@ -130,8 +131,7 @@ class LoginView(APIView):
 
 
 class UserPasswordUpdateAPI(APIView):
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = 'update_password'
+    throttle_classes = [SuccessfulUpdateThrottle]
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
@@ -166,6 +166,11 @@ class UserPasswordUpdateAPI(APIView):
                 )
 
             serializer.save()
+            # manually incrementing throttle
+            throttle = SuccessfulUpdateThrottle()
+            throttle.get_cache_key(request, self)
+            throttle.throttle_success()
+            
             blacklist_user_tokens(request.user)
             return api_response(
                     is_success=True,
