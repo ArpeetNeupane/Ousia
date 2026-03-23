@@ -23,8 +23,8 @@ IMAGE_SMALL_PATH = os.path.abspath(
     os.path.join(BASE_DIR, "../../ML Models", "Image Small")
 )
 
-BLOCK_THRESHOLD = 0.85
-REVIEW_THRESHOLD = 0.50
+BLOCK_THRESHOLD = 0.65
+REVIEW_THRESHOLD = 0.6
 
 #video frame sampling — checking first, last, and every Nth frame
 VIDEO_FRAME_INTERVAL = 30  #every 30 frames (~1s at 30fps)

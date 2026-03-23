@@ -6,6 +6,7 @@ from accounts.models import User, Profile
 from accounts.serializers import ProfilePictureSerializer
 from communication.service import check_for_existing_one_on_one_conversation
 from communication.models import Conversation, Message, ConversationParticipant
+from communication.utils import moderate_message, should_block_message
 
 from rest_framework import serializers
 
@@ -184,14 +185,21 @@ class MessageCreateSerializer(serializers.ModelSerializer):
     def validate(self, data):
         conversation = data.get('conversation')
         sender = data.get('sender')
+        content = data.get('content', '').strip()
+        message_type = data.get('message_type', 'text')
         
         if not ConversationParticipant.objects.filter(conversation=conversation, user=sender).exists():
             raise serializers.ValidationError("You are not a participant in this conversation.")
         
-        #ensurinng reply_to is in the same conversation
+        #ensuring reply_to is in the same conversation
         reply_to = data.get('reply_to')
         if reply_to and reply_to.conversation != conversation:
             raise serializers.ValidationError("Cannot reply to a message from a different conversation.")
+        
+        #moderating text content
+        if message_type in ['text', 'system'] and content:
+            if should_block_message(content):
+                raise serializers.ValidationError("This message contains inappropriate content and cannot be sent.")
             
         return data
 

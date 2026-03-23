@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 
 from communication.models import Conversation, Message, ConversationParticipant
 from communication.serializers import MessageCreateSerializer
+from communication.utils import should_block_message
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -109,6 +110,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if not content and message_type in ['text', 'system']:
             await self.send_error('Content is required for text messages')
             return
+        
+        #checking message content for inappropriate material
+        if message_type in ['text', 'system'] and content:
+            if should_block_message(content):
+                await self.send_error('This message contains inappropriate content and cannot be sent.')
+                return
 
         #saving message to database
         message = await self.create_message(

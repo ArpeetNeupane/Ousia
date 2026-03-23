@@ -140,6 +140,17 @@ class _ChatScreenState extends State<ChatScreen> {
           });
         }
         break;
+
+      case 'error':
+        final errorMessage = json['message'] as String? ?? 'An error occurred';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: const Color.fromARGB(255, 218, 133, 127),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        break;
     }
   }
 
