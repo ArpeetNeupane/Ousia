@@ -43,6 +43,7 @@ class Profile {
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final User? user;
+  final String? serverRole;
 
   Profile({
     required this.id,
@@ -57,6 +58,7 @@ class Profile {
     this.createdAt,
     this.updatedAt,
     this.user,
+    this.serverRole,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) {
@@ -79,12 +81,14 @@ class Profile {
           ? DateTime.tryParse(json['updated_at'])
           : null,
       user: json['user'] != null ? User.fromJson(json['user']) : null,
+      serverRole: json['role'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'role': role,
       'synced_username': syncedUsername,
       'synced_email': syncedEmail,
       'synced_phone_number': syncedPhoneNumber,
@@ -133,5 +137,9 @@ class Profile {
   String get username => user?.username ?? syncedUsername ?? '';
   String get email => user?.email ?? syncedEmail ?? '';
   String get phoneNumber => user?.phoneNumber ?? syncedPhoneNumber ?? '';
-  String get role => user?.role ?? 'user';
+
+  String get role {
+    if (user != null) return user!.role;
+    return serverRole ?? 'user';
+  }
 }

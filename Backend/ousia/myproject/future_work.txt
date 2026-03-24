@@ -177,3 +177,13 @@ username_friend1 = serializers.SerializerMethodField(read_only=True)
 # proper commenting on frontend code
 
 # run using: uv run python -m daphne -b 0.0.0.0 -p 8000 myproject.asgi:application
+
+# Tomorrow 24th March task:
+# create logbook
+# create admin page with statistics graph and review content
+# fix nsfw for image in post, test with mom thinker image to see if its opposite
+# sync hashtags and user interests
+# notification for new messages, likes and friend request
+# add text moderation to username and group name as well
+# add nepali bad words in regex
+# password reset email make it look good and change the name to ousia-noreply@noreply.com or something

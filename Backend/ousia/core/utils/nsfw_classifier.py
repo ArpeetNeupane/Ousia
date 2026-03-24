@@ -15,7 +15,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEXT_SMALL_PATH = os.path.abspath(
     os.path.join(BASE_DIR, "../../ML Models", "Text Small")
 )
-
 TEXT_LARGE_PATH = os.path.abspath(
     os.path.join(BASE_DIR, "../../ML Models", "Text Large")
 )
@@ -23,15 +22,17 @@ IMAGE_SMALL_PATH = os.path.abspath(
     os.path.join(BASE_DIR, "../../ML Models", "Image Small")
 )
 
-BLOCK_THRESHOLD = 0.65
-REVIEW_THRESHOLD = 0.6
+BLOCK_THRESHOLD_TEXT = 0.85
+REVIEW_THRESHOLD_TEXT = 0.5
+
+BLOCK_THRESHOLD_IMAGE = 0.6
+REVIEW_THRESHOLD_IMAGE = 0.25
 
 #video frame sampling — checking first, last, and every Nth frame
 VIDEO_FRAME_INTERVAL = 30  #every 30 frames (~1s at 30fps)
 
 
 #enums
-
 class NSFWVerdict(Enum):
     PASS = "pass"
     REVIEW = "review"
@@ -126,7 +127,7 @@ class NSFWTextClassifier:
         if cls._loaded:
             return
         try:
-            logger.info("Loading Text Small (DistilBERT) NSFW model...")
+            logger.info("Loading Text Small (Unitary Toxic-Bert) NSFW model...")
             cls._small_pipeline = pipeline(
                 "text-classification",
                 model=TEXT_SMALL_PATH,
@@ -141,7 +142,7 @@ class NSFWTextClassifier:
             cls._small_pipeline = None
 
         try:
-            logger.info("Loading Text Large (TostAI) NSFW model...")
+            logger.info("Loading Text Large (KoalaAI HateSpeechDetector) NSFW model...")
             cls._large_pipeline = pipeline(
                 "text-classification",
                 model=TEXT_LARGE_PATH,
@@ -160,7 +161,7 @@ class NSFWTextClassifier:
     @classmethod
     def _is_nsfw_label(cls, label: str) -> bool:
         label_lower = label.lower()
-        nsfw_keywords = ["nsfw", "unsafe", "explicit", "adult", "toxic", "offensive", "hate"]
+        nsfw_keywords = ["nsfw", "unsafe", "explicit", "adult", "toxic", "offensive", "hate", "sexual", "body", "explicit", "nudity", "suggestive", "erotic", "obscene"]
         return any(k in label_lower for k in nsfw_keywords)
 
     @classmethod
@@ -222,7 +223,7 @@ class NSFWTextClassifier:
 
         is_nsfw = cls._is_nsfw_label(label)
 
-        if is_nsfw and score >= BLOCK_THRESHOLD:
+        if is_nsfw and score >= BLOCK_THRESHOLD_TEXT:
             return NSFWResult(
                 verdict=NSFWVerdict.BLOCK, 
                 score=score, 
@@ -231,12 +232,12 @@ class NSFWTextClassifier:
                 reason=f"High confidence NSFW (score={score:.3f})."
             )
 
-        if is_nsfw and score >= REVIEW_THRESHOLD:
+        if is_nsfw and score >= REVIEW_THRESHOLD_TEXT:
             if cls._large_pipeline is not None:
                 try:
                     large_score, large_label = cls._run_pipeline(cls._large_pipeline, text)
                     is_nsfw_large = cls._is_nsfw_label(large_label)
-                    if is_nsfw_large and large_score >= BLOCK_THRESHOLD:
+                    if is_nsfw_large and large_score >= BLOCK_THRESHOLD_TEXT:
                         return NSFWResult(
                             verdict=NSFWVerdict.BLOCK, 
                             score=large_score, 
@@ -244,7 +245,7 @@ class NSFWTextClassifier:
                             model_used="text_large", 
                             reason=f"Large model high confidence NSFW (score={large_score:.3f})."
                         )
-                    elif is_nsfw_large and large_score >= REVIEW_THRESHOLD:
+                    elif is_nsfw_large and large_score >= REVIEW_THRESHOLD_TEXT:
                         return NSFWResult(
                             verdict=NSFWVerdict.REVIEW, 
                             score=large_score, 
@@ -341,9 +342,12 @@ class NSFWImageClassifier:
             score, label = cls._run_yolo(image)
             is_nsfw = label == "nsfw"
 
-            if is_nsfw and score >= BLOCK_THRESHOLD:
+            if is_nsfw and score >= BLOCK_THRESHOLD_IMAGE:
                 return NSFWResult(verdict=NSFWVerdict.BLOCK, score=score, label=label, model_used="image_small", reason=f"YOLOv9 high confidence NSFW (score={score:.3f}).")
+            elif score >= REVIEW_THRESHOLD_IMAGE:
+                return NSFWResult(verdict=NSFWVerdict.REVIEW, score=score, label=label, model_used="image_small", reason=f"YOLOv9 potential NSFW (score={score:.3f}).")
             return NSFWResult(verdict=NSFWVerdict.PASS, score=score, label=label, model_used="image_small", reason=f"Image cleared by YOLOv9 (score={score:.3f}).")
+        
 
         except Exception as e:
             logger.error(f"Image Small inference error: {e}")

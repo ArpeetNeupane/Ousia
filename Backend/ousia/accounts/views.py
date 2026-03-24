@@ -9,6 +9,8 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 from django.shortcuts import get_object_or_404
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
 
 from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest, PasswordResetOTP
 from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer, AreaOfInterestSerializer, UserAreaOfInterestSerializer, UserSearchSerializer
@@ -819,9 +821,20 @@ class ForgotPasswordAPI(APIView):
             )
 
         otp = PasswordResetOTP.generate_for_user(user)
+        html_message = render_to_string(
+            'accounts/emails/password_reset_otp.html',
+            {
+                'username': user.username,
+                'otp': otp.otp,
+                'expiry_minutes': 10,
+            }
+        )
+        plain_message = strip_tags(html_message)
+
         user.send_email_to_user(
             subject='Your Ousia Password Reset Code',
-            message=f'Your password reset code is: {otp.otp}\n\nThis code expires in 10 minutes.',
+            message=plain_message,
+            html_message=html_message,
         )
         return api_response(
             is_success=True,

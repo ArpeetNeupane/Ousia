@@ -760,7 +760,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             for post in posts:
                 hours_old = max((now - post.created_at).total_seconds() / 3600, 1)
                 recency_score = 1 / (hours_old ** 0.5)
-                like_score = post.like_count * 0.3
+                like_score = post.like_count * 0.5
                 random_score = rng.uniform(0, 0.3)
                 total = recency_score + like_score + random_score
                 scored.append((total, post))

@@ -14,10 +14,20 @@ import '../screens/quiz_screen.dart';
 import '../screens/messages_screen.dart';
 import '../screens/forgot_password_screen.dart';
 import 'route_names.dart';
+import '../services/auth_service.dart';
 
 class RouteConfig {
   static Route<dynamic> generateRoute(RouteSettings settings) {
+    if (settings.name == RouteNames.adminDash) {
+      if (!AuthService.isAdmin() && !AuthService.isSuperUser()) {
+        return MaterialPageRoute(builder: (_) => const MainNavigationScreen());
+      }
+    }
+
     switch (settings.name) {
+      case RouteNames.adminDash:
+        return MaterialPageRoute(builder: (_) => const MainNavigationScreen());
+      
       case RouteNames.welcome:
         return MaterialPageRoute(builder: (_) => const WelcomeScreen());
       

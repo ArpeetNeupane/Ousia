@@ -291,10 +291,11 @@ class UserPasswordUpdateSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.ModelSerializer):
     pfp_url = serializers.SerializerMethodField(read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
+    role = serializers.CharField(source='user.role', read_only=True)
 
     class Meta:
         model = Profile
-        fields=['id', 'username', 'synced_username', 'synced_email', 'synced_birth_date', 'bio', 'address',
+        fields=['id', 'username', 'role', 'synced_username', 'synced_email', 'synced_birth_date', 'bio', 'address',
             'created_at', 'updated_at', 'pfp_url', 'pfp_public_id']
     
     def get_pfp_url(self, obj):

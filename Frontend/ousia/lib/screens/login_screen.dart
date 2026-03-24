@@ -221,6 +221,16 @@ class _LoginScreenState extends State<LoginScreen> {
                               if (mounted) setState(() => _isLoading = false);
 
                               if (result['success']) {
+                                // Navigate admins to main nav so profile/logout remain accessible even if dashboard APIs are not ready.
+                                if (AuthService.isAdmin() || AuthService.isSuperUser()) {
+                                  Navigator.pushNamedAndRemoveUntil(
+                                    context,
+                                    '/main-navigation-screen',
+                                    (route) => false,
+                                  );
+                                  return;
+                                }
+
                                 final hasCompletedInterests = authService.hasCompletedInterests;
 
                                 if (!hasCompletedInterests) {

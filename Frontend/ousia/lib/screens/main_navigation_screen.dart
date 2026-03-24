@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:ousia/screens/conversation_screen.dart';
-import 'package:ousia/screens/quiz_screen.dart';
-// import 'package:ousia/services/auth_service.dart';
+import '../services/auth_service.dart';
 import 'feed_screen.dart';
-// import 'message_screen.dart';
-import 'create_post_screen.dart';
-// import 'play_screen.dart';
+import 'conversation_screen.dart';
+import 'quiz_screen.dart';
 import 'profile_screen.dart';
-
+import 'admin_dashboard_screen.dart';
+import 'admin_profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -18,21 +16,12 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
-
   static const Color _primary = Color(0xFF7B5CF0);
-
-  final List<Widget> _screens = [
-    const FeedPage(),
-    const MessagesPage(),
-    const CreatePostPage(),
-    const PlayPage(),
-    const ProfileScreen(),
-  ];
-
   Key _feedKey = UniqueKey();
+  bool get _isAdmin => AuthService.isAdmin() || AuthService.isSuperUser();
 
   void _onTabTapped(int index) {
-    if (index == 2) {
+    if (!_isAdmin && index == 2) {
       Navigator.pushNamed(context, '/create-post').then((result) {
         if (result == true) {
           setState(() {
@@ -48,36 +37,77 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    List<Widget> stackChildren;
+    int stackIndex;
+
+    if (_isAdmin) {
+      stackChildren = [
+        const AdminDashboardScreen(),
+        const _AdminReviewPlaceholder(),
+        const AdminProfileScreen(),
+      ];
+      stackIndex = _currentIndex;
+    } else {
+      stackChildren = [
+        FeedPage(key: _feedKey),
+        const MessagesPage(),
+        const PlayPage(),
+        const ProfileScreen(),
+      ];
+      stackIndex = _currentIndex > 2 ? _currentIndex - 1 : _currentIndex;
+    }
+
     return Scaffold(
       body: IndexedStack(
-        // Skipping index 2 (Post) since it navigates away — clamping to avoid out-of-range
-        index: _currentIndex > 2 ? _currentIndex - 1 : _currentIndex,
-        children: [
-          FeedPage(key: _feedKey), // Home / Feed
-          _screens[1], // Messages
-          _screens[3], // Quiz
-          _screens[4], // Profile
-        ],
+        index: stackIndex,
+        children: stackChildren,
       ),
       bottomNavigationBar: _BottomNav(
         currentIndex: _currentIndex,
         onTap: _onTabTapped,
         primaryColor: _primary,
+        isAdmin: _isAdmin,
       ),
     );
   }
 }
 
-// Bottom nav bar
+class _AdminReviewPlaceholder extends StatelessWidget {
+  const _AdminReviewPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.gavel, size: 44),
+            const SizedBox(height: 12),
+            Text(
+              'Moderation review is coming soon.',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
   final Color primaryColor;
+  final bool isAdmin;
 
   const _BottomNav({
     required this.currentIndex,
     required this.onTap,
     required this.primaryColor,
+    required this.isAdmin,
   });
 
   @override
@@ -92,73 +122,107 @@ class _BottomNav extends StatelessWidget {
           height: 60,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(
-                index: 0,
-                currentIndex: currentIndex,
-                icon: Icons.home_outlined,
-                activeIcon: Icons.home,
-                label: 'Home',
-                onTap: onTap,
-                primaryColor: primaryColor,
-              ),
-              _NavItem(
-                index: 1,
-                currentIndex: currentIndex,
-                icon: Icons.send_outlined,
-                activeIcon: Icons.send,
-                label: 'Message',
-                onTap: onTap,
-                primaryColor: primaryColor,
-              ),
-
-              SizedBox(
-                width: 56,
-                height: 60,
-                child: GestureDetector(
-                  onTap: () => onTap(2),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: primaryColor,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withValues(alpha: 0.35),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.add, color: Colors.white, size: 26),
-                  ),
-                ),
-              ),
-
-              _NavItem(
-                index: 3,
-                currentIndex: currentIndex,
-                icon: Icons.extension_outlined,
-                activeIcon: Icons.extension,
-                label: 'Play',
-                onTap: onTap,
-                primaryColor: primaryColor,
-              ),
-              _NavItem(
-                index: 4,
-                currentIndex: currentIndex,
-                icon: Icons.person_outline,
-                activeIcon: Icons.person,
-                label: 'Profile',
-                onTap: onTap,
-                primaryColor: primaryColor,
-              ),
-            ],
+            children: isAdmin ? _buildAdminItems() : _buildUserItems(),
           ),
         ),
       ),
     );
+  }
+
+  List<Widget> _buildAdminItems() {
+    return [
+      _NavItem(
+        index: 0,
+        currentIndex: currentIndex,
+        icon: Icons.dashboard_outlined,
+        activeIcon: Icons.dashboard,
+        label: 'Dashboard',
+        onTap: onTap,
+        primaryColor: primaryColor,
+      ),
+      _NavItem(
+        index: 1,
+        currentIndex: currentIndex,
+        icon: Icons.gavel_outlined,
+        activeIcon: Icons.gavel,
+        label: 'Review',
+        onTap: onTap,
+        primaryColor: primaryColor,
+      ),
+      _NavItem(
+        index: 2,
+        currentIndex: currentIndex,
+        icon: Icons.person_outline,
+        activeIcon: Icons.person,
+        label: 'Profile',
+        onTap: onTap,
+        primaryColor: primaryColor,
+      ),
+    ];
+  }
+
+  List<Widget> _buildUserItems() {
+    return [
+      _NavItem(
+        index: 0,
+        currentIndex: currentIndex,
+        icon: Icons.home_outlined,
+        activeIcon: Icons.home,
+        label: 'Home',
+        onTap: onTap,
+        primaryColor: primaryColor,
+      ),
+      _NavItem(
+        index: 1,
+        currentIndex: currentIndex,
+        icon: Icons.send_outlined,
+        activeIcon: Icons.send,
+        label: 'Message',
+        onTap: onTap,
+        primaryColor: primaryColor,
+      ),
+      SizedBox(
+        width: 56,
+        height: 60,
+        child: GestureDetector(
+          onTap: () => onTap(2),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: primaryColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: primaryColor.withValues(alpha: 0.35),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.add, color: Colors.white, size: 26),
+          ),
+        ),
+      ),
+      _NavItem(
+        index: 3,
+        currentIndex: currentIndex,
+        icon: Icons.extension_outlined,
+        activeIcon: Icons.extension,
+        label: 'Play',
+        onTap: onTap,
+        primaryColor: primaryColor,
+      ),
+      _NavItem(
+        index: 4,
+        currentIndex: currentIndex,
+        icon: Icons.person_outline,
+        activeIcon: Icons.person,
+        label: 'Profile',
+        onTap: onTap,
+        primaryColor: primaryColor,
+      ),
+    ];
   }
 }
 
@@ -209,22 +273,6 @@ class _NavItem extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// Temporary placeholder
-class _PlaceholderScreen extends StatelessWidget {
-  final String label;
-  const _PlaceholderScreen({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 22, color: Colors.grey),
       ),
     );
   }

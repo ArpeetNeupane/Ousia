@@ -473,7 +473,7 @@ class _PostCard extends StatelessWidget {
                             TextButton(
                               onPressed: () => Navigator.pop(context, false),
                               style: TextButton.styleFrom(
-                                foregroundColor: const Color.fromARGB(255, 159, 82, 182),
+                                foregroundColor: const Color.fromARGB(255, 161, 159, 159),
                               ),
                               child: const Text('Cancel'),
                             ),
@@ -502,6 +502,14 @@ class _PostCard extends StatelessWidget {
               ],
             ),
           ),
+
+          if (post.caption != null && post.caption!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: _ExpandableCaption(caption: post.caption!),
+            ),
+          
+          SizedBox(height: 4),
 
           // Media
           if (post.mediaFiles.isNotEmpty)
@@ -532,16 +540,6 @@ class _PostCard extends StatelessWidget {
               ],
             ),
           ),
-
-          // Caption
-          if (post.caption != null && post.caption!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _ExpandableCaption(
-                username: post.postedByUsername,
-                caption: post.caption!,
-              ),
-            ),
 
           // Hashtag
           if (post.typeOfPost.isNotEmpty)
@@ -582,10 +580,9 @@ class _PostCard extends StatelessWidget {
 
 // Expandable Caption
 class _ExpandableCaption extends StatefulWidget {
-  final String username;
   final String caption;
 
-  const _ExpandableCaption({required this.username, required this.caption});
+  const _ExpandableCaption({required this.caption});
 
   @override
   State<_ExpandableCaption> createState() => _ExpandableCaptionState();
@@ -599,42 +596,35 @@ class _ExpandableCaptionState extends State<_ExpandableCaption> {
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final isLong = widget.caption.length > _limit;
-    final displayText =
-        (!_expanded && isLong) ? widget.caption.substring(0, _limit) : widget.caption;
+    final displayText = (!_expanded && isLong)
+        ? widget.caption.substring(0, _limit)
+        : widget.caption;
 
     return RichText(
       text: TextSpan(
         style: TextStyle(color: onSurface, fontSize: 13.5),
         children: [
-          TextSpan(
-            text: '${widget.username} ',
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
           TextSpan(text: displayText),
           if (isLong && !_expanded)
             WidgetSpan(
               child: GestureDetector(
                 onTap: () => setState(() => _expanded = true),
-                child: const Text(
-                  '... more',
-                  style: TextStyle(color: Colors.grey, fontSize: 13.5),
-                ),
+                child: const Text('... more',
+                    style: TextStyle(color: Colors.grey, fontSize: 13.5)),
               ),
             ),
           if (isLong && _expanded)
             WidgetSpan(
               child: GestureDetector(
                 onTap: () => setState(() => _expanded = false),
-                child: const Text(
-                  ' less',
-                  style: TextStyle(color: Colors.grey, fontSize: 13.5),
-                ),
+                child: const Text(' less',
+                    style: TextStyle(color: Colors.grey, fontSize: 13.5)),
               ),
             ),
         ],
       ),
     );
-  } 
+  }
 }
 
 // Media Carousel

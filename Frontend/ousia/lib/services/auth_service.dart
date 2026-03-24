@@ -9,7 +9,7 @@ import '../models/post.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.7:8000/api';
+  static const String baseUrl = 'http://192.168.1.6:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -185,9 +185,6 @@ class AuthService {
         }),
       );
 
-      // print('Login response status: ${response.statusCode}');
-      // print('Login response body: ${response.body}');
-
       final data = jsonDecode(response.body);
 
       // Handle success case - check both formats
@@ -201,6 +198,8 @@ class AuthService {
 
         await _secureStorage.write(key: _accessTokenKey, value: _accessToken!);
         await _secureStorage.write(key: _refreshTokenKey, value: _refreshToken!);
+
+        await _fetchUserProfile();
 
         return {
           'success': true,
@@ -422,6 +421,7 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print("RAW PROFILE DATA: $data");
         if (data['IsSuccess'] == true) {
           _currentUser = Profile.fromJson(data['Result']['data']);
           
@@ -1293,6 +1293,36 @@ class AuthService {
     }
   }
 
+  // Admin Dashboard
+  Future<Map<String, dynamic>> fetchAdminDashboardStats() async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/admin/dashboard/summary/',
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        return {'success': true, 'data': body['Result']};
+      }
+      return {'success': false, 'message': 'Failed to load stats'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchScreenTimeStats() async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/admin/dashboard/screentime/',
+      );
+      final body = jsonDecode(response.body);
+      return List<Map<String, dynamic>>.from(body);
+    } catch (e) {
+      return [];
+    }
+  }
+
   // Helper method to make authenticated requests with auto-retry on token refresh
   Future<http.Response> authenticatedRequest({
     required String method,
@@ -1362,7 +1392,9 @@ class AuthService {
 
   // Helper method to check if user has specific role
   static bool hasRole(String role) {
-    return _currentUser?.user?.role == role;
+    final userRole = _currentUser?.role.toLowerCase().trim();
+    final targetRole = role.toLowerCase().trim();
+    return userRole == targetRole;
   }
 
   // Helper methods for role checks

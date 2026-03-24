@@ -20,8 +20,7 @@ class RouteNames {
   static const String friendRequests = '/friend-requests';
   static const String quiz = '/quiz';
   static const String chat = '/chat';
-  
-  // Settings and other routes
-  static const String settings = '/settings';
-  static const String editProfile = '/edit-profile';
+
+  // Admin routes
+  static const String adminDash = '/admin-dashboard';
 }

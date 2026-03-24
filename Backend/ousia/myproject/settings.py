@@ -99,10 +99,31 @@ WSGI_APPLICATION = "myproject.wsgi.application"
 
 ASGI_APPLICATION = "myproject.asgi.application"
 
-IF_REDIS_IS_RUNNING = config("IF_REDIS_IS_RUNNING", default=False, cast=bool)
+# IF_REDIS_IS_RUNNING = config("IF_REDIS_IS_RUNNING", default=False, cast=bool)
 
-if IF_REDIS_IS_RUNNING:
-    CHANNEL_LAYERS = {
+# if IF_REDIS_IS_RUNNING:
+#     CHANNEL_LAYERS = {
+#         'default': {
+#             'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#             'CONFIG': {
+#                 "hosts": [('127.0.0.1', 6379)],
+#             },
+#         },
+#     }
+# else:
+#     CHANNEL_LAYERS = {
+#         "default": {
+#             "BACKEND": "channels.layers.InMemoryChannelLayer"
+#         }
+#     }
+
+# CACHES = {
+#     'default': {
+#         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+#         'LOCATION': 'redis://127.0.0.1:6379',
+#     }
+# }
+CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
@@ -110,19 +131,6 @@ if IF_REDIS_IS_RUNNING:
             },
         },
     }
-else:
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer"
-        }
-    }
-
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379',
-    }
-}
 
 
 # Database
@@ -272,4 +280,8 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL')
+EMAIL_FROM_NAME = config('EMAIL_FROM_NAME', default='Ousia')
+DEFAULT_FROM_EMAIL = config(
+    'DEFAULT_FROM_EMAIL',
+    default=f'{EMAIL_FROM_NAME} <{EMAIL_HOST_USER}>'
+)

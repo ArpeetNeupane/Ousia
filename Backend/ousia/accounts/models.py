@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import BaseUserManager, AbstractBaseUser
-from django.core.mail import send_mail
+from django.conf import settings
+from django.core.mail import send_mail, EmailMultiAlternatives
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -121,7 +122,22 @@ class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, i
             self.save()
 
     def send_email_to_user(self, subject, message, sender_email=None, **kwargs):
-        send_mail(subject, message, sender_email, [self.email], **kwargs)
+        html_message = kwargs.pop('html_message', None)
+        from_email = sender_email or settings.DEFAULT_FROM_EMAIL
+
+        if html_message:
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body=message,
+                from_email=from_email,
+                to=[self.email],
+                **kwargs,
+            )
+            email.attach_alternative(html_message, "text/html")
+            email.send()
+            return
+
+        send_mail(subject, message, from_email, [self.email], **kwargs)
 
 
 class Profile(models.Model):
