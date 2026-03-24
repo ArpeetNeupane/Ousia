@@ -108,6 +108,24 @@ GROOMING_REGEX_LOOSE = [
     for p in GROOMING_REGEX_PATTERNS
 ]
 
+#nepali/romanized profanity patterns
+PROFANITY_REGEX_PATTERNS = [
+    r"\bmu+j+i+\b",
+    r"\bmu+j+\b",
+    r"\brad+i+\b",
+    r"\bchikn+e+\b",
+    r"\bma+c+h+i+k+n+e+\b",
+    r"\bkhate\b",
+    r"\btero\s+bau\b",
+    r"\btero\s+aama\b",
+]
+
+PROFANITY_REGEX = [re.compile(p, re.IGNORECASE) for p in PROFANITY_REGEX_PATTERNS]
+PROFANITY_REGEX_LOOSE = [
+    re.compile(re.sub(r'\\s\+', r'\\s*', p), re.IGNORECASE)
+    for p in PROFANITY_REGEX_PATTERNS
+]
+
 
 def _normalize_text(text: str) -> str:
     text = text.lower()
@@ -197,6 +215,17 @@ class NSFWTextClassifier:
                     label="grooming_pattern",
                     model_used="rule_engine",
                     reason="Grooming pattern detected.",
+                )
+
+        #local(nepali) profanity regex check
+        for strict, loose in zip(PROFANITY_REGEX, PROFANITY_REGEX_LOOSE):
+            if strict.search(lower_text) or loose.search(normalized_text):
+                return NSFWResult(
+                    verdict=NSFWVerdict.BLOCK,
+                    score=0.95,
+                    label="profanity_pattern",
+                    model_used="rule_engine",
+                    reason="Profanity pattern detected.",
                 )
 
         if cls._small_pipeline is None:

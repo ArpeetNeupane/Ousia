@@ -9,6 +9,7 @@ from core.models import (
     PostHashTag,
     FriendRequest,
     Friend,
+    UserSession
 )
 
 
@@ -67,3 +68,9 @@ class FriendAdmin(admin.ModelAdmin):
     list_display = ['user1', 'user2', 'created_at', 'accepted_at', 'is_blocked']
     list_filter = ['is_blocked', 'created_at']
     search_fields = ['user1__username', 'user2__username']
+
+@admin.register(UserSession)
+class UserSessionAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user', 'start_time', 'end_time', 'duration_seconds']
+    list_filter = ['start_time', 'end_time']
+    search_fields = ['user__username', 'session_id']

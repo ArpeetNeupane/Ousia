@@ -11,6 +11,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import User, Profile, RoleEnum, AreaOfInterest, UserAreaOfInterest
 from accounts.ai_utils import verify_student_identity, extract_dob_from_text, extract_text_from_id
+from core.utils.nsfw_classifier import NSFWTextClassifier, NSFWVerdict
 
 import cloudinary
 from cloudinary.utils import cloudinary_url
@@ -141,6 +142,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if len(username) < 3 or len(username) > 20:
             raise serializers.ValidationError(
                 {"username": "Username must be between 3-20 letters long"}
+            )
+
+        username_mod_result = NSFWTextClassifier.classify(username)
+        if username_mod_result.verdict == NSFWVerdict.BLOCK:
+            raise serializers.ValidationError(
+                {"username": "This username contains inappropriate language. Please choose another username."}
             )
 
         existing_superuser = User.objects.filter(role=RoleEnum.SUPERUSER).exists()
@@ -368,6 +375,28 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
         return data
 
+    def validate_synced_username(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Username cannot be empty.")
+
+        username_mod_result = NSFWTextClassifier.classify(value)
+        if username_mod_result.verdict == NSFWVerdict.BLOCK:
+            raise serializers.ValidationError("This username contains inappropriate language. Please choose another username.")
+
+        return value
+
+    def validate_bio(self, value):
+        value = value.strip()
+        if not value:
+            return value
+
+        bio_mod_result = NSFWTextClassifier.classify(value)
+        if bio_mod_result.verdict == NSFWVerdict.BLOCK:
+            raise serializers.ValidationError("This bio contains inappropriate language. Please update your bio.")
+
+        return value
+
     def update(self, instance, validated_data):
         with transaction.atomic():
             for field in ['synced_username', 'synced_email', 'synced_birth_date', 'bio', 'address', 'birth_date']:
@@ -430,6 +459,28 @@ class ProfileAdminUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Uploaded file is not an image.")
 
         return data
+
+    def validate_synced_username(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Username cannot be empty.")
+
+        username_mod_result = NSFWTextClassifier.classify(value)
+        if username_mod_result.verdict == NSFWVerdict.BLOCK:
+            raise serializers.ValidationError("This username contains inappropriate language. Please choose another username.")
+
+        return value
+
+    def validate_bio(self, value):
+        value = value.strip()
+        if not value:
+            return value
+
+        bio_mod_result = NSFWTextClassifier.classify(value)
+        if bio_mod_result.verdict == NSFWVerdict.BLOCK:
+            raise serializers.ValidationError("This bio contains inappropriate language. Please update your bio.")
+
+        return value
 
     def update(self, instance, validated_data):
         with transaction.atomic():

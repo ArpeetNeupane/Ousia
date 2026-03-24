@@ -34,6 +34,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
   List<Map<String, dynamic>> _hashtags = [];
   List<int> _selectedHashtagIds = [];
   List<String> _selectedHashtagNames = [];
+  bool _showAllHashtags = false;
   bool _hashtagsLoading = false;
   final ImagePicker _picker = ImagePicker();
 
@@ -50,6 +51,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
   static const int _maxTotal = 5;
   static const int _maxVideos = 2;
   static const int _maxImages = 3;
+  static const int _initialVisibleHashtags = 10;
 
   @override
   void initState() {
@@ -220,17 +222,17 @@ class _CreatePostPageState extends State<CreatePostPage> {
           const SizedBox(height: 18),
           _buildTypeField(),
           const SizedBox(height: 30),
-          Center(
-            child: Text(
-              "Add an image or a video to make your post more lively!",
-              style: TextStyle(
-                fontSize: 18,
-                color: const Color.fromARGB(255, 4, 157, 199),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
+          // Center(
+          //   child: Text(
+          //     "Add an image or a video to make your post more lively!",
+          //     style: TextStyle(
+          //       fontSize: 18,
+          //       color: const Color.fromARGB(255, 4, 157, 199),
+          //       fontWeight: FontWeight.w500,
+          //     ),
+          //   ),
+          // ),
+          // const SizedBox(height: 16),
           if (_mediaFiles.isNotEmpty) ...[
             _buildMediaGrid(),
             const SizedBox(height: 16),
@@ -327,6 +329,10 @@ class _CreatePostPageState extends State<CreatePostPage> {
   Widget _buildTypeField() {
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final visibleHashtags = _showAllHashtags || _hashtags.length <= _initialVisibleHashtags
+        ? _hashtags
+        : _hashtags.take(_initialVisibleHashtags).toList();
+
     return Container(
       decoration: BoxDecoration(
         color: surfaceColor,
@@ -357,7 +363,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _hashtags.map((tag) {
+                  children: visibleHashtags.map((tag) {
                     final id = tag['id'] as int;
                     final name = tag['name'] as String;
                     final isSelected = _selectedHashtagIds.contains(id);
@@ -395,6 +401,31 @@ class _CreatePostPageState extends State<CreatePostPage> {
                     );
                   }).toList(),
                 ),
+                if (_hashtags.length > _initialVisibleHashtags) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _showAllHashtags = !_showAllHashtags;
+                        });
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        _showAllHashtags ? 'See less' : 'See more',
+                        style: const TextStyle(
+                          color: Color(0xFF7B5CF0),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
     );

@@ -1,6 +1,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from accounts.models import User, Profile
+from accounts.models import User, Profile, AreaOfInterest
+from accounts.interest_sync import ensure_hashtag_for_interest
 
 @receiver(post_save, sender=User)
 def create_or_update_profile(sender, instance, created, **kwargs):
@@ -37,3 +38,8 @@ def sync_profile_to_user(sender, instance, **kwargs):
 
     if updated:
         user.save()
+
+
+@receiver(post_save, sender=AreaOfInterest)
+def sync_interest_to_hashtag(sender, instance, **kwargs):
+    ensure_hashtag_for_interest(instance.name, created_by=instance.created_by)

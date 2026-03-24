@@ -17,6 +17,7 @@ from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer
 from accounts.permissions import IsOwnerOfProfile, CreatorOfInterest, IsOwnerOfUserInterest
 from accounts.paginations import DefaultPagination
 from accounts.utils import SuccessfulUpdateThrottle
+from accounts.interest_sync import ensure_hashtag_for_interest
 from myproject.utils import api_response, blacklist_user_tokens
 
 from drf_yasg.utils import swagger_auto_schema
@@ -231,7 +232,8 @@ class ProfileResponseAPI(generics.RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         return self.retrieve(request, *args, **kwargs)
 
-
+        interest = serializer.save(created_by=request.user)
+        ensure_hashtag_for_interest(interest.name, created_by=request.user)
 class ProfileUpdateAPI(generics.UpdateAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsOwnerOfProfile]
@@ -586,7 +588,8 @@ class AreaOfInterestUpdateAPI(generics.UpdateAPIView):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        interest = serializer.save()
+        ensure_hashtag_for_interest(interest.name, created_by=request.user)
 
         return api_response(
             is_success=True,
@@ -674,7 +677,8 @@ class UserAreaOfInterestListCreateAPI(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        serializer.save(user=request.user)
+        user_interest = serializer.save(user=request.user)
+        ensure_hashtag_for_interest(user_interest.users_interest.name)
 
         #setting has_completed_interests = True for this user so that we know where to navigate this user on future logins
         user = request.user

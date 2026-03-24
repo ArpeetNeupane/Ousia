@@ -7,6 +7,7 @@ from accounts.serializers import ProfilePictureSerializer
 from communication.service import check_for_existing_one_on_one_conversation
 from communication.models import Conversation, Message, ConversationParticipant
 from communication.utils import moderate_message, should_block_message
+from core.utils.nsfw_classifier import NSFWTextClassifier, NSFWVerdict
 
 from rest_framework import serializers
 
@@ -92,8 +93,15 @@ class ConversationCreateSerializer(serializers.ModelSerializer):
         if is_group:
             if not group_name:
                 raise serializers.ValidationError("Group name is required for group conversations.")
+            group_name = group_name.strip()
+            if not group_name:
+                raise serializers.ValidationError("Group name cannot be empty.")
+            group_name_mod_result = NSFWTextClassifier.classify(group_name)
+            if group_name_mod_result.verdict == NSFWVerdict.BLOCK:
+                raise serializers.ValidationError("Group name contains inappropriate language. Please choose another name.")
             if len(participants) + 1 <= 2:
                 raise serializers.ValidationError("A group chat must have more than 2 participants.")
+            data['group_name'] = group_name
 
         return data
 
@@ -131,6 +139,11 @@ class ConversationUpdateSerializer(serializers.ModelSerializer):
             group_name = group_name.strip()
         if not group_name:
             raise serializers.ValidationError("Group name cannot be empty.")
+
+        group_name_mod_result = NSFWTextClassifier.classify(group_name)
+        if group_name_mod_result.verdict == NSFWVerdict.BLOCK:
+            raise serializers.ValidationError("Group name contains inappropriate language. Please choose another name.")
+
         data['group_name'] = group_name
         return data
 

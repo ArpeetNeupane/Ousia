@@ -533,7 +533,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: Text('Update Password',
                           style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
                       content: Text(
-                        'You can only update your password once every 2 days.',
+                        'You can only update your password once every other day.',
                         style: GoogleFonts.inter(fontSize: 16, color: const Color.fromARGB(255, 166, 61, 61), fontWeight: FontWeight.w600),
                       ),
                       actions: [

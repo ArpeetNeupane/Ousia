@@ -180,10 +180,10 @@ username_friend1 = serializers.SerializerMethodField(read_only=True)
 
 # Tomorrow 24th March task:
 # create logbook
-# create admin page with statistics graph and review content
-# fix nsfw for image in post, test with mom thinker image to see if its opposite
-# sync hashtags and user interests
-# notification for new messages, likes and friend request
-# add text moderation to username and group name as well
-# add nepali bad words in regex
-# password reset email make it look good and change the name to ousia-noreply@noreply.com or something
+# create admin page with statistics graph and review content ✅
+# fix nsfw for image in post, test with mom thinker image to see if its opposite ✅
+# sync hashtags and user interests ✅
+# notification for new messages, likes and friend request 
+# add text moderation to username and group name as well as when updating them ✅
+# add nepali bad words in regex ✅
+# password reset email make it look good and change the name to ousia-noreply@noreply.com or something ✅

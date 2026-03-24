@@ -26,11 +26,12 @@ from core.models import (
     Friend,
     UserSession,
 )
-from core.paginations import DefaultPagination
+from core.paginations import DefaultPagination, HashTagPagination
 from core.permissions import OwnsObjectOrAdmin, IsOwnerOfLike
 from core.filters import PostFilter
 from core.utils.nsfw_classifier import moderate_post, NSFWVerdict
 from accounts.models import User
+from accounts.interest_sync import get_user_interest_hashtag_ids
 from myproject.utils import api_response
 
 from rest_framework import generics, status, filters
@@ -341,7 +342,7 @@ class HashTagListCreateAPI(generics.ListCreateAPIView):
     serializer_class = HashTagRetrieveCreateUpdateSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = []
-    pagination_class = DefaultPagination
+    pagination_class = HashTagPagination
     http_method_names = ['get', 'post']
 
     def get_permissions(self):
@@ -599,7 +600,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
         
         #when viewing a specific user's posts, skip visibility filter
         if posted_by_username:
-            return Post.objects.prefetch_related("like_on_post").annotate(
+            return Post.objects.prefetch_related("like_on_post", "type_of_post").annotate(
                 like_count=Count('like_on_post')
             ).filter(
                 status=Post.ModerationStatus.APPROVED,
@@ -619,7 +620,9 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             else:
                 friend_ids.add(user1_id)
 
-        return Post.objects.prefetch_related("like_on_post").annotate(
+        interest_hashtag_ids = get_user_interest_hashtag_ids(user)
+
+        base_queryset = Post.objects.prefetch_related("like_on_post", "type_of_post").annotate(
             like_count=Count('like_on_post')
         ).filter(
             status=Post.ModerationStatus.APPROVED
@@ -628,6 +631,15 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             Q(visibility=Post.VisibilityEnum.FRIENDS_ONLY, posted_by__in=friend_ids) |
             Q(posted_by=user)
         ).distinct()
+
+        if interest_hashtag_ids:
+            interest_filtered = base_queryset.filter(
+                Q(type_of_post__id__in=interest_hashtag_ids) | Q(posted_by=user)
+            ).distinct()
+            if interest_filtered.exists():
+                return interest_filtered
+
+        return base_queryset
 
     def create(self, request, *args, **kwargs):
         try:
@@ -769,13 +781,18 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             rng = random.Random(daily_seed)
 
             posts = list(queryset)
+            interest_hashtag_ids = set(get_user_interest_hashtag_ids(request.user))
             scored = []
             for post in posts:
                 hours_old = max((now - post.created_at).total_seconds() / 3600, 1)
                 recency_score = 1 / (hours_old ** 0.5)
                 like_score = post.like_count * 0.5
+                interest_match_count = 0
+                if interest_hashtag_ids:
+                    post_hashtag_ids = {tag.id for tag in post.type_of_post.all()}
+                    interest_match_count = len(post_hashtag_ids.intersection(interest_hashtag_ids))
                 random_score = rng.uniform(0, 0.3)
-                total = recency_score + like_score + random_score
+                total = recency_score + like_score + random_score + (interest_match_count * 2)
                 scored.append((total, post))
 
             scored.sort(key=lambda x: x[0], reverse=True)
