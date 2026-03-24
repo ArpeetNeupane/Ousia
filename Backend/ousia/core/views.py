@@ -9,7 +9,10 @@ from core.serializers import (
     FriendRequestCreateSerializer,
     FriendRequestResponseSerializer,
     FriendResponseSerializer,
-    FriendSerializer
+    FriendSerializer,
+    UserSessionStartSerializer,
+    ModerationQueuePostSerializer,
+    ModerationActionSerializer,
 )
 from core.models import (
     Emotion,
@@ -20,12 +23,14 @@ from core.models import (
     Like,
     Comment,
     FriendRequest,
-    Friend
+    Friend,
+    UserSession,
 )
 from core.paginations import DefaultPagination
 from core.permissions import OwnsObjectOrAdmin, IsOwnerOfLike
 from core.filters import PostFilter
 from core.utils.nsfw_classifier import moderate_post, NSFWVerdict
+from accounts.models import User
 from myproject.utils import api_response
 
 from rest_framework import generics, status, filters
@@ -597,7 +602,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             return Post.objects.prefetch_related("like_on_post").annotate(
                 like_count=Count('like_on_post')
             ).filter(
-                moderation_status="approved",
+                status=Post.ModerationStatus.APPROVED,
                 posted_by__username=posted_by_username
             ).distinct().order_by('-created_at') #default ordering newest first for profile grid
         
@@ -617,7 +622,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
         return Post.objects.prefetch_related("like_on_post").annotate(
             like_count=Count('like_on_post')
         ).filter(
-            moderation_status="approved"
+            status=Post.ModerationStatus.APPROVED
         ).filter(
             Q(visibility=Post.VisibilityEnum.PUBLIC) |
             Q(visibility=Post.VisibilityEnum.FRIENDS_ONLY, posted_by__in=friend_ids) |
@@ -676,20 +681,28 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             post = serializer.save()
 
             post.moderation_status = 'pending_review' if mod_result.verdict == NSFWVerdict.REVIEW else 'approved'
-    
+            post.status = post.moderation_status
+            post.ai_score = mod_result.score
             post.moderation_score = mod_result.score
             post.moderation_label = mod_result.label
             post.moderation_model = mod_result.model_used
             post.moderation_reason = mod_result.reason
             post.save(update_fields=[
+                'status', 'ai_score',
                 'moderation_status', 'moderation_score',
                 'moderation_label', 'moderation_model', 'moderation_reason'
             ])
 
+            success_message = (
+                "Post submitted for review."
+                if post.status == Post.ModerationStatus.PENDING_REVIEW
+                else "Post creation successful."
+            )
+
             return api_response(
                 is_success=True,
                 result={
-                    "message": "Post creation successful.",
+                    "message": success_message,
                     "data": serializer.data
                 },
                 status_code=status.HTTP_201_CREATED
@@ -1450,3 +1463,205 @@ class FriendListAPI(generics.ListAPIView):
     )
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
+
+
+class AdminDashboardSummaryAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        now = timezone.now()
+        month_ago = now - timedelta(days=30)
+
+        total_users = User.objects.filter(is_deleted=False).count()
+        new_users_past_month = User.objects.filter(is_deleted=False, date_joined__gte=month_ago).count()
+
+        total_posts = Post.objects.filter(is_deleted=False).count()
+        new_posts_past_month = Post.objects.filter(is_deleted=False, created_at__gte=month_ago).count()
+
+        moderation_queue_count = Post.objects.filter(
+            is_deleted=False,
+            status=Post.ModerationStatus.PENDING_REVIEW,
+        ).count()
+
+        active_poster_ids = Post.objects.filter(is_deleted=False).values_list('posted_by_id', flat=True).distinct()
+        active_posters = len(active_poster_ids)
+        silent_users = max(total_users - active_posters, 0)
+
+        active_session_users = UserSession.objects.filter(start_time__gte=month_ago).values('user_id').distinct().count()
+        retention_rate = round((active_session_users / total_users) * 100, 1) if total_users else 0.0
+
+        return api_response(
+            is_success=True,
+            result={
+                'total_users': total_users,
+                'new_users_past_month': new_users_past_month,
+                'total_posts': total_posts,
+                'new_posts_past_month': new_posts_past_month,
+                'moderation_queue_count': moderation_queue_count,
+                'engagement_ratio': {
+                    'active_posters': active_posters,
+                    'silent_users': silent_users,
+                },
+                'retention_rate': retention_rate,
+            },
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class AdminDashboardScreenTimeAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            days = int(request.query_params.get('days', 7))
+        except ValueError:
+            days = 7
+
+        days = max(1, min(days, 90))
+        now = timezone.now()
+        since = now - timedelta(days=days)
+
+        sessions = UserSession.objects.select_related('user').filter(
+            Q(start_time__gte=since) |
+            Q(end_time__gte=since) |
+            Q(end_time__isnull=True)
+        )
+
+        per_user_seconds = {}
+        for session in sessions:
+            start = max(session.start_time, since)
+            session_end = session.end_time or now
+            end = min(session_end, now)
+            if end <= start:
+                continue
+            seconds = int((end - start).total_seconds())
+            if seconds <= 0:
+                continue
+            username = session.user.username
+            per_user_seconds[username] = per_user_seconds.get(username, 0) + seconds
+
+        payload = [
+            {
+                'username': username,
+                'total_minutes': int(total_seconds / 60),
+            }
+            for username, total_seconds in sorted(per_user_seconds.items(), key=lambda x: x[1], reverse=True)
+        ]
+
+        return api_response(
+            is_success=True,
+            result=payload,
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class AdminModerationQueueAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        queryset = Post.objects.filter(
+            is_deleted=False,
+            status=Post.ModerationStatus.PENDING_REVIEW,
+        ).select_related('posted_by').prefetch_related('post_media').order_by('-created_at')
+
+        serializer = ModerationQueuePostSerializer(queryset, many=True)
+        return api_response(
+            is_success=True,
+            result={'data': serializer.data},
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class AdminModerationActionAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUser]
+    serializer_class = ModerationActionSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        post_id = serializer.validated_data['post_id']
+        action = serializer.validated_data['action']
+
+        post = get_object_or_404(Post, id=post_id, is_deleted=False)
+        new_status = Post.ModerationStatus.APPROVED if action == 'approve' else Post.ModerationStatus.BLOCKED
+
+        post.status = new_status
+        post.moderation_status = new_status
+        post.save(update_fields=['status', 'moderation_status'])
+
+        return api_response(
+            is_success=True,
+            result={
+                'message': f'Post {action}d successfully.',
+                'data': {
+                    'post_id': post.id,
+                    'status': post.status,
+                }
+            },
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class SessionStartAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSessionStartSerializer
+
+    def post(self, request, *args, **kwargs):
+        session = UserSession.objects.create(user=request.user)
+        data = self.get_serializer(session).data
+        return api_response(
+            is_success=True,
+            result={
+                'session_id': data['id'],
+                'data': data,
+            },
+            status_code=status.HTTP_201_CREATED,
+        )
+
+
+class SessionUpdateAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSessionStartSerializer
+
+    def patch(self, request, *args, **kwargs):
+        session = get_object_or_404(UserSession, id=self.kwargs['session_id'], user=request.user)
+        session.end_time = timezone.now()
+        session.save(update_fields=['end_time', 'duration_seconds'])
+
+        data = self.get_serializer(session).data
+        return api_response(
+            is_success=True,
+            result={
+                'session_id': data['id'],
+                'data': data,
+            },
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class SessionEndAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSessionStartSerializer
+
+    def post(self, request, *args, **kwargs):
+        session = get_object_or_404(UserSession, id=self.kwargs['session_id'], user=request.user)
+        session.end_time = timezone.now()
+        session.save(update_fields=['end_time', 'duration_seconds'])
+
+        data = self.get_serializer(session).data
+        return api_response(
+            is_success=True,
+            result={
+                'session_id': data['id'],
+                'data': data,
+            },
+            status_code=status.HTTP_200_OK,
+        )

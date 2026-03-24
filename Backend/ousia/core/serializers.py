@@ -9,7 +9,8 @@ from core.models import (
     Like,
     Comment,
     FriendRequest,
-    Friend
+    Friend,
+    UserSession,
 )
 from core.mixins import MediaValidationMixin
 from core.service import PostCreateService, PostUpdateService
@@ -487,3 +488,36 @@ class FriendSerializer(serializers.ModelSerializer):
         # ).exists():
         #     raise serializers.ValidationError("Friendship already exists between these users.")
         # return data
+
+
+class UserSessionStartSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserSession
+        fields = ['id', 'start_time', 'end_time', 'duration_seconds']
+        read_only_fields = fields
+
+
+class ModerationQueuePostSerializer(serializers.ModelSerializer):
+    media_url = serializers.SerializerMethodField()
+    ai_score = serializers.SerializerMethodField()
+    reason = serializers.CharField(source='moderation_reason', read_only=True)
+
+    class Meta:
+        model = Post
+        fields = ['id', 'caption', 'media_url', 'ai_score', 'reason', 'created_at', 'posted_by']
+
+    def get_media_url(self, obj):
+        media = obj.post_media.first()
+        if not media or not media.public_id:
+            return None
+        resource_type = 'video' if media.is_video else 'image'
+        url, _ = cloudinary_url(media.public_id, resource_type=resource_type, secure=True)
+        return url
+
+    def get_ai_score(self, obj):
+        return obj.ai_score if obj.ai_score is not None else obj.moderation_score
+
+
+class ModerationActionSerializer(serializers.Serializer):
+    post_id = serializers.IntegerField(required=True)
+    action = serializers.ChoiceField(choices=['approve', 'block'], required=True)

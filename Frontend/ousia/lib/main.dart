@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'widgets/auth_wrapper.dart';
@@ -17,8 +18,61 @@ void main() async {
   );
 }
 
-class OusiaApp extends StatelessWidget {
+class OusiaApp extends StatefulWidget {
   const OusiaApp({super.key});
+
+  @override
+  State<OusiaApp> createState() => _OusiaAppState();
+}
+
+class _OusiaAppState extends State<OusiaApp> with WidgetsBindingObserver {
+  Timer? _heartbeatTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startOrResumeSessionTracking();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _heartbeatTimer?.cancel();
+    AuthService().endSessionIfNeeded();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startOrResumeSessionTracking();
+      return;
+    }
+
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _stopAndEndSessionTracking();
+    }
+  }
+
+  Future<void> _startOrResumeSessionTracking() async {
+    if (!AuthService.isLoggedIn) return;
+
+    await AuthService().startSessionIfNeeded();
+
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      AuthService().updateSessionHeartbeat();
+    });
+  }
+
+  Future<void> _stopAndEndSessionTracking() async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    await AuthService().endSessionIfNeeded();
+  }
 
   @override
   Widget build(BuildContext context) {

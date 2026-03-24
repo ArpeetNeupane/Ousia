@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from accounts.models import User
@@ -79,6 +80,12 @@ class Post(models.Model):
     type_of_post = models.ManyToManyField(HashTag, related_name='tagged_posts', through='PostHashTag') #using '' to say thats its defined below this model or else itll throw an error
 
     #content moderation fields
+    status = models.CharField(
+        max_length=20,
+        choices=ModerationStatus.choices,
+        default=ModerationStatus.APPROVED,
+    )
+    ai_score = models.FloatField(null=True, blank=True)
     moderation_status = models.CharField(
         max_length=20,
         choices=ModerationStatus.choices,
@@ -98,6 +105,20 @@ class Post(models.Model):
         ordering = ['-created_at']
 
     objects = PostManager()
+
+    def save(self, *args, **kwargs):
+        #keeping new and legacy moderation fields synchronized.
+        if self.status and self.moderation_status != self.status:
+            self.moderation_status = self.status
+        elif self.moderation_status and self.status != self.moderation_status:
+            self.status = self.moderation_status
+
+        if self.ai_score is not None and self.moderation_score is None:
+            self.moderation_score = self.ai_score
+        elif self.moderation_score is not None and self.ai_score is None:
+            self.ai_score = self.moderation_score
+
+        super().save(*args, **kwargs)
 
     def soft_delete(self):
         self.is_deleted = True
@@ -261,3 +282,28 @@ class Friend(models.Model):
 
     def __str__(self):
         return f"{self.user1.username} ↔ {self.user2.username}"
+
+
+class UserSession(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
+    start_time = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.IntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'start_time']),
+            models.Index(fields=['start_time']),
+        ]
+        ordering = ['-start_time']
+
+    def save(self, *args, **kwargs):
+        effective_end = self.end_time or timezone.now()
+        if self.start_time and effective_end >= self.start_time:
+            self.duration_seconds = int((effective_end - self.start_time).total_seconds())
+        else:
+            self.duration_seconds = 0
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.user.username} session @ {self.start_time}"

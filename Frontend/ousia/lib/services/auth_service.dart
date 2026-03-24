@@ -30,6 +30,7 @@ class AuthService {
   static String? _accessToken;
   static String? _refreshToken;
   static Profile? _currentUser;
+  static int? _activeSessionId;
 
   // Cache
   static const _cacheKey = 'cached_feed';
@@ -41,6 +42,7 @@ class AuthService {
   static Profile? get currentUser => _currentUser;
   static String get currentUsername => _currentUser?.user?.username ?? _currentUser?.syncedUsername ?? '';
   static bool get isLoggedIn => _accessToken != null && _currentUser != null;
+  static int? get activeSessionId => _activeSessionId;
   
   bool _hasCompletedInterests = false;
   bool get hasCompletedInterests => _hasCompletedInterests;
@@ -407,6 +409,60 @@ class AuthService {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  Future<bool> startSessionIfNeeded() async {
+    if (!isLoggedIn) return false;
+    if (_activeSessionId != null) return true;
+
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/session/start/',
+      );
+      final body = jsonDecode(response.body);
+      if ((body['IsSuccess'] ?? body['is_success']) == true) {
+        final result = body['Result'] ?? body['result'];
+        _activeSessionId = result?['session_id'];
+        return _activeSessionId != null;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> updateSessionHeartbeat() async {
+    if (!isLoggedIn || _activeSessionId == null) return false;
+
+    try {
+      final response = await authenticatedRequest(
+        method: 'PATCH',
+        endpoint: '/session/update/$_activeSessionId/',
+      );
+      final body = jsonDecode(response.body);
+      return (body['IsSuccess'] ?? body['is_success']) == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> endSessionIfNeeded() async {
+    if (!isLoggedIn || _activeSessionId == null) return false;
+
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/session/end/$_activeSessionId/',
+      );
+      final body = jsonDecode(response.body);
+      final ok = (body['IsSuccess'] ?? body['is_success']) == true;
+      _activeSessionId = null;
+      return ok;
+    } catch (_) {
+      _activeSessionId = null;
+      return false;
+    }
+  }
   
 
   Future<void> _fetchUserProfile() async {
@@ -544,6 +600,16 @@ class AuthService {
   }
 
   static Future<void> logout() async {
+    if (_activeSessionId != null && _accessToken != null) {
+      try {
+        await AuthService().authenticatedRequest(
+          method: 'POST',
+          endpoint: '/session/end/$_activeSessionId/',
+        );
+      } catch (_) {}
+      _activeSessionId = null;
+    }
+
     //logout endpoint to blacklist tokens
     try {
       if (_refreshToken != null) {
@@ -1320,6 +1386,60 @@ class AuthService {
       return List<Map<String, dynamic>>.from(body);
     } catch (e) {
       return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchModerationQueue() async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/admin/moderation/queue/',
+      );
+
+      final body = jsonDecode(response.body);
+      if ((body['IsSuccess'] ?? body['is_success']) == true) {
+        final result = body['Result'] ?? body['result'];
+        final items = (result?['data'] as List?) ?? [];
+        return {
+          'success': true,
+          'items': List<Map<String, dynamic>>.from(items),
+        };
+      }
+
+      return {
+        'success': false,
+        'message': _parseBackendErrorMessage(body['ErrorMessage'], 'Failed to load moderation queue'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> moderationAction({
+    required int postId,
+    required String action,
+  }) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/admin/moderation/action/',
+        body: {
+          'post_id': postId,
+          'action': action,
+        },
+      );
+
+      final body = jsonDecode(response.body);
+      if ((body['IsSuccess'] ?? body['is_success']) == true) {
+        return {'success': true};
+      }
+
+      return {
+        'success': false,
+        'message': _parseBackendErrorMessage(body['ErrorMessage'], 'Failed to update moderation status'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
     }
   }
 

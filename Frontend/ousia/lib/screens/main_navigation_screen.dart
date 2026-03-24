@@ -6,6 +6,7 @@ import 'quiz_screen.dart';
 import 'profile_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
+import 'admin_moderation_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -43,7 +44,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     if (_isAdmin) {
       stackChildren = [
         const AdminDashboardScreen(),
-        const _AdminReviewPlaceholder(),
+        const AdminModerationScreen(),
         const AdminProfileScreen(),
       ];
       stackIndex = _currentIndex;
@@ -67,31 +68,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         onTap: _onTabTapped,
         primaryColor: _primary,
         isAdmin: _isAdmin,
-      ),
-    );
-  }
-}
-
-class _AdminReviewPlaceholder extends StatelessWidget {
-  const _AdminReviewPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.gavel, size: 44),
-            const SizedBox(height: 12),
-            Text(
-              'Moderation review is coming soon.',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -16,6 +16,13 @@ from core.views import (
     FriendRequestResponseAPI,
     FriendRequestDeleteAPI,
     FriendListAPI,
+    AdminDashboardSummaryAPI,
+    AdminDashboardScreenTimeAPI,
+    AdminModerationQueueAPI,
+    AdminModerationActionAPI,
+    SessionStartAPI,
+    SessionUpdateAPI,
+    SessionEndAPI,
 )
 
 urlpatterns = [
@@ -38,4 +45,13 @@ urlpatterns = [
     path('friend_request_response/<int:pk>/', FriendRequestResponseAPI.as_view(), name='friend_request_response'),
     path('friend_request_delete/<int:pk>/', FriendRequestDeleteAPI.as_view(), name='friend_request_delete'),
     path('friends/', FriendListAPI.as_view(), name='friend_list'),
+
+    path('admin/dashboard/summary/', AdminDashboardSummaryAPI.as_view(), name='admin_dashboard_summary'),
+    path('admin/dashboard/screentime/', AdminDashboardScreenTimeAPI.as_view(), name='admin_dashboard_screentime'),
+    path('admin/moderation/queue/', AdminModerationQueueAPI.as_view(), name='admin_moderation_queue'),
+    path('admin/moderation/action/', AdminModerationActionAPI.as_view(), name='admin_moderation_action'),
+
+    path('session/start/', SessionStartAPI.as_view(), name='session_start'),
+    path('session/update/<int:session_id>/', SessionUpdateAPI.as_view(), name='session_update'),
+    path('session/end/<int:session_id>/', SessionEndAPI.as_view(), name='session_end'),
 ]
