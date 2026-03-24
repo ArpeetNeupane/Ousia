@@ -11,6 +11,7 @@ from core.models import (
     FriendRequest,
     Friend,
     UserSession,
+    Notification,
 )
 from core.mixins import MediaValidationMixin
 from core.service import PostCreateService, PostUpdateService
@@ -521,3 +522,15 @@ class ModerationQueuePostSerializer(serializers.ModelSerializer):
 class ModerationActionSerializer(serializers.Serializer):
     post_id = serializers.IntegerField(required=True)
     action = serializers.ChoiceField(choices=['approve', 'block'], required=True)
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    actor_username = serializers.CharField(source='actor.username', read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'notification_type', 'title', 'body', 'data',
+            'is_read', 'created_at', 'recipient', 'actor', 'actor_username'
+        ]
+        read_only_fields = fields

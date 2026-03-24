@@ -8,3 +8,7 @@ class DefaultPagination(LimitOffsetPagination):
 class HashTagPagination(LimitOffsetPagination):
     default_limit = 30
     max_limit = 100
+
+class NotificationPagination(LimitOffsetPagination):
+    default_limit = 15
+    max_limit = 100

@@ -10,6 +10,7 @@ import '../screens/signup_continue_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/user_profile_screen.dart';
 import '../screens/friend_request_screen.dart';
+import '../screens/notifications_screen.dart';
 import '../screens/quiz_screen.dart';
 import '../screens/messages_screen.dart';
 import '../screens/forgot_password_screen.dart';
@@ -52,6 +53,9 @@ class RouteConfig {
       
       case RouteNames.friendRequests:
         return MaterialPageRoute(builder: (_) => const FriendRequestsPage());
+
+      case RouteNames.notifications:
+        return MaterialPageRoute(builder: (_) => const NotificationsScreen());
 
       case RouteNames.home:
       case RouteNames.feed:

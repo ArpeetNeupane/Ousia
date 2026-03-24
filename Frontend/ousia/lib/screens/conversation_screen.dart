@@ -25,13 +25,21 @@ class _MessagesPageState extends State<MessagesPage> {
   @override
   void initState() {
     super.initState();
+    AuthService.startNotificationsStream();
+    AuthService.messageNotificationTick.addListener(_onIncomingMessageNotification);
     _loadConversations();
   }
 
   @override
   void dispose() {
+    AuthService.messageNotificationTick.removeListener(_onIncomingMessageNotification);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onIncomingMessageNotification() {
+    if (!mounted) return;
+    _loadConversations();
   }
 
   Future<void> _loadConversations() async {
@@ -729,6 +737,9 @@ class _ConversationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    final Color unreadHighlight = isLightMode ? const Color(0xFF121212) : Colors.white;
+    final Color unreadHighlightSoft = unreadHighlight.withOpacity(isLightMode ? 0.85 : 0.92);
     final isGroup = conversation['is_group'] == true;
     final updatedAt = DateTime.tryParse(conversation['updated_at'] ?? '');
 
@@ -741,12 +752,12 @@ class _ConversationTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: hasUnread ? Colors.white : Colors.transparent, 
+            color: hasUnread ? unreadHighlight : Colors.transparent,
             width: 2,
           ),
           boxShadow: hasUnread ? [
             BoxShadow(
-              color: Colors.white.withOpacity(0.1),
+              color: unreadHighlight.withOpacity(0.12),
               blurRadius: 8,
               spreadRadius: 1,
             )
@@ -777,7 +788,7 @@ class _ConversationTile extends StatelessWidget {
                           width: 14,
                           height: 14,
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: unreadHighlight,
                             shape: BoxShape.circle,
                             border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
                           ),
@@ -810,7 +821,7 @@ class _ConversationTile extends StatelessWidget {
                               timeago.format(updatedAt, locale: 'en_short'),
                               style: GoogleFonts.inter(
                                 fontSize: 11, 
-                                color: hasUnread ? Colors.white : cs.onSurfaceVariant,
+                                color: hasUnread ? unreadHighlight : cs.onSurfaceVariant,
                                 fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
                               ),
                             ),
@@ -822,7 +833,7 @@ class _ConversationTile extends StatelessWidget {
                         hasUnread ? "New messages ($unreadCount)" : (isGroup ? '${(conversation['participants'] as List).length} members' : 'Tap to open chat'),
                         style: GoogleFonts.inter(
                           fontSize: 13, 
-                          color: hasUnread ? Colors.white.withOpacity(0.9) : cs.onSurfaceVariant,
+                          color: hasUnread ? unreadHighlightSoft : cs.onSurfaceVariant,
                           fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
                         ),
                         maxLines: 1,

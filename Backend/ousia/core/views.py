@@ -13,6 +13,7 @@ from core.serializers import (
     UserSessionStartSerializer,
     ModerationQueuePostSerializer,
     ModerationActionSerializer,
+    NotificationSerializer,
 )
 from core.models import (
     Emotion,
@@ -25,11 +26,13 @@ from core.models import (
     FriendRequest,
     Friend,
     UserSession,
+    Notification,
 )
-from core.paginations import DefaultPagination, HashTagPagination
+from core.paginations import DefaultPagination, HashTagPagination, NotificationPagination
 from core.permissions import OwnsObjectOrAdmin, IsOwnerOfLike
 from core.filters import PostFilter
 from core.utils.nsfw_classifier import moderate_post, NSFWVerdict
+from core.notifications import create_notification
 from accounts.models import User
 from accounts.interest_sync import get_user_interest_hashtag_ids
 from myproject.utils import api_response
@@ -1012,7 +1015,34 @@ class LikeListCreateAPI(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         try:
+            post_id = request.data.get('post')
+            already_liked = False
+            if post_id:
+                already_liked = Like.objects.filter(
+                    liked_by=request.user,
+                    post_id=post_id,
+                ).exists()
+
             response = super().create(request, *args, **kwargs)
+
+            if post_id and not already_liked:
+                like = Like.objects.select_related('post', 'post__posted_by').filter(
+                    liked_by=request.user,
+                    post_id=post_id,
+                ).first()
+                if like and like.post and like.post.posted_by_id != request.user.id:
+                    create_notification(
+                        recipient=like.post.posted_by,
+                        actor=request.user,
+                        notification_type=Notification.NotificationTypes.LIKE,
+                        title='New like',
+                        body=f"{request.user.username} liked your post.",
+                        data={
+                            'post_id': like.post_id,
+                            'like_id': like.id,
+                        },
+                    )
+
             return api_response(
                 is_success=True,
                 result={
@@ -1237,7 +1267,20 @@ class FriendRequestListCreateAPI(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        friend_request = serializer.save()
+
+        create_notification(
+            recipient=friend_request.to_user,
+            actor=request.user,
+            notification_type=Notification.NotificationTypes.FRIEND_REQUEST,
+            title='New friend request',
+            body=f"{request.user.username} sent you a friend request.",
+            data={
+                'friend_request_id': friend_request.id,
+                'from_user_id': request.user.id,
+            },
+        )
+
         return api_response(
             is_success=True,
             result={
@@ -1679,6 +1722,91 @@ class SessionEndAPI(generics.GenericAPIView):
             result={
                 'session_id': data['id'],
                 'data': data,
+            },
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class NotificationListAPI(generics.ListAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = NotificationSerializer
+    pagination_class = NotificationPagination
+
+    def get_queryset(self):
+        return Notification.objects.filter(recipient=self.request.user).select_related('actor')
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        return api_response(
+            is_success=True,
+            result={
+                'message': 'Notifications retrieved successfully.',
+                'data': response.data,
+            },
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class NotificationMarkReadAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = NotificationSerializer
+
+    def patch(self, request, *args, **kwargs):
+        notification = get_object_or_404(
+            Notification,
+            id=self.kwargs['notification_id'],
+            recipient=request.user,
+        )
+        if not notification.is_read:
+            notification.is_read = True
+            notification.save(update_fields=['is_read'])
+
+        return api_response(
+            is_success=True,
+            result={
+                'message': 'Notification marked as read.',
+                'data': self.get_serializer(notification).data,
+            },
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class NotificationMarkAllReadAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        updated_count = Notification.objects.filter(
+            recipient=request.user,
+            is_read=False,
+        ).update(is_read=True)
+
+        return api_response(
+            is_success=True,
+            result={
+                'message': 'All notifications marked as read.',
+                'updated_count': updated_count,
+            },
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class NotificationUnreadCountAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        unread_count = Notification.objects.filter(
+            recipient=request.user,
+            is_read=False,
+        ).count()
+
+        return api_response(
+            is_success=True,
+            result={
+                'unread_count': unread_count,
             },
             status_code=status.HTTP_200_OK,
         )

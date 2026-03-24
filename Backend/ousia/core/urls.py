@@ -23,6 +23,10 @@ from core.views import (
     SessionStartAPI,
     SessionUpdateAPI,
     SessionEndAPI,
+    NotificationListAPI,
+    NotificationMarkReadAPI,
+    NotificationMarkAllReadAPI,
+    NotificationUnreadCountAPI,
 )
 
 urlpatterns = [
@@ -54,4 +58,9 @@ urlpatterns = [
     path('session/start/', SessionStartAPI.as_view(), name='session_start'),
     path('session/update/<int:session_id>/', SessionUpdateAPI.as_view(), name='session_update'),
     path('session/end/<int:session_id>/', SessionEndAPI.as_view(), name='session_end'),
+
+    path('notifications/', NotificationListAPI.as_view(), name='notification_list'),
+    path('notifications/read/<int:notification_id>/', NotificationMarkReadAPI.as_view(), name='notification_mark_read'),
+    path('notifications/read-all/', NotificationMarkAllReadAPI.as_view(), name='notification_mark_all_read'),
+    path('notifications/unread-count/', NotificationUnreadCountAPI.as_view(), name='notification_unread_count'),
 ]

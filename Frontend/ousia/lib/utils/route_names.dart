@@ -18,6 +18,7 @@ class RouteNames {
   static const String profile = '/profile';
   static const String othersProfile = '/others-profile';
   static const String friendRequests = '/friend-requests';
+  static const String notifications = '/notifications';
   static const String quiz = '/quiz';
   static const String chat = '/chat';
 

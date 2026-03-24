@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:http/http.dart' as http;
+import 'package:web_socket_channel/web_socket_channel.dart';
 import '../models/profile.dart';
 import '../models/post.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +33,13 @@ class AuthService {
   static String? _refreshToken;
   static Profile? _currentUser;
   static int? _activeSessionId;
+  static WebSocketChannel? _notificationChannel;
+  static StreamSubscription? _notificationSub;
+  static Timer? _notificationReconnectTimer;
+  static void Function(Map<String, dynamic> notification)? _notificationCallback;
+  static bool _notificationReconnectEnabled = false;
+  static final ValueNotifier<int> unreadNotifications = ValueNotifier<int>(0);
+  static final ValueNotifier<int> messageNotificationTick = ValueNotifier<int>(0);
 
   // Cache
   static const _cacheKey = 'cached_feed';
@@ -600,6 +609,8 @@ class AuthService {
   }
 
   static Future<void> logout() async {
+    stopNotificationsStream();
+
     if (_activeSessionId != null && _accessToken != null) {
       try {
         await AuthService().authenticatedRequest(
@@ -632,6 +643,7 @@ class AuthService {
     _accessToken = null;
     _refreshToken = null;
     _currentUser = null;
+    unreadNotifications.value = 0;
     
     // Clear secure storage
     await _secureStorage.delete(key: _accessTokenKey);
@@ -1214,6 +1226,176 @@ class AuthService {
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
+  }
+
+  Future<Map<String, dynamic>> fetchNotifications({String? nextUrl}) async {
+    try {
+      final endpoint = nextUrl != null
+          ? '/notifications/?${Uri.parse(nextUrl).query}'
+          : '/notifications/';
+
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: endpoint,
+      );
+      final body = jsonDecode(response.body);
+
+      if ((body['IsSuccess'] ?? body['is_success']) == true) {
+        final result = body['Result'] ?? body['result'];
+        final data = result?['data'];
+
+        if (data is Map) {
+          final items = (data['results'] as List?) ?? [];
+          final unread = items.where((n) => n['is_read'] != true).length;
+          if (nextUrl == null) {
+            unreadNotifications.value = unread;
+          }
+          return {
+            'success': true,
+            'items': List<Map<String, dynamic>>.from(items),
+            'next': data['next'],
+          };
+        }
+
+        final items = (data as List?) ?? [];
+        unreadNotifications.value = items.where((n) => n['is_read'] != true).length;
+        return {
+          'success': true,
+          'items': List<Map<String, dynamic>>.from(items),
+          'next': null,
+        };
+      }
+
+      return {'success': false, 'message': 'Failed to load notifications'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchNextNotifications(String nextUrl) async {
+    return fetchNotifications(nextUrl: nextUrl);
+  }
+
+  Future<bool> markNotificationRead(int notificationId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'PATCH',
+        endpoint: '/notifications/read/$notificationId/',
+      );
+      final body = jsonDecode(response.body);
+      final ok = (body['IsSuccess'] ?? body['is_success']) == true;
+      if (ok && unreadNotifications.value > 0) {
+        unreadNotifications.value = unreadNotifications.value - 1;
+      }
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> markAllNotificationsRead() async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/notifications/read-all/',
+      );
+      final body = jsonDecode(response.body);
+      final ok = (body['IsSuccess'] ?? body['is_success']) == true;
+      if (ok) {
+        unreadNotifications.value = 0;
+      }
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> refreshUnreadNotificationCount() async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/notifications/unread-count/',
+      );
+      final body = jsonDecode(response.body);
+      if ((body['IsSuccess'] ?? body['is_success']) == true) {
+        final result = body['Result'] ?? body['result'];
+        final count = (result?['unread_count'] as num?)?.toInt() ?? 0;
+        unreadNotifications.value = count;
+      }
+    } catch (_) {}
+  }
+
+  static void startNotificationsStream({
+    void Function(Map<String, dynamic> notification)? onNotification,
+  }) {
+    if (_accessToken == null) return;
+
+    if (onNotification != null) {
+      _notificationCallback = onNotification;
+    }
+    _notificationReconnectEnabled = true;
+
+    if (_notificationChannel != null) return;
+
+    final wsBase = baseUrl
+        .replaceFirst('https://', 'wss://')
+        .replaceFirst('http://', 'ws://')
+        .replaceFirst('/api', '');
+    final uri = Uri.parse('$wsBase/ws/notifications/?token=$_accessToken');
+
+    try {
+      _notificationChannel = WebSocketChannel.connect(uri);
+      _notificationSub = _notificationChannel!.stream.listen((event) {
+        try {
+          final payload = jsonDecode(event.toString()) as Map<String, dynamic>;
+          if (payload['notification'] is Map) {
+            final notification = Map<String, dynamic>.from(payload['notification']);
+            if (notification['is_read'] != true) {
+              unreadNotifications.value = unreadNotifications.value + 1;
+            }
+            if ((notification['notification_type'] ?? '').toString() == 'message') {
+              messageNotificationTick.value = messageNotificationTick.value + 1;
+            }
+            _notificationCallback?.call(notification);
+          }
+        } catch (_) {}
+      }, onDone: () {
+        _handleNotificationSocketDisconnect();
+      }, onError: (_) {
+        _handleNotificationSocketDisconnect();
+      });
+
+      AuthService().refreshUnreadNotificationCount();
+    } catch (_) {
+      _handleNotificationSocketDisconnect();
+    }
+  }
+
+  static void _handleNotificationSocketDisconnect() {
+    _notificationSub?.cancel();
+    _notificationSub = null;
+    _notificationChannel?.sink.close();
+    _notificationChannel = null;
+
+    if (!_notificationReconnectEnabled || _accessToken == null) return;
+
+    _notificationReconnectTimer?.cancel();
+    _notificationReconnectTimer = Timer(const Duration(seconds: 3), () {
+      if (_notificationReconnectEnabled) {
+        startNotificationsStream();
+      }
+    });
+  }
+
+  static void stopNotificationsStream() {
+    _notificationReconnectEnabled = false;
+    _notificationReconnectTimer?.cancel();
+    _notificationReconnectTimer = null;
+    _notificationSub?.cancel();
+    _notificationSub = null;
+    _notificationChannel?.sink.close();
+    _notificationChannel = null;
+    _notificationCallback = null;
   }
 
   Future<Map<String, dynamic>> createOrGetConversation(int userId) async {

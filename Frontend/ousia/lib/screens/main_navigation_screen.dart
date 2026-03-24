@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../services/auth_service.dart';
 import 'feed_screen.dart';
 import 'conversation_screen.dart';
@@ -15,11 +16,52 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   static const Color _primary = Color(0xFF7B5CF0);
   Key _feedKey = UniqueKey();
   bool get _isAdmin => AuthService.isAdmin() || AuthService.isSuperUser();
+  Timer? _notificationRefreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    AuthService.startNotificationsStream(onNotification: (notification) {
+      if (!mounted) return;
+      final body = (notification['body'] ?? '').toString();
+      if (body.isEmpty) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(body),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    });
+    _refreshNotificationCount();
+    _notificationRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      _refreshNotificationCount();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshNotificationCount();
+    }
+  }
+
+  void _refreshNotificationCount() {
+    AuthService().refreshUnreadNotificationCount();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _notificationRefreshTimer?.cancel();
+    AuthService.stopNotificationsStream();
+    super.dispose();
+  }
 
   void _onTabTapped(int index) {
     if (!_isAdmin && index == 2) {

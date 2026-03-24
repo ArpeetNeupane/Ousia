@@ -5,6 +5,7 @@ import 'package:video_player/video_player.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:visibility_detector/visibility_detector.dart';
 import '../models/post.dart';
+import '../utils/route_names.dart';
 
 
 class FeedPage extends StatefulWidget {
@@ -36,6 +37,8 @@ class _FeedPageState extends State<FeedPage> {
   @override
   void initState() {
     super.initState();
+    AuthService.startNotificationsStream();
+    _service.refreshUnreadNotificationCount();
     _loadPosts();
     _scrollController.addListener(_onScroll);
   }
@@ -191,6 +194,43 @@ class _FeedPageState extends State<FeedPage> {
           IconButton(
             icon: Icon(Icons.search_outlined, color: Theme.of(context).colorScheme.onSurface,),
             onPressed: _startSearch,
+          ),
+          ValueListenableBuilder<int>(
+            valueListenable: AuthService.unreadNotifications,
+            builder: (context, unread, _) {
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.notifications_none, color: Theme.of(context).colorScheme.onSurface),
+                    onPressed: () => Navigator.pushNamed(context, RouteNames.notifications),
+                  ),
+                  if (unread > 0)
+                    Positioned(
+                      right: 7,
+                      top: 7,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        child: Center(
+                          child: Text(
+                            unread > 9 ? '9+' : unread.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
           IconButton(
             icon: Icon(Icons.person_2_outlined, color: Theme.of(context).colorScheme.onSurface),

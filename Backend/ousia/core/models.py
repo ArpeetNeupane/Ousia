@@ -307,3 +307,28 @@ class UserSession(models.Model):
 
     def __str__(self):
         return f"{self.user.username} session @ {self.start_time}"
+
+
+class Notification(models.Model):
+    class NotificationTypes(models.TextChoices):
+        LIKE = 'like', 'Like'
+        FRIEND_REQUEST = 'friend_request', 'Friend Request'
+        MESSAGE = 'message', 'Message'
+
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='triggered_notifications')
+    notification_type = models.CharField(max_length=30, choices=NotificationTypes.choices)
+    title = models.CharField(max_length=120)
+    body = models.CharField(max_length=255)
+    data = models.JSONField(default=dict, blank=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', 'is_read', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.notification_type} -> {self.recipient.username}"

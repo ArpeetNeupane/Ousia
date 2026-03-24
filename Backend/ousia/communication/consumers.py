@@ -5,9 +5,12 @@ from channels.db import database_sync_to_async
 
 from django.core.exceptions import ValidationError
 
+from accounts.models import User
 from communication.models import Conversation, Message, ConversationParticipant
 from communication.serializers import MessageCreateSerializer
 from communication.utils import should_block_message
+from core.models import Notification
+from core.notifications import acreate_notification_by_ids
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -128,6 +131,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if message:
             #serializing the message
             message_data = await self.serialize_message(message)
+
+            await self.notify_recipients_for_message(message, content, message_type)
 
             message_data_updated = json.loads(json.dumps(message_data, default=str))
 
@@ -327,6 +332,37 @@ class ChatConsumer(AsyncWebsocketConsumer):
         serializer = MessageCreateSerializer(message)
         return json.loads(json.dumps(dict(serializer.data), default=str))
 
+    @database_sync_to_async
+    def get_notification_recipient_ids(self):
+        return list(
+            ConversationParticipant.objects.filter(
+                conversation_id=self.conversation_id,
+                deleted_for_user=False,
+            ).exclude(user_id=self.user.id).values_list('user_id', flat=True)
+        )
+
+    async def notify_recipients_for_message(self, message, content, message_type):
+        recipient_ids = await self.get_notification_recipient_ids()
+
+        for recipient_id in recipient_ids:
+            await acreate_notification_by_ids(
+                recipient_id=recipient_id,
+                actor_id=self.user.id,
+                notification_type=Notification.NotificationTypes.MESSAGE,
+                title='New message',
+                body=(
+                    f"{self.user.username}: {content[:80]}"
+                    if content
+                    else f"{self.user.username} sent a {message_type} message."
+                ),
+                data={
+                    'conversation_id': str(self.conversation_id),
+                    'message_id': str(message.id),
+                    'message_type': message.message_type,
+                },
+                actor_username=self.user.username,
+            )
+
     async def send_error(self, error_message):
         """Send error message to WebSocket"""
         await self.send(text_data=json.dumps({
@@ -358,3 +394,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
             ).update(last_read_at=timezone.now())
         except Exception:
             pass
+
+
+class NotificationConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope['user']
+        if not self.user.is_authenticated:
+            await self.close()
+            return
+
+        self.group_name = f'notifications_user_{self.user.id}'
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'group_name'):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def notification_event(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'notification',
+            'notification': event['notification'],
+        }))
