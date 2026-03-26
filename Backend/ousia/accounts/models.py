@@ -209,3 +209,29 @@ class PasswordResetOTP(models.Model):
         cls.objects.filter(user=user, is_used=False).delete()
         otp = str(random.randint(100000, 999999))
         return cls.objects.create(user=user, otp=otp)
+
+
+class UserDeviceToken(models.Model):
+    class Platform(models.TextChoices):
+        ANDROID = 'android', 'Android'
+        IOS = 'ios', 'iOS'
+        WEB = 'web', 'Web'
+        UNKNOWN = 'unknown', 'Unknown'
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='device_tokens')
+    token = models.CharField(max_length=512, unique=True)
+    platform = models.CharField(max_length=20, choices=Platform.choices, default=Platform.UNKNOWN)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+        ]
+        verbose_name = 'User Device Token'
+        verbose_name_plural = 'User Device Tokens'
+
+    def __str__(self):
+        return f"{self.user.username} [{self.platform}]"

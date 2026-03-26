@@ -189,6 +189,10 @@ username_friend1 = serializers.SerializerMethodField(read_only=True)
 # password reset email make it look good and change the name to ousia-noreply@noreply.com or something ✅
 
 # Today 25th March task:
-# profile pic ma image validation
-# push notification
+# profile pic ma image validation ✅
+# push notification ✅
 # block app after centain amount of screen time
+# from notification to type of notification screen ✅
+# from push notification to type of notification screen ✅
+# in create post, click pic rn option ✅
+# in profile, categorize ✅

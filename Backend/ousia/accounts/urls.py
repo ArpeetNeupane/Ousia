@@ -5,7 +5,8 @@ from accounts.views import (
     ProfileResponseAPI, ProfileUpdateAPI, ProfileAdminUpdateAPI, UserProfileDetailAPI,
     AreaOfInterestListCreateAPI, AreaOfInterestRetrieveAPI, AreaOfInterestUpdateAPI, AreaOfInterestDeleteAPI,
     UserAreaOfInterestListCreateAPI, UserAreaOfInterestRetrieveAPI, UserAreaOfInterestDeleteAPI, UserSearchAPI,
-    ForgotPasswordAPI, VerifyOTPAPI, ResetPasswordAPI
+    ForgotPasswordAPI, VerifyOTPAPI, ResetPasswordAPI,
+    DeviceTokenRegisterAPI, DeviceTokenUnregisterAPI,
 )
 urlpatterns = [
     path("register/", RegisterView.as_view(), name='register'),
@@ -29,4 +30,7 @@ urlpatterns = [
     path('forgot-password/', ForgotPasswordAPI.as_view(), name='forgot_password'),
     path('verify-otp/', VerifyOTPAPI.as_view(), name='verify_otp'),
     path('reset-password/', ResetPasswordAPI.as_view(), name='reset_password'),
+
+    path('device-token/register/', DeviceTokenRegisterAPI.as_view(), name='device-token-register'),
+    path('device-token/unregister/', DeviceTokenUnregisterAPI.as_view(), name='device-token-unregister'),
 ]

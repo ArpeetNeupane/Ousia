@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,7 +10,10 @@ import 'utils/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp();
   await AuthService.initialize();
+  
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
@@ -61,6 +65,7 @@ class _OusiaAppState extends State<OusiaApp> with WidgetsBindingObserver {
     if (!AuthService.isLoggedIn) return;
 
     await AuthService().startSessionIfNeeded();
+    await AuthService.setupPushNotifications();
 
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) {
@@ -79,6 +84,7 @@ class _OusiaAppState extends State<OusiaApp> with WidgetsBindingObserver {
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(
+      navigatorKey: AuthService.navigatorKey,
       title: 'Ousia',
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.themeMode,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../services/auth_service.dart';
+import '../models/post.dart';
 import 'feed_screen.dart';
 import 'conversation_screen.dart';
 import 'quiz_screen.dart';
@@ -20,6 +21,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   int _currentIndex = 0;
   static const Color _primary = Color(0xFF7B5CF0);
   Key _feedKey = UniqueKey();
+  Post? _newlyCreatedPost;
   bool get _isAdmin => AuthService.isAdmin() || AuthService.isSuperUser();
   Timer? _notificationRefreshTimer;
 
@@ -66,8 +68,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   void _onTabTapped(int index) {
     if (!_isAdmin && index == 2) {
       Navigator.pushNamed(context, '/create-post').then((result) {
+        Post? createdPost;
+        bool created = false;
+
         if (result == true) {
+          created = true;
+        } else if (result is Map) {
+          created = result['created'] == true;
+          final postData = result['postData'];
+          if (postData is Map<String, dynamic>) {
+            try {
+              createdPost = Post.fromJson(postData);
+            } catch (_) {}
+          }
+        }
+
+        if (created) {
           setState(() {
+            _newlyCreatedPost = createdPost;
             _feedKey = UniqueKey();
             _currentIndex = 0;
           });
@@ -92,7 +110,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
       stackIndex = _currentIndex;
     } else {
       stackChildren = [
-        FeedPage(key: _feedKey),
+        FeedPage(key: _feedKey, createdPost: _newlyCreatedPost),
         const MessagesPage(),
         const PlayPage(),
         const ProfileScreen(),

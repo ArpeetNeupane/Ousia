@@ -13,6 +13,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_cropper/image_cropper.dart';
 
+enum ProfilePostCategory {
+  media,
+  captionOnly,
+}
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -28,6 +33,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _userPostsNextUrl;
   bool _isLoadingMorePosts = false;
   final ScrollController _scrollController = ScrollController();
+  ProfilePostCategory _selectedPostCategory = ProfilePostCategory.media;
+  final Map<int, Map<String, dynamic>> _captionOnlyPostDetails = {};
+  bool _isLoadingCaptionPostDetails = false;
 
   static const Color _primary = Color(0xFF7B5CF0);
 
@@ -80,6 +88,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _userPosts = result['posts'] as List<Post>;
         _userPostsNextUrl = result['next'];
       });
+      if (_selectedPostCategory == ProfilePostCategory.captionOnly) {
+        await _loadCaptionOnlyPostDetails();
+      } else {
+        _scheduleEnsureScrollableMediaPosts();
+      }
     }
   }
 
@@ -93,9 +106,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _userPostsNextUrl = result['next'];
         _isLoadingMorePosts = false;
       });
+      if (_selectedPostCategory == ProfilePostCategory.captionOnly) {
+        await _loadCaptionOnlyPostDetails();
+      } else {
+        _scheduleEnsureScrollableMediaPosts();
+      }
     } else {
       setState(() => _isLoadingMorePosts = false);
     }
+  }
+
+  void _scheduleEnsureScrollableMediaPosts() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureScrollableMediaPosts();
+    });
+  }
+
+  Future<void> _ensureScrollableMediaPosts() async {
+    if (!mounted) return;
+    if (_selectedPostCategory != ProfilePostCategory.media) return;
+    if (_isLoadingMorePosts || _userPostsNextUrl == null) return;
+    if (!_scrollController.hasClients) return;
+
+    final isScrollable = _scrollController.position.maxScrollExtent > 0;
+    if (isScrollable && _mediaPosts.isNotEmpty) return;
+
+    await _loadMoreUserPosts();
+  }
+
+  List<Post> get _mediaPosts => _userPosts.where((p) => p.mediaFiles.isNotEmpty).toList();
+  List<Post> get _captionOnlyPosts => _userPosts.where((p) => p.mediaFiles.isEmpty).toList();
+
+  Future<void> _loadCaptionOnlyPostDetails() async {
+    if (_isLoadingCaptionPostDetails) return;
+
+    final targets = _captionOnlyPosts
+        .where((post) => !_captionOnlyPostDetails.containsKey(post.id))
+        .toList();
+    if (targets.isEmpty) return;
+
+    setState(() => _isLoadingCaptionPostDetails = true);
+
+    final futures = targets.map((post) async {
+      final result = await authService.fetchPostById(post.id);
+      if (result['success'] == true && result['data'] is Map<String, dynamic>) {
+        _captionOnlyPostDetails[post.id] = result['data'] as Map<String, dynamic>;
+      }
+    });
+
+    await Future.wait(futures);
+    if (!mounted) return;
+    setState(() => _isLoadingCaptionPostDetails = false);
   }
 
   Future<void> _logout() async {
@@ -810,8 +871,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Divider(),
               const SizedBox(height: 16),
 
+              Align(
+                alignment: Alignment.centerLeft,
+                child: DropdownButton<ProfilePostCategory>(
+                  value: _selectedPostCategory,
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    setState(() => _selectedPostCategory = value);
+                    if (value == ProfilePostCategory.captionOnly) {
+                      await _loadCaptionOnlyPostDetails();
+                    } else {
+                      _scheduleEnsureScrollableMediaPosts();
+                    }
+                  },
+                  items: const [
+                    DropdownMenuItem(
+                      value: ProfilePostCategory.media,
+                      child: Text('Media Posts'),
+                    ),
+                    DropdownMenuItem(
+                      value: ProfilePostCategory.captionOnly,
+                      child: Text('Caption Only'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
               // Posts grid or empty state
-              _userPosts.isEmpty
+              (_selectedPostCategory == ProfilePostCategory.media ? _mediaPosts : _captionOnlyPosts).isEmpty
                   ? Column(
                       children: [
                         const Icon(Icons.photo_camera_outlined, size: 60, color: Colors.grey),
@@ -831,24 +919,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     )
-                  : GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 2,
-                        mainAxisSpacing: 2,
-                      ),
-                      itemCount: _userPosts.length,
-                      itemBuilder: (context, index) {
-                        final post = _userPosts[index];
-                        final media = post.mediaFiles.isNotEmpty ? post.mediaFiles.first : null;
-                        return media == null
-                            ? Container(
-                                color: _primary.withOpacity(0.1),
-                                child: const Icon(Icons.text_snippet_outlined, color: Colors.grey),
-                              )
-                            : media.isVideo
+                  : _selectedPostCategory == ProfilePostCategory.media
+                      ? GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 2,
+                            mainAxisSpacing: 2,
+                          ),
+                          itemCount: _mediaPosts.length,
+                          itemBuilder: (context, index) {
+                            final post = _mediaPosts[index];
+                            final media = post.mediaFiles.first;
+                            return media.isVideo
                                 ? Stack(
                                     fit: StackFit.expand,
                                     children: [
@@ -864,8 +948,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   )
                                 : CachedNetworkImage(
                                     imageUrl: media.mediaUrl, fit: BoxFit.cover);
-                      },
-                    ),
+                          },
+                        )
+                      : Column(
+                          children: [
+                            if (_isLoadingCaptionPostDetails)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 12),
+                                child: LinearProgressIndicator(minHeight: 2),
+                              ),
+                            ..._captionOnlyPosts.map((post) {
+                              final detail = _captionOnlyPostDetails[post.id];
+                              final caption = (detail?['caption'] ?? post.caption ?? '').toString();
+                              final createdAtStr = (detail?['created_at'] ?? post.createdAt.toIso8601String()).toString();
+
+                              DateTime? createdAt;
+                              try {
+                                createdAt = DateTime.parse(createdAtStr);
+                              } catch (_) {
+                                createdAt = null;
+                              }
+
+                              return Container(
+                                width: double.infinity,
+                                margin: const EdgeInsets.only(bottom: 10),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      caption.isEmpty ? '(No caption)' : caption,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Theme.of(context).colorScheme.onSurface,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      createdAt == null
+                                          ? ''
+                                          : '${createdAt.toLocal().year}-${createdAt.toLocal().month.toString().padLeft(2, '0')}-${createdAt.toLocal().day.toString().padLeft(2, '0')}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
             ],
           ),
         ),

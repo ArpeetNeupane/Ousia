@@ -1,17 +1,21 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:http/http.dart' as http;
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../models/profile.dart';
 import '../models/post.dart';
+import '../utils/route_names.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://100.105.91.116:8000/api';
+  static const String baseUrl = 'http://192.168.1.6:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -38,6 +42,16 @@ class AuthService {
   static Timer? _notificationReconnectTimer;
   static void Function(Map<String, dynamic> notification)? _notificationCallback;
   static bool _notificationReconnectEnabled = false;
+  static StreamSubscription<String>? _fcmTokenRefreshSub;
+  static StreamSubscription<RemoteMessage>? _messageOpenedSub;
+  static StreamSubscription<RemoteMessage>? _foregroundMessageSub;
+  static bool _initialPushMessageHandled = false;
+  static bool _localNotificationsInitialized = false;
+  static bool _localNotificationsAvailable = true;
+  static String? _registeredFcmToken;
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
   static final ValueNotifier<int> unreadNotifications = ValueNotifier<int>(0);
   static final ValueNotifier<int> messageNotificationTick = ValueNotifier<int>(0);
 
@@ -73,6 +87,8 @@ class AuthService {
         final isValid = await _validateToken();
         if (!isValid) {
           await logout();
+        } else {
+          await setupPushNotifications();
         }
       }
     } catch (e) {
@@ -211,6 +227,7 @@ class AuthService {
         await _secureStorage.write(key: _refreshTokenKey, value: _refreshToken!);
 
         await _fetchUserProfile();
+        await setupPushNotifications();
 
         return {
           'success': true,
@@ -610,6 +627,7 @@ class AuthService {
 
   static Future<void> logout() async {
     stopNotificationsStream();
+    await unregisterCurrentDeviceToken();
 
     if (_activeSessionId != null && _accessToken != null) {
       try {
@@ -650,6 +668,281 @@ class AuthService {
     await _secureStorage.delete(key: _refreshTokenKey);
     await _secureStorage.delete(key: _userProfileKey);
     await clearFeedCache();
+  }
+
+  static String _platformLabel() {
+    if (kIsWeb) return 'web';
+    if (Platform.isAndroid) return 'android';
+    if (Platform.isIOS) return 'ios';
+    return 'unknown';
+  }
+
+  static Future<void> setupPushNotifications() async {
+    if (_accessToken == null) return;
+
+    try {
+      final messaging = FirebaseMessaging.instance;
+
+      await _initializeLocalNotifications();
+
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      final token = await messaging.getToken();
+      if (token != null && token.isNotEmpty) {
+        await registerDeviceToken(token);
+      }
+
+      _fcmTokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+        if (newToken.isNotEmpty) {
+          registerDeviceToken(newToken);
+        }
+      });
+
+      _messageOpenedSub ??= FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        _handleOpenedPushMessage(message);
+      });
+
+      _foregroundMessageSub ??= FirebaseMessaging.onMessage.listen((message) {
+        _showForegroundNotification(message);
+      });
+
+      if (!_initialPushMessageHandled) {
+        _initialPushMessageHandled = true;
+        final initialMessage = await messaging.getInitialMessage();
+        if (initialMessage != null) {
+          _handleOpenedPushMessage(initialMessage);
+        }
+    }
+    } catch (e) {
+      print('Push setup skipped: $e');
+    }
+  }
+
+  static Future<void> _handleOpenedPushMessage(RemoteMessage message) async {
+    final type = (message.data['notification_type'] ?? '').toString();
+    await openNotificationTarget(
+      notificationType: type,
+      notificationData: message.data,
+    );
+  }
+
+  static Future<void> _initializeLocalNotifications() async {
+    if (_localNotificationsInitialized || !_localNotificationsAvailable) return;
+
+    try {
+      const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const settings = InitializationSettings(android: android);
+
+      await _localNotifications.initialize(
+        settings,
+        onDidReceiveNotificationResponse: (response) {
+          if (response.payload == null || response.payload!.isEmpty) {
+            openNotificationTarget(notificationType: '');
+            return;
+          }
+
+          try {
+            final payload = jsonDecode(response.payload!) as Map<String, dynamic>;
+            final type = (payload['notification_type'] ?? '').toString();
+            openNotificationTarget(
+              notificationType: type,
+              notificationData: payload,
+            );
+          } catch (_) {
+            openNotificationTarget(notificationType: '');
+          }
+        },
+      );
+
+      const androidChannel = AndroidNotificationChannel(
+        'ousia_high_importance',
+        'Ousia Notifications',
+        description: 'Used for likes, friend requests, and messages.',
+        importance: Importance.high,
+      );
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(androidChannel);
+
+      _localNotificationsInitialized = true;
+    } catch (e) {
+      _localNotificationsAvailable = false;
+      print('Local notifications unavailable: $e');
+    }
+  }
+
+  static Future<void> _showForegroundNotification(RemoteMessage message) async {
+    if (!_localNotificationsInitialized || !_localNotificationsAvailable) return;
+
+    final title = (message.notification?.title ?? 'New notification').trim();
+    final body = (message.notification?.body ?? '').trim();
+    final payload = jsonEncode(message.data);
+
+    try {
+      await _localNotifications.show(
+        DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title,
+        body.isEmpty ? null : body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'ousia_high_importance',
+            'Ousia Notifications',
+            channelDescription: 'Used for likes, friend requests, and messages.',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+        payload: payload,
+      );
+    } catch (e) {
+      print('Foreground notification display failed: $e');
+    }
+  }
+
+  static Future<void> openNotificationTarget({
+    required String notificationType,
+    Map<String, dynamic>? notificationData,
+  }) async {
+    if (!isLoggedIn) return;
+
+    final nav = navigatorKey.currentState;
+    if (nav == null) return;
+
+    final data = Map<String, dynamic>.from(notificationData ?? const <String, dynamic>{});
+    final type = notificationType.trim().toLowerCase();
+
+    if (type == 'friend_request') {
+      await nav.pushNamed(RouteNames.friendRequests);
+      return;
+    }
+
+    if (type == 'message') {
+      final conversationId = (data['conversation_id'] ?? '').toString();
+      if (conversationId.isEmpty) {
+        await nav.pushNamed(RouteNames.notifications);
+        return;
+      }
+
+      final chatArgs = await _buildChatRouteArgs(conversationId);
+      await nav.pushNamed(
+        RouteNames.chat,
+        arguments: chatArgs,
+      );
+      return;
+    }
+
+    await nav.pushNamed(RouteNames.notifications);
+  }
+
+  static Future<Map<String, dynamic>> _buildChatRouteArgs(String conversationId) async {
+    final result = await AuthService().fetchConversations();
+    if (result['success'] == true) {
+      final conversations = List<Map<String, dynamic>>.from(result['conversations'] ?? []);
+      final match = conversations.cast<Map<String, dynamic>?>().firstWhere(
+        (c) => c != null && c['id'].toString() == conversationId,
+        orElse: () => null,
+      );
+
+      if (match != null) {
+        final isGroup = match['is_group'] == true;
+        if (isGroup) {
+          return {
+            'conversation_id': conversationId,
+            'name': (match['group_name'] ?? 'Group').toString(),
+            'pfp_url': null,
+            'is_group': true,
+          };
+        }
+
+        final current = currentUsername;
+        final pfpInfo = (match['pfp_info'] as List?) ?? [];
+        final other = pfpInfo.firstWhere(
+          (p) => p is Map<String, dynamic> && p['username'] != current,
+          orElse: () => pfpInfo.isNotEmpty ? pfpInfo.first : <String, dynamic>{},
+        );
+
+        final otherMap = Map<String, dynamic>.from(other as Map);
+        return {
+          'conversation_id': conversationId,
+          'name': (otherMap['username'] ?? 'Conversation').toString(),
+          'pfp_url': otherMap['pfp_url'],
+          'is_group': false,
+        };
+      }
+    }
+
+    return {
+      'conversation_id': conversationId,
+      'name': 'Conversation',
+      'pfp_url': null,
+      'is_group': false,
+    };
+  }
+
+  static Future<void> registerDeviceToken(String token) async {
+    if (_accessToken == null || token.isEmpty) return;
+    if (_registeredFcmToken == token) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/device-token/register/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode({
+          'token': token,
+          'platform': _platformLabel(),
+        }),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        _registeredFcmToken = token;
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> unregisterCurrentDeviceToken() async {
+    if (_accessToken == null) {
+      _fcmTokenRefreshSub?.cancel();
+      _fcmTokenRefreshSub = null;
+      _registeredFcmToken = null;
+      return;
+    }
+
+    try {
+      final token = _registeredFcmToken ?? await FirebaseMessaging.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        await http.post(
+          Uri.parse('$baseUrl/device-token/unregister/'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $_accessToken',
+          },
+          body: jsonEncode({'token': token}),
+        );
+      }
+    } catch (_) {
+    } finally {
+      _fcmTokenRefreshSub?.cancel();
+      _fcmTokenRefreshSub = null;
+      _messageOpenedSub?.cancel();
+      _messageOpenedSub = null;
+      _foregroundMessageSub?.cancel();
+      _foregroundMessageSub = null;
+      _registeredFcmToken = null;
+      _initialPushMessageHandled = false;
+    }
   }
 
   Future<Map<String, dynamic>> fetchInterests() async {
@@ -982,9 +1275,7 @@ class AuthService {
       }
       request.fields['visibility'] = visibility;
       if (typeOfPost != null) {
-        for (final tag in typeOfPost){
-          request.fields['type_of_post'] = typeOfPost.join(',');
-        }
+        request.fields['type_of_post'] = typeOfPost.join(',');
       }
 
       for (final file in mediaFiles) {
@@ -1020,6 +1311,33 @@ class AuthService {
       return {
         'success': false,
         'message': message,
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchPostById(int postId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/post/$postId/',
+      );
+
+      final data = jsonDecode(response.body);
+      if ((data['IsSuccess'] ?? false) == true) {
+        final result = data['Result'] as Map<String, dynamic>?;
+        return {
+          'success': true,
+          'message': result?['message']?.toString() ?? 'Post fetched successfully.',
+          'data': result?['data'],
+        };
+      }
+
+      final error = data['ErrorMessage'];
+      return {
+        'success': false,
+        'message': _parseBackendErrorMessage(error, 'Failed to fetch post.'),
       };
     } catch (e) {
       return {'success': false, 'message': 'Network error: $e'};

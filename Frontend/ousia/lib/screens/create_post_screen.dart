@@ -94,6 +94,20 @@ class _CreatePostPageState extends State<CreatePostPage> {
   int get _videoCount => _mediaFiles.where((m) => m.isVideo).length;
   int get _imageCount => _mediaFiles.where((m) => !m.isVideo).length;
 
+  Future<void> _capturePhoto() async {
+    if (_mediaFiles.length >= _maxTotal) { _showSnack('Maximum $_maxTotal files allowed'); return; }
+    if (_imageCount >= _maxImages) { _showSnack('Maximum $_maxImages images allowed'); return; }
+
+    try {
+      final XFile? file = await _picker.pickImage(source: ImageSource.camera);
+      if (file != null) {
+        setState(() => _mediaFiles.add(_SelectedMedia(file: file, isVideo: false)));
+      }
+    } catch (_) {
+      _showSnack('Failed to open camera');
+    }
+  }
+
   Future<void> _pickMedia({required bool isVideo}) async {
     if (_mediaFiles.length >= _maxTotal) { _showSnack('Maximum $_maxTotal files allowed'); return; }
     if (isVideo && _videoCount >= _maxVideos) { _showSnack('Maximum $_maxVideos videos allowed'); return; }
@@ -137,7 +151,10 @@ class _CreatePostPageState extends State<CreatePostPage> {
       _showSnack(result['message']?.toString() ?? 'Post created successfully.');
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop({
+        'created': true,
+        'postData': result['data'],
+      });
     } else {
       _showSnack(result['message'] ?? 'Failed to create post');
     }
@@ -174,6 +191,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
       body: _profileLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF7B5CF0)))
           : _buildBody(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: _buildCameraFab(),
     );
   }
 
@@ -211,7 +230,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
   Widget _buildBody() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -518,6 +537,21 @@ class _CreatePostPageState extends State<CreatePostPage> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildCameraFab() {
+    final bool canCapture = _mediaFiles.length < _maxTotal && _imageCount < _maxImages;
+
+    return FloatingActionButton.extended(
+      onPressed: canCapture ? _capturePhoto : null,
+      backgroundColor: _primary,
+      foregroundColor: Colors.white,
+      icon: const Icon(Icons.photo_camera),
+      label: const Text(
+        'Capture Photo',
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

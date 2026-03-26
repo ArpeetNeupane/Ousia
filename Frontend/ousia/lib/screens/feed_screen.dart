@@ -9,7 +9,9 @@ import '../utils/route_names.dart';
 
 
 class FeedPage extends StatefulWidget {
-  const FeedPage({super.key});
+  final Post? createdPost;
+
+  const FeedPage({super.key, this.createdPost});
 
   @override
   State<FeedPage> createState() => _FeedPageState();
@@ -24,6 +26,7 @@ class _FeedPageState extends State<FeedPage> {
   bool _isLoadingMore = false;
   String? _nextUrl;
   String? _errorMessage;
+  bool _pinnedCreatedPost = false;
 
   //search bar variables
   bool _isSearching = false;
@@ -110,7 +113,8 @@ class _FeedPageState extends State<FeedPage> {
     final result = await _service.fetchPosts();
     if (!mounted) return;
     if (result['success'] == true) {
-      final newPosts = result['posts'] as List<Post>;
+      final fetchedPosts = result['posts'] as List<Post>;
+      final newPosts = _pinCreatedPostIfNeeded(fetchedPosts);
       setState(() {
         _posts = newPosts;
         _nextUrl = result['next'];
@@ -123,6 +127,20 @@ class _FeedPageState extends State<FeedPage> {
         _isLoading = false;
       });
     }
+  }
+
+  List<Post> _pinCreatedPostIfNeeded(List<Post> fetchedPosts) {
+    if (_pinnedCreatedPost || widget.createdPost == null) {
+      return fetchedPosts;
+    }
+
+    final created = widget.createdPost!;
+    final merged = List<Post>.from(fetchedPosts)
+      ..removeWhere((p) => p.id == created.id)
+      ..insert(0, created);
+
+    _pinnedCreatedPost = true;
+    return merged;
   }
 
   Future<void> _loadMore() async {

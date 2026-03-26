@@ -7,3 +7,6 @@ venv/
 
 #Ignore ML Models file which stores the pre-trained models
 ML Models/
+
+#Ignore firebase service account file
+ousia-17464-firebase-adminsdk-fbsvc-c3f26d2ebf.json

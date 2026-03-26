@@ -1794,6 +1794,7 @@ class NotificationMarkReadAPI(generics.GenericAPIView):
 class NotificationMarkAllReadAPI(generics.GenericAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+    serializer_class = NotificationSerializer
 
     def post(self, request, *args, **kwargs):
         updated_count = Notification.objects.filter(
@@ -1814,6 +1815,7 @@ class NotificationMarkAllReadAPI(generics.GenericAPIView):
 class NotificationUnreadCountAPI(generics.GenericAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+    serializer_class = NotificationSerializer
 
     def get(self, request, *args, **kwargs):
         unread_count = Notification.objects.filter(

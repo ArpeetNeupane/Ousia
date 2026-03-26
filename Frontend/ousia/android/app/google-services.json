@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "288531137974",
+    "project_id": "ousia-17464",
+    "storage_bucket": "ousia-17464.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:288531137974:android:6a898d0e6a45aafa02ed17",
+        "android_client_info": {
+          "package_name": "com.example.ousia"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB5chCrrJJJFn7YtIoChK0yZ_rkmyq3Jbw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

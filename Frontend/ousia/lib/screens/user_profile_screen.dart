@@ -6,6 +6,11 @@ import 'package:share_plus/share_plus.dart';
 import '../models/profile.dart';
 import '../models/post.dart';
 
+enum UserProfilePostCategory {
+  media,
+  captionOnly,
+}
+
 class UserProfileScreen extends StatefulWidget {
   final int userId;
   const UserProfileScreen({super.key, required this.userId});
@@ -28,6 +33,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   int? _receivedRequestId;
   int? _sentRequestId;
   final ScrollController _scrollController = ScrollController();
+  UserProfilePostCategory _selectedPostCategory = UserProfilePostCategory.media;
+  final Map<int, Map<String, dynamic>> _captionOnlyPostDetails = {};
+  bool _isLoadingCaptionPostDetails = false;
 
   static const Color _primary = Color(0xFF7B5CF0);
 
@@ -92,13 +100,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       _isLoading = false;
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients &&
-          _scrollController.position.maxScrollExtent == 0 &&
-          _nextUrl != null) {
-        _loadMorePosts();
-      }
-    });
+    if (_selectedPostCategory == UserProfilePostCategory.captionOnly) {
+      await _loadCaptionOnlyPostDetails();
+    } else {
+      _scheduleEnsureScrollableMediaPosts();
+    }
+
   }
 
   Future<void> _loadMorePosts() async {
@@ -110,8 +117,55 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _posts.addAll(result['posts'] as List<Post>);
         _nextUrl = result['next'];
       });
+      if (_selectedPostCategory == UserProfilePostCategory.captionOnly) {
+        await _loadCaptionOnlyPostDetails();
+      } else {
+        _scheduleEnsureScrollableMediaPosts();
+      }
     }
     setState(() => _isLoadingMore = false);
+  }
+
+  void _scheduleEnsureScrollableMediaPosts() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureScrollableMediaPosts();
+    });
+  }
+
+  Future<void> _ensureScrollableMediaPosts() async {
+    if (!mounted) return;
+    if (_selectedPostCategory != UserProfilePostCategory.media) return;
+    if (_isLoadingMore || _nextUrl == null) return;
+    if (!_scrollController.hasClients) return;
+
+    final isScrollable = _scrollController.position.maxScrollExtent > 0;
+    if (isScrollable && _mediaPosts.isNotEmpty) return;
+
+    await _loadMorePosts();
+  }
+
+  List<Post> get _mediaPosts => _posts.where((p) => p.mediaFiles.isNotEmpty).toList();
+  List<Post> get _captionOnlyPosts => _posts.where((p) => p.mediaFiles.isEmpty).toList();
+
+  Future<void> _loadCaptionOnlyPostDetails() async {
+    if (_isLoadingCaptionPostDetails) return;
+
+    final targets = _captionOnlyPosts
+        .where((post) => !_captionOnlyPostDetails.containsKey(post.id))
+        .toList();
+    if (targets.isEmpty) return;
+
+    setState(() => _isLoadingCaptionPostDetails = true);
+    final futures = targets.map((post) async {
+      final result = await _service.fetchPostById(post.id);
+      if (result['success'] == true && result['data'] is Map<String, dynamic>) {
+        _captionOnlyPostDetails[post.id] = result['data'] as Map<String, dynamic>;
+      }
+    });
+
+    await Future.wait(futures);
+    if (!mounted) return;
+    setState(() => _isLoadingCaptionPostDetails = false);
   }
 
   Future<void> _sendFriendRequest() async {
@@ -178,7 +232,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
                       SliverToBoxAdapter(child: _buildHeader()),
-                      _posts.isEmpty
+                      (_selectedPostCategory == UserProfilePostCategory.media ? _mediaPosts : _captionOnlyPosts).isEmpty
                           ? const SliverFillRemaining(
                               child: Center(child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -190,20 +244,34 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 ],
                               )),
                             )
-                          : SliverPadding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            sliver: SliverGrid(
-                                delegate: SliverChildBuilderDelegate(
-                                  (context, index) => _buildPostTile(_posts[index]),
-                                  childCount: _posts.length,
+                          : _selectedPostCategory == UserProfilePostCategory.media
+                              ? SliverPadding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  sliver: SliverGrid(
+                                    delegate: SliverChildBuilderDelegate(
+                                      (context, index) => _buildPostTile(_mediaPosts[index]),
+                                      childCount: _mediaPosts.length,
+                                    ),
+                                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 3,
+                                      crossAxisSpacing: 2,
+                                      mainAxisSpacing: 2,
+                                    ),
+                                  ),
+                                )
+                              : SliverPadding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  sliver: SliverList(
+                                    delegate: SliverChildListDelegate([
+                                      if (_isLoadingCaptionPostDetails)
+                                        const Padding(
+                                          padding: EdgeInsets.only(bottom: 12),
+                                          child: LinearProgressIndicator(minHeight: 2),
+                                        ),
+                                      ..._captionOnlyPosts.map(_buildCaptionOnlyPostCard),
+                                    ]),
+                                  ),
                                 ),
-                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  crossAxisSpacing: 2,
-                                  mainAxisSpacing: 2,
-                                ),
-                              ),
-                          ),
                       if (_isLoadingMore)
                         const SliverToBoxAdapter(
                           child: Padding(
@@ -366,6 +434,31 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
           const SizedBox(height: 16),
           const Divider(),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: DropdownButton<UserProfilePostCategory>(
+              value: _selectedPostCategory,
+              onChanged: (value) async {
+                if (value == null) return;
+                setState(() => _selectedPostCategory = value);
+                if (value == UserProfilePostCategory.captionOnly) {
+                  await _loadCaptionOnlyPostDetails();
+                } else {
+                  _scheduleEnsureScrollableMediaPosts();
+                }
+              },
+              items: const [
+                DropdownMenuItem(
+                  value: UserProfilePostCategory.media,
+                  child: Text('Media Posts'),
+                ),
+                DropdownMenuItem(
+                  value: UserProfilePostCategory.captionOnly,
+                  child: Text('Caption Only'),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -396,6 +489,53 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ],
                 )
               : CachedNetworkImage(imageUrl: media.mediaUrl, fit: BoxFit.cover),
+    );
+  }
+
+  Widget _buildCaptionOnlyPostCard(Post post) {
+    final detail = _captionOnlyPostDetails[post.id];
+    final caption = (detail?['caption'] ?? post.caption ?? '').toString();
+    final createdAtStr = (detail?['created_at'] ?? post.createdAt.toIso8601String()).toString();
+
+    DateTime? createdAt;
+    try {
+      createdAt = DateTime.parse(createdAtStr);
+    } catch (_) {
+      createdAt = null;
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            caption.isEmpty ? '(No caption)' : caption,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            createdAt == null
+                ? ''
+                : '${createdAt.toLocal().year}-${createdAt.toLocal().month.toString().padLeft(2, '0')}-${createdAt.toLocal().day.toString().padLeft(2, '0')}',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

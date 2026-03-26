@@ -11,7 +11,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import User, Profile, RoleEnum, AreaOfInterest, UserAreaOfInterest
 from accounts.ai_utils import verify_student_identity, extract_dob_from_text, extract_text_from_id
-from core.utils.nsfw_classifier import NSFWTextClassifier, NSFWVerdict
+from core.utils.nsfw_classifier import NSFWTextClassifier, NSFWImageClassifier, NSFWVerdict
 
 import cloudinary
 from cloudinary.utils import cloudinary_url
@@ -44,6 +44,27 @@ def compress_and_resize_image(image_field, max_size=(800, 800)):
         sys.getsizeof(output), 
         None
     )
+
+
+def validate_profile_picture_nsfw(image_file):
+    try:
+        image_file.seek(0)
+        pil_image = Image.open(image_file)
+        nsfw_result = NSFWImageClassifier.classify_image(pil_image)
+    except Exception:
+        raise serializers.ValidationError({
+            "pfp": "Could not scan this profile picture. Please try another image."
+        })
+    finally:
+        try:
+            image_file.seek(0)
+        except Exception:
+            pass
+
+    if nsfw_result.verdict != NSFWVerdict.PASS:
+        raise serializers.ValidationError({
+            "pfp": "This profile picture was flagged by safety checks. Please choose another image."
+        })
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -373,6 +394,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         if not mime_type.startswith("image/"):
             raise serializers.ValidationError("Uploaded file is not an image.")
 
+        validate_profile_picture_nsfw(data)
+
         return data
 
     def validate_synced_username(self, value):
@@ -457,6 +480,8 @@ class ProfileAdminUpdateSerializer(serializers.ModelSerializer):
         mime_type = data.content_type
         if not mime_type.startswith("image/"):
             raise serializers.ValidationError("Uploaded file is not an image.")
+
+        validate_profile_picture_nsfw(data)
 
         return data
 

@@ -87,6 +87,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     setState(() => _isLoadingNext = false);
   }
 
+  Future<void> _handleNotificationTap(Map<String, dynamic> item) async {
+    final type = (item['notification_type'] ?? '').toString();
+    final rawData = item['data'];
+    Map<String, dynamic> data = {};
+
+    if (rawData is Map) {
+      data = Map<String, dynamic>.from(rawData);
+    }
+
+    if (type == 'like') {
+      await _loadNotifications();
+      return;
+    }
+
+    await AuthService.openNotificationTarget(
+      notificationType: type,
+      notificationData: data,
+    );
+
+    if (!mounted) return;
+    await _loadNotifications();
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -159,7 +182,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 ),
                               ],
                             ),
-                            onTap: null,
+                            onTap: () => _handleNotificationTap(item),
                           ),
                           Divider(
                             height: 1,

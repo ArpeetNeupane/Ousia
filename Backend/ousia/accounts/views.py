@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 
-from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest, PasswordResetOTP
+from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest, PasswordResetOTP, UserDeviceToken
 from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer, AreaOfInterestSerializer, UserAreaOfInterestSerializer, UserSearchSerializer
 from accounts.permissions import IsOwnerOfProfile, CreatorOfInterest, IsOwnerOfUserInterest
 from accounts.paginations import DefaultPagination
@@ -923,3 +923,66 @@ class ResetPasswordAPI(APIView):
                 error_message='Invalid OTP.',
                 status_code=status.HTTP_400_BAD_REQUEST
             )
+
+
+class DeviceTokenRegisterAPI(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        token = (request.data.get('token') or '').strip()
+        platform = (request.data.get('platform') or UserDeviceToken.Platform.UNKNOWN).strip().lower()
+
+        if not token:
+            return api_response(
+                is_success=False,
+                error_message='Device token is required.',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        allowed_platforms = {choice[0] for choice in UserDeviceToken.Platform.choices}
+        if platform not in allowed_platforms:
+            platform = UserDeviceToken.Platform.UNKNOWN
+
+        device_token, _ = UserDeviceToken.objects.update_or_create(
+            token=token,
+            defaults={
+                'user': request.user,
+                'platform': platform,
+                'is_active': True,
+            },
+        )
+
+        return api_response(
+            is_success=True,
+            result={
+                'message': 'Device token registered.',
+                'data': {
+                    'id': device_token.id,
+                    'platform': device_token.platform,
+                    'is_active': device_token.is_active,
+                },
+            },
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class DeviceTokenUnregisterAPI(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        token = (request.data.get('token') or '').strip()
+        if not token:
+            return api_response(
+                is_success=False,
+                error_message='Device token is required.',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        UserDeviceToken.objects.filter(user=request.user, token=token).update(is_active=False)
+        return api_response(
+            is_success=True,
+            result={'message': 'Device token unregistered.'},
+            status_code=status.HTTP_200_OK,
+        )
