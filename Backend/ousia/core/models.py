@@ -314,6 +314,7 @@ class Notification(models.Model):
         LIKE = 'like', 'Like'
         FRIEND_REQUEST = 'friend_request', 'Friend Request'
         MESSAGE = 'message', 'Message'
+        POST_MODERATION = 'post_moderation', 'Post Moderation'
 
     recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
     actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='triggered_notifications')

@@ -11,7 +11,7 @@ import '../models/post.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.6:8000/api';
+  static const String baseUrl = 'http://100.105.91.116:8000/api';
   
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -1001,7 +1001,12 @@ class AuthService {
       final data = jsonDecode(response.body);
 
       if ((data['IsSuccess'] ?? false) == true) {
-        return {'success': true};
+        final result = data['Result'] as Map<String, dynamic>?;
+        return {
+          'success': true,
+          'message': result?['message']?.toString() ?? 'Post created successfully.',
+          'data': result?['data'],
+        };
       }
       final error = data['ErrorMessage'];
       String message;

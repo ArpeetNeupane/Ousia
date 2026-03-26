@@ -187,3 +187,8 @@ username_friend1 = serializers.SerializerMethodField(read_only=True)
 # add text moderation to username and group name as well as when updating them ✅
 # add nepali bad words in regex ✅
 # password reset email make it look good and change the name to ousia-noreply@noreply.com or something ✅
+
+# Today 25th March task:
+# profile pic ma image validation
+# push notification
+# block app after centain amount of screen time

@@ -134,7 +134,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
     setState(() => _isPosting = false);
 
     if (result['success'] == true) {
-      _showSnack('Post created!');
+      _showSnack(result['message']?.toString() ?? 'Post created successfully.');
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
       Navigator.of(context).pop(true);

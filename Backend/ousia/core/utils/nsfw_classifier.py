@@ -112,7 +112,7 @@ GROOMING_REGEX_LOOSE = [
 PROFANITY_REGEX_PATTERNS = [
     r"\bmu+j+i+\b",
     r"\bmu+j+\b",
-    r"\brad+i+\b",
+    r"\bra+n+d+i+\b",
     r"\bchikn+e+\b",
     r"\bma+c+h+i+k+n+e+\b",
     r"\bkhate\b",

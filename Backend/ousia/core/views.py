@@ -1654,6 +1654,24 @@ class AdminModerationActionAPI(generics.GenericAPIView):
         post.moderation_status = new_status
         post.save(update_fields=['status', 'moderation_status'])
 
+        is_approved = action == 'approve'
+        create_notification(
+            recipient=post.posted_by,
+            actor=request.user,
+            notification_type=Notification.NotificationTypes.POST_MODERATION,
+            title='Post approved' if is_approved else 'Post rejected',
+            body=(
+                'Your post has been approved and is now visible.'
+                if is_approved
+                else 'Your post was rejected by moderation review.'
+            ),
+            data={
+                'post_id': post.id,
+                'status': post.status,
+                'action': action,
+            },
+        )
+
         return api_response(
             is_success=True,
             result={
