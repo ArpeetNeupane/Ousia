@@ -27,17 +27,24 @@ class _MessagesPageState extends State<MessagesPage> {
     super.initState();
     AuthService.startNotificationsStream();
     AuthService.messageNotificationTick.addListener(_onIncomingMessageNotification);
+    AuthService.conversationReadTick.addListener(_onConversationReadTick);
     _loadConversations();
   }
 
   @override
   void dispose() {
     AuthService.messageNotificationTick.removeListener(_onIncomingMessageNotification);
+    AuthService.conversationReadTick.removeListener(_onConversationReadTick);
     _searchController.dispose();
     super.dispose();
   }
 
   void _onIncomingMessageNotification() {
+    if (!mounted) return;
+    _loadConversations();
+  }
+
+  void _onConversationReadTick() {
     if (!mounted) return;
     _loadConversations();
   }
@@ -396,10 +403,12 @@ class _MessagesPageState extends State<MessagesPage> {
                               ),
                               title: Text(results[i]['username'], style: GoogleFonts.inter(color: cs.onSurface)),
                               onTap: () async {
+                                final nav = Navigator.of(ctx);
+                                final messenger = ScaffoldMessenger.of(context);
                                 final r = await _service.addParticipant(convo['id'], results[i]['id']);
-                                if (!ctx.mounted) return;
-                                Navigator.pop(ctx);
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                if (!mounted) return;
+                                nav.pop();
+                                messenger.showSnackBar(
                                   SnackBar(content: Text(r['success'] == true ? 'Participant added!' : r['message'] ?? 'Failed')),
                                 );
                               },
@@ -663,6 +672,26 @@ class _MessagesPageState extends State<MessagesPage> {
                                     pfpUrl: _getConversationPfp(convo),
                                     primaryColor: _primary,
                                     onTap: () async {
+                                      final convoId = convo['id'].toString();
+                                      setState(() {
+                                        _conversations = _conversations.map((c) {
+                                          if (c['id'].toString() == convoId) {
+                                            final updated = Map<String, dynamic>.from(c);
+                                            updated['unread_count'] = 0;
+                                            return updated;
+                                          }
+                                          return c;
+                                        }).toList();
+                                        _filtered = _filtered.map((c) {
+                                          if (c['id'].toString() == convoId) {
+                                            final updated = Map<String, dynamic>.from(c);
+                                            updated['unread_count'] = 0;
+                                            return updated;
+                                          }
+                                          return c;
+                                        }).toList();
+                                      });
+
                                       await Navigator.pushNamed(
                                         context,
                                         '/chat',

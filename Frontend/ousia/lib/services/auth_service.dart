@@ -54,10 +54,13 @@ class AuthService {
       FlutterLocalNotificationsPlugin();
   static final ValueNotifier<int> unreadNotifications = ValueNotifier<int>(0);
   static final ValueNotifier<int> messageNotificationTick = ValueNotifier<int>(0);
+  static final ValueNotifier<int> conversationReadTick = ValueNotifier<int>(0);
 
   // Cache
   static const _cacheKey = 'cached_feed';
   static const _cacheTimeKey = 'cached_feed_time';
+  static const _conversationCacheKey = 'cached_conversations';
+  static const _conversationCacheTimeKey = 'cached_conversations_time';
   static const _staleDuration = Duration(minutes: 30);
 
   // Getters
@@ -668,6 +671,7 @@ class AuthService {
     await _secureStorage.delete(key: _refreshTokenKey);
     await _secureStorage.delete(key: _userProfileKey);
     await clearFeedCache();
+    await clearConversationCache();
   }
 
   static String _platformLabel() {
@@ -833,6 +837,8 @@ class AuthService {
         return;
       }
 
+      await AuthService().markConversationRead(conversationId);
+
       final chatArgs = await _buildChatRouteArgs(conversationId);
       await nav.pushNamed(
         RouteNames.chat,
@@ -842,6 +848,25 @@ class AuthService {
     }
 
     await nav.pushNamed(RouteNames.notifications);
+  }
+
+  Future<bool> markConversationRead(String conversationId) async {
+    if (conversationId.isEmpty) return false;
+
+    bool serverOk = false;
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/conversation-mark-read/$conversationId/',
+      );
+      final body = jsonDecode(response.body);
+      serverOk = (body['IsSuccess'] ?? false) == true;
+    } catch (_) {
+      serverOk = false;
+    }
+
+    await _markConversationReadLocally(conversationId);
+    return serverOk;
   }
 
   static Future<Map<String, dynamic>> _buildChatRouteArgs(String conversationId) async {
@@ -887,6 +912,43 @@ class AuthService {
       'pfp_url': null,
       'is_group': false,
     };
+  }
+
+  static Future<void> _markConversationReadLocally(String conversationId) async {
+    if (conversationId.isEmpty) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_conversationCacheKey);
+      if (raw == null) {
+        conversationReadTick.value = conversationReadTick.value + 1;
+        return;
+      }
+
+      final payload = jsonDecode(raw) as Map<String, dynamic>;
+      final conversations = (payload['conversations'] as List?)
+              ?.map((c) => Map<String, dynamic>.from(c as Map))
+              .toList() ??
+          <Map<String, dynamic>>[];
+
+      bool changed = false;
+      for (final convo in conversations) {
+        if (convo['id'].toString() == conversationId && (convo['unread_count'] ?? 0) != 0) {
+          convo['unread_count'] = 0;
+          changed = true;
+          break;
+        }
+      }
+
+      if (changed) {
+        payload['conversations'] = conversations;
+        await prefs.setString(_conversationCacheKey, jsonEncode(payload));
+      }
+    } catch (_) {
+      // Best-effort local UX update only.
+    }
+
+    conversationReadTick.value = conversationReadTick.value + 1;
   }
 
   static Future<void> registerDeviceToken(String token) async {
@@ -1536,10 +1598,30 @@ class AuthService {
   // Messages
   Future<Map<String, dynamic>> fetchConversations() async {
     try {
+      final result = await _fetchConversationsFromNetwork();
+      if (result['success'] == true) {
+        await _writeConversationCache(
+          List<Map<String, dynamic>>.from(result['conversations'] ?? const []),
+        );
+        return result;
+      }
+    } on SocketException {
+      // No internet, fallback to cache.
+    } on TimeoutException {
+      // Network timeout, fallback to cache.
+    } catch (_) {
+      // Fallback to cache for any other issue.
+    }
+
+    return _readConversationCache();
+  }
+
+  Future<Map<String, dynamic>> _fetchConversationsFromNetwork() async {
+    try {
       final response = await authenticatedRequest(
         method: 'GET',
         endpoint: '/conversation-list/',
-      );
+      ).timeout(const Duration(seconds: 10));
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
         final results = body['Result']['data']['results'] as List;
@@ -1549,6 +1631,53 @@ class AuthService {
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
+  }
+
+  Future<void> _writeConversationCache(List<Map<String, dynamic>> conversations) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = jsonEncode({
+        'conversations': conversations,
+      });
+      await prefs.setString(_conversationCacheKey, payload);
+      await prefs.setInt(_conversationCacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>> _readConversationCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_conversationCacheKey);
+      if (raw == null) {
+        return {'success': false, 'message': 'No internet connection.'};
+      }
+
+      final savedAt = prefs.getInt(_conversationCacheTimeKey) ?? 0;
+      final age = DateTime.now().millisecondsSinceEpoch - savedAt;
+      final isStale = age > _staleDuration.inMilliseconds;
+
+      final payload = jsonDecode(raw) as Map<String, dynamic>;
+      final conversations = (payload['conversations'] as List)
+          .map((c) => Map<String, dynamic>.from(c as Map))
+          .toList();
+
+      return {
+        'success': true,
+        'conversations': conversations,
+        'fromCache': true,
+        'isStale': isStale,
+      };
+    } catch (_) {
+      return {'success': false, 'message': 'No internet connection.'};
+    }
+  }
+
+  static Future<void> clearConversationCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_conversationCacheKey);
+      await prefs.remove(_conversationCacheTimeKey);
+    } catch (_) {}
   }
 
   Future<Map<String, dynamic>> fetchNotifications({String? nextUrl}) async {
@@ -1730,6 +1859,7 @@ class AuthService {
       );
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
+        await clearConversationCache();
         final data = body['Result']['data'];
         final currentUsername = AuthService.currentUsername;
         final pfpInfo = data['pfp_info'] as List? ?? [];
@@ -1765,6 +1895,7 @@ class AuthService {
       );
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
+        await clearConversationCache();
         final data = body['Result']['data'];
         return {
           'success': true,
@@ -1785,7 +1916,10 @@ class AuthService {
         method: 'DELETE',
         endpoint: '/conversation-soft-delete-for-user/$conversationId/',
       );
-      if (response.statusCode == 200) return {'success': true};
+      if (response.statusCode == 200) {
+        await clearConversationCache();
+        return {'success': true};
+      }
       final body = jsonDecode(response.body);
       return {'success': false, 'message': body['ErrorMessage'].toString()};
     } catch (e) {
@@ -1801,7 +1935,10 @@ class AuthService {
         body: {'confirmation': true},
       );
       final body = jsonDecode(response.body);
-      if (body['IsSuccess'] == true) return {'success': true};
+      if (body['IsSuccess'] == true) {
+        await clearConversationCache();
+        return {'success': true};
+      }
       return {'success': false, 'message': body['ErrorMessage'].toString()};
     } catch (e) {
       return {'success': false, 'message': e.toString()};
@@ -1816,7 +1953,10 @@ class AuthService {
         body: {'user_ids': [userId]},
       );
       final body = jsonDecode(response.body);
-      if (body['IsSuccess'] == true) return {'success': true};
+      if (body['IsSuccess'] == true) {
+        await clearConversationCache();
+        return {'success': true};
+      }
       return {'success': false, 'message': body['ErrorMessage'].toString()};
     } catch (e) {
       return {'success': false, 'message': e.toString()};
@@ -1831,7 +1971,10 @@ class AuthService {
         body: {'user_ids': [userId], 'confirmation': confirmation},
       );
       final body = jsonDecode(response.body);
-      if ((body['IsSuccess'] ?? body['is_success']) == true) return {'success': true};
+      if ((body['IsSuccess'] ?? body['is_success']) == true) {
+        await clearConversationCache();
+        return {'success': true};
+      }
 
       final result = body['Result'] ?? body['result'];
       if (result is Map && result['requires_confirmation'] == true) {
@@ -1857,7 +2000,10 @@ class AuthService {
         body: {'group_name': groupName},
       );
       final body = jsonDecode(response.body);
-      if (body['IsSuccess'] == true) return {'success': true};
+      if (body['IsSuccess'] == true) {
+        await clearConversationCache();
+        return {'success': true};
+      }
       return {'success': false, 'message': body['ErrorMessage'].toString()};
     } catch (e) {
       return {'success': false, 'message': e.toString()};

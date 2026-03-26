@@ -29,17 +29,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    AuthService.startNotificationsStream(onNotification: (notification) {
-      if (!mounted) return;
-      final body = (notification['body'] ?? '').toString();
-      if (body.isEmpty) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(body),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    });
+    AuthService.startNotificationsStream();
     _refreshNotificationCount();
     _notificationRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       _refreshNotificationCount();

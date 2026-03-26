@@ -66,6 +66,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
     if (confirmed == true && mounted) {
       await AuthService.logout();
+      if (!context.mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil(
         RouteNames.welcome,
         (Route<dynamic> route) => false,
@@ -199,7 +200,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                             if (result['success'] == true) {
                               setSheetState(() => successMessage = 'Password updated successfully!');
                               await AuthService.logout();
-                              if (!mounted) return;
+                              if (!context.mounted) return;
                               Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
                                 RouteNames.login,
                                 (Route<dynamic> route) => false,
@@ -263,6 +264,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 Center(
                   child: GestureDetector(
                     onTap: () async {
+                      final toolbarColor = Theme.of(context).colorScheme.primary;
                       final picker = ImagePicker();
                       final picked = await picker.pickImage(
                         source: ImageSource.gallery,
@@ -278,7 +280,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                         uiSettings: [
                           AndroidUiSettings(
                             toolbarTitle: 'Crop Profile Picture',
-                            toolbarColor: Theme.of(context).colorScheme.primary,
+                            toolbarColor: toolbarColor,
                             toolbarWidgetColor: Colors.white,
                             lockAspectRatio: true,
                           ),
@@ -508,6 +510,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                     ),
                   );
                   if (confirm == true) {
+                    if (!context.mounted) return;
                     _showUpdatePasswordSheet(context);
                   }
                 },
@@ -552,7 +555,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                   if (confirm == true) {
                     final authService = AuthService();
                     final result = await authService.deleteAccount();
-                    if (!mounted) return;
+                    if (!context.mounted) return;
                     if (result['success'] == true) {
                       Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
                         RouteNames.login,

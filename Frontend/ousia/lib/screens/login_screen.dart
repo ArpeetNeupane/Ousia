@@ -219,6 +219,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               final result = await authService.login(username, password);
 
                               if (mounted) setState(() => _isLoading = false);
+                              if (!mounted) return;
 
                               if (result['success']) {
                                 // Navigate admins to main nav so profile/logout remain accessible even if dashboard APIs are not ready.

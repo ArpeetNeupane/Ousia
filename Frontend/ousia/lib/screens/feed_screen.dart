@@ -424,6 +424,7 @@ class _FeedPageState extends State<FeedPage> {
             currentUserId: AuthService.currentUser?.id,
             onDeleteTap: () async {
               final result = await _service.deletePost(_posts[index].id);
+              if (!context.mounted) return;
               if (result['success'] == true) {
                 setState(() => _posts.removeWhere((p) => p.id == _posts[index].id));
               } else {

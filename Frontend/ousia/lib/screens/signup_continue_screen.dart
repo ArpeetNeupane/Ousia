@@ -326,6 +326,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                                     selfieImage: _selfieFile!,
                                     idCardImage: _idCardFile!);
 
+                                if (!mounted) return;
                                 if (mounted) setState(() => _isLoading = false);
 
                                 if (result['success']) {

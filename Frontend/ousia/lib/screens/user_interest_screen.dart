@@ -98,6 +98,7 @@ class _UserInterestScreenState extends State<UserInterestScreen> {
 
     // wait for all requests to complete in parallel
     final results = await Future.wait(futures);
+    if (!mounted) return;
 
     bool anyError = false;
 
