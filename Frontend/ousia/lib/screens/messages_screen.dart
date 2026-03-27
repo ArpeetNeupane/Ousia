@@ -40,7 +40,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _typingDebounce;
 
   static const Color _primary = Color(0xFF7B5CF0);
-  static const String _wsBaseUrl = 'ws://192.168.1.6:8000';
+  static const String _wsBaseUrl = 'ws://192.168.1.10:8000';
 
   String get _currentUsername => AuthService.currentUsername;
   String get _currentUserId => AuthService.currentUser?.id.toString() ?? '';

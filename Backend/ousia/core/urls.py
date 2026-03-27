@@ -23,6 +23,7 @@ from core.views import (
     SessionStartAPI,
     SessionUpdateAPI,
     SessionEndAPI,
+    SessionLimitStatusAPI,
     NotificationListAPI,
     NotificationMarkReadAPI,
     NotificationMarkAllReadAPI,
@@ -58,6 +59,7 @@ urlpatterns = [
     path('session/start/', SessionStartAPI.as_view(), name='session_start'),
     path('session/update/<int:session_id>/', SessionUpdateAPI.as_view(), name='session_update'),
     path('session/end/<int:session_id>/', SessionEndAPI.as_view(), name='session_end'),
+    path('session/limit-status/', SessionLimitStatusAPI.as_view(), name='session_limit_status'),
 
     path('notifications/', NotificationListAPI.as_view(), name='notification_list'),
     path('notifications/read/<int:notification_id>/', NotificationMarkReadAPI.as_view(), name='notification_mark_read'),

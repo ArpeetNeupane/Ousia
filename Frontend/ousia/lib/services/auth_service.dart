@@ -15,23 +15,21 @@ import '../utils/route_names.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.6:8000/api';
-  
+  static const String baseUrl = 'http://192.168.1.10:8000/api';
+
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
-    aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
-    ),
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
   );
-  
+
   // Storage keys
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
   static const String _userProfileKey = 'user_profile';
-  
+
   // In-memory cache
   static String? _accessToken;
   static String? _refreshToken;
@@ -40,7 +38,8 @@ class AuthService {
   static WebSocketChannel? _notificationChannel;
   static StreamSubscription? _notificationSub;
   static Timer? _notificationReconnectTimer;
-  static void Function(Map<String, dynamic> notification)? _notificationCallback;
+  static void Function(Map<String, dynamic> notification)?
+  _notificationCallback;
   static bool _notificationReconnectEnabled = false;
   static StreamSubscription<String>? _fcmTokenRefreshSub;
   static StreamSubscription<RemoteMessage>? _messageOpenedSub;
@@ -49,12 +48,23 @@ class AuthService {
   static bool _localNotificationsInitialized = false;
   static bool _localNotificationsAvailable = true;
   static String? _registeredFcmToken;
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   static final ValueNotifier<int> unreadNotifications = ValueNotifier<int>(0);
-  static final ValueNotifier<int> messageNotificationTick = ValueNotifier<int>(0);
+  static final ValueNotifier<int> messageNotificationTick = ValueNotifier<int>(
+    0,
+  );
   static final ValueNotifier<int> conversationReadTick = ValueNotifier<int>(0);
+  static final ValueNotifier<bool> dailyUsageLocked = ValueNotifier<bool>(
+    false,
+  );
+  static final ValueNotifier<int> remainingDailyUsageSeconds =
+      ValueNotifier<int>(0);
+  static final ValueNotifier<int> dailyUsageLimitSeconds = ValueNotifier<int>(
+    3600,
+  );
 
   // Cache
   static const _cacheKey = 'cached_feed';
@@ -66,10 +76,11 @@ class AuthService {
   // Getters
   static String? get accessToken => _accessToken;
   static Profile? get currentUser => _currentUser;
-  static String get currentUsername => _currentUser?.user?.username ?? _currentUser?.syncedUsername ?? '';
+  static String get currentUsername =>
+      _currentUser?.user?.username ?? _currentUser?.syncedUsername ?? '';
   static bool get isLoggedIn => _accessToken != null && _currentUser != null;
   static int? get activeSessionId => _activeSessionId;
-  
+
   bool _hasCompletedInterests = false;
   bool get hasCompletedInterests => _hasCompletedInterests;
 
@@ -78,13 +89,13 @@ class AuthService {
     try {
       _accessToken = await _secureStorage.read(key: _accessTokenKey);
       _refreshToken = await _secureStorage.read(key: _refreshTokenKey);
-      
+
       final userProfileJson = await _secureStorage.read(key: _userProfileKey);
       if (userProfileJson != null) {
         final userMap = jsonDecode(userProfileJson);
         _currentUser = Profile.fromJson(userMap);
       }
-      
+
       // If we have tokens, validate them
       if (_accessToken != null) {
         final isValid = await _validateToken();
@@ -100,11 +111,14 @@ class AuthService {
     }
   }
 
-  static String _parseBackendErrorMessage(dynamic errorData, [String defaultMessage = 'An error occurred']) {
+  static String _parseBackendErrorMessage(
+    dynamic errorData, [
+    String defaultMessage = 'An error occurred',
+  ]) {
     if (errorData == null) return defaultMessage;
-    
+
     List<String> errorMessages = [];
-    
+
     if (errorData is Map) {
       errorData.forEach((field, messages) {
         if (messages is List) {
@@ -120,30 +134,32 @@ class AuthService {
     } else if (errorData is List && errorData.isNotEmpty) {
       return errorData.first.toString();
     }
-    
+
     return errorMessages.isNotEmpty ? errorMessages.join('\n') : defaultMessage;
   }
 
   // Checking if stored token is still valid
   static Future<bool> _validateToken() async {
     if (_accessToken == null) return false;
-    
+
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/user/profile/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_accessToken',
-        },
-      ).timeout(Duration(seconds: 10));
-      
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/user/profile/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_accessToken',
+            },
+          )
+          .timeout(Duration(seconds: 10));
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         // Handling custom response format
         if (data['IsSuccess'] == true) {
           _currentUser = Profile.fromJson(data['Result']['data']);
           await _secureStorage.write(
-            key: _userProfileKey, 
+            key: _userProfileKey,
             value: jsonEncode(_currentUser!.toJson()),
           );
           return true;
@@ -166,14 +182,17 @@ class AuthService {
   }
 
   // Parse API error messages consistently
-  static String _parseErrorMessage(dynamic errorData, [String defaultMessage = 'An error occurred']) {
+  static String _parseErrorMessage(
+    dynamic errorData, [
+    String defaultMessage = 'An error occurred',
+  ]) {
     if (errorData == null) return defaultMessage;
-    
+
     if (errorData is String) {
       return errorData;
     } else if (errorData is Map) {
       List<String> errorMessages = [];
-      
+
       errorData.forEach((field, messages) {
         if (messages is List) {
           for (var message in messages) {
@@ -187,8 +206,10 @@ class AuthService {
           errorMessages.add(messages.toString());
         }
       });
-      
-      return errorMessages.isNotEmpty ? errorMessages.join('\n') : defaultMessage;
+
+      return errorMessages.isNotEmpty
+          ? errorMessages.join('\n')
+          : defaultMessage;
     } else if (errorData is List && errorData.isNotEmpty) {
       List<String> errorMessages = [];
       for (var error in errorData) {
@@ -196,9 +217,11 @@ class AuthService {
           errorMessages.add(error.toString());
         }
       }
-      return errorMessages.isNotEmpty ? errorMessages.join('\n') : defaultMessage;
+      return errorMessages.isNotEmpty
+          ? errorMessages.join('\n')
+          : defaultMessage;
     }
-    
+
     return defaultMessage;
   }
 
@@ -206,13 +229,8 @@ class AuthService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/login/'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'username': username,
-          'password': password,
-        }),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'password': password}),
       );
 
       final data = jsonDecode(response.body);
@@ -227,7 +245,10 @@ class AuthService {
         _hasCompletedInterests = tokenData['has_completed_interests'] == true;
 
         await _secureStorage.write(key: _accessTokenKey, value: _accessToken!);
-        await _secureStorage.write(key: _refreshTokenKey, value: _refreshToken!);
+        await _secureStorage.write(
+          key: _refreshTokenKey,
+          value: _refreshToken!,
+        );
 
         await _fetchUserProfile();
         await setupPushNotifications();
@@ -239,14 +260,17 @@ class AuthService {
       } else {
         // Handle error case - extract from various error fields
         String errorMessage = 'Login failed.';
-        
+
         // Check for ErrorMessage field (your backend format)
         if (data['ErrorMessage'] != null) {
           errorMessage = _parseBackendErrorMessage(data['ErrorMessage']);
         }
         // Check for error_message field
         else if (data['error_message'] != null) {
-          errorMessage = _parseErrorMessage(data['error_message'], 'Login failed.');
+          errorMessage = _parseErrorMessage(
+            data['error_message'],
+            'Login failed.',
+          );
         }
         // Check for Result field errors
         else if (data['Result'] != null && data['Result']['message'] != null) {
@@ -295,16 +319,14 @@ class AuthService {
 
       // Add images if provided
       if (selfieImage != null) {
-        request.files.add(await http.MultipartFile.fromPath(
-          'selfie_image',
-          selfieImage.path,
-        ));
+        request.files.add(
+          await http.MultipartFile.fromPath('selfie_image', selfieImage.path),
+        );
       }
       if (idCardImage != null) {
-        request.files.add(await http.MultipartFile.fromPath(
-          'idcard_image',
-          idCardImage.path,
-        ));
+        request.files.add(
+          await http.MultipartFile.fromPath('idcard_image', idCardImage.path),
+        );
       }
 
       var streamedResponse = await request.send();
@@ -319,20 +341,24 @@ class AuthService {
       if (data['IsSuccess'] == true || data['is_success'] == true) {
         return {
           'success': true,
-          'message': data['result']?['message'] ?? 
+          'message':
+              data['result']?['message'] ??
               'Account created successfully! Please login to start your adventure.',
         };
       } else {
         // Handle error case - extract from ErrorMessage field
         String errorMessage = 'Registration failed.';
-        
+
         // Check for ErrorMessage field (your backend format)
         if (data['ErrorMessage'] != null) {
           errorMessage = _parseBackendErrorMessage(data['ErrorMessage']);
         }
         // Fallback to error_message field
         else if (data['error_message'] != null) {
-          errorMessage = _parseErrorMessage(data['error_message'], 'Registration failed.');
+          errorMessage = _parseErrorMessage(
+            data['error_message'],
+            'Registration failed.',
+          );
         }
         // Check for Result field errors
         else if (data['Result'] != null && data['Result']['message'] != null) {
@@ -377,7 +403,9 @@ class AuthService {
       final error = body['ErrorMessage'];
       String message;
       if (error is Map) {
-        message = error.values.map((v) => v is List ? v.join(', ') : v.toString()).join('\n');
+        message = error.values
+            .map((v) => v is List ? v.join(', ') : v.toString())
+            .join('\n');
       } else {
         message = error.toString();
       }
@@ -419,7 +447,11 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> resetPassword(
-      String email, String otp, String newPassword, String confirmPassword) async {
+    String email,
+    String otp,
+    String newPassword,
+    String confirmPassword,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/reset-password/'),
@@ -441,7 +473,10 @@ class AuthService {
 
   Future<bool> startSessionIfNeeded() async {
     if (!isLoggedIn) return false;
-    if (_activeSessionId != null) return true;
+    if (_activeSessionId != null) {
+      await fetchSessionLimitStatus();
+      return !dailyUsageLocked.value;
+    }
 
     try {
       final response = await authenticatedRequest(
@@ -449,8 +484,9 @@ class AuthService {
         endpoint: '/session/start/',
       );
       final body = jsonDecode(response.body);
+      final result = body['Result'] ?? body['result'];
+      _applySessionLimit(result);
       if ((body['IsSuccess'] ?? body['is_success']) == true) {
-        final result = body['Result'] ?? body['result'];
         _activeSessionId = result?['session_id'];
         return _activeSessionId != null;
       }
@@ -469,6 +505,8 @@ class AuthService {
         endpoint: '/session/update/$_activeSessionId/',
       );
       final body = jsonDecode(response.body);
+      final result = body['Result'] ?? body['result'];
+      _applySessionLimit(result);
       return (body['IsSuccess'] ?? body['is_success']) == true;
     } catch (_) {
       return false;
@@ -484,6 +522,8 @@ class AuthService {
         endpoint: '/session/end/$_activeSessionId/',
       );
       final body = jsonDecode(response.body);
+      final result = body['Result'] ?? body['result'];
+      _applySessionLimit(result);
       final ok = (body['IsSuccess'] ?? body['is_success']) == true;
       _activeSessionId = null;
       return ok;
@@ -492,7 +532,44 @@ class AuthService {
       return false;
     }
   }
-  
+
+  Future<bool> fetchSessionLimitStatus() async {
+    if (!isLoggedIn) return false;
+
+    try {
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: '/session/limit-status/',
+      );
+      final body = jsonDecode(response.body);
+      final result = body['Result'] ?? body['result'];
+      _applySessionLimit(result);
+      return (body['IsSuccess'] ?? body['is_success']) == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
+  static void _applySessionLimit(dynamic result) {
+    if (result is! Map) return;
+
+    final limit = result['session_limit'];
+    if (limit is! Map) return;
+
+    dailyUsageLocked.value = limit['is_locked'] == true;
+    remainingDailyUsageSeconds.value = _asInt(limit['remaining_seconds']);
+    dailyUsageLimitSeconds.value = _asInt(
+      limit['daily_limit_seconds'],
+      fallback: dailyUsageLimitSeconds.value,
+    );
+  }
 
   Future<void> _fetchUserProfile() async {
     try {
@@ -509,10 +586,10 @@ class AuthService {
         print("RAW PROFILE DATA: $data");
         if (data['IsSuccess'] == true) {
           _currentUser = Profile.fromJson(data['Result']['data']);
-          
+
           // Store user profile securely
           await _secureStorage.write(
-            key: _userProfileKey, 
+            key: _userProfileKey,
             value: jsonEncode(_currentUser!.toJson()),
           );
         }
@@ -544,7 +621,10 @@ class AuthService {
 
       final data = jsonDecode(response.body);
       if ((data['IsSuccess'] ?? false) == true) {
-        return {'success': true, 'profile': Profile.fromJson(data['Result']['data'])};
+        return {
+          'success': true,
+          'profile': Profile.fromJson(data['Result']['data']),
+        };
       }
       return {'success': false, 'message': 'Failed to load profile'};
     } on SocketException {
@@ -590,10 +670,16 @@ class AuthService {
 
       return {
         'success': false,
-        'message': _parseErrorMessage(data['ErrorMessage'], 'Failed to update profile'),
+        'message': _parseErrorMessage(
+          data['ErrorMessage'],
+          'Failed to update profile',
+        ),
       };
     } catch (e) {
-      return {'success': false, 'message': 'Network error: Please check your connection'};
+      return {
+        'success': false,
+        'message': 'Network error: Please check your connection',
+      };
     }
   }
 
@@ -603,28 +689,27 @@ class AuthService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/token/refresh/'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'refresh': _refreshToken,
-        }),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh': _refreshToken}),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['access'] != null) {
           _accessToken = data['access'];
-          
+
           // Update stored access token
-          await _secureStorage.write(key: _accessTokenKey, value: _accessToken!);
+          await _secureStorage.write(
+            key: _accessTokenKey,
+            value: _accessToken!,
+          );
           return true;
         }
       }
     } catch (e) {
       print('Error refreshing token: $e');
     }
-    
+
     return false;
   }
 
@@ -645,27 +730,30 @@ class AuthService {
     //logout endpoint to blacklist tokens
     try {
       if (_refreshToken != null) {
-        await http.post(
-          Uri.parse('$baseUrl/logout/'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $_accessToken',
-          },
-          body: jsonEncode({
-            'refresh_token': _refreshToken,
-          }),
-        ).timeout(const Duration(seconds: 54));
+        await http
+            .post(
+              Uri.parse('$baseUrl/logout/'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $_accessToken',
+              },
+              body: jsonEncode({'refresh_token': _refreshToken}),
+            )
+            .timeout(const Duration(seconds: 54));
       }
     } catch (e) {
       print('Error during logout API call: $e');
     }
-    
+
     // Clear in-memory data
     _accessToken = null;
     _refreshToken = null;
     _currentUser = null;
     unreadNotifications.value = 0;
-    
+    dailyUsageLocked.value = false;
+    remainingDailyUsageSeconds.value = 0;
+    dailyUsageLimitSeconds.value = 3600;
+
     // Clear secure storage
     await _secureStorage.delete(key: _accessTokenKey);
     await _secureStorage.delete(key: _refreshTokenKey);
@@ -706,13 +794,17 @@ class AuthService {
         await registerDeviceToken(token);
       }
 
-      _fcmTokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      _fcmTokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((
+        newToken,
+      ) {
         if (newToken.isNotEmpty) {
           registerDeviceToken(newToken);
         }
       });
 
-      _messageOpenedSub ??= FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      _messageOpenedSub ??= FirebaseMessaging.onMessageOpenedApp.listen((
+        message,
+      ) {
         _handleOpenedPushMessage(message);
       });
 
@@ -726,7 +818,7 @@ class AuthService {
         if (initialMessage != null) {
           _handleOpenedPushMessage(initialMessage);
         }
-    }
+      }
     } catch (e) {
       print('Push setup skipped: $e');
     }
@@ -756,7 +848,8 @@ class AuthService {
           }
 
           try {
-            final payload = jsonDecode(response.payload!) as Map<String, dynamic>;
+            final payload =
+                jsonDecode(response.payload!) as Map<String, dynamic>;
             final type = (payload['notification_type'] ?? '').toString();
             openNotificationTarget(
               notificationType: type,
@@ -775,7 +868,9 @@ class AuthService {
         importance: Importance.high,
       );
       await _localNotifications
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
           ?.createNotificationChannel(androidChannel);
 
       _localNotificationsInitialized = true;
@@ -786,7 +881,8 @@ class AuthService {
   }
 
   static Future<void> _showForegroundNotification(RemoteMessage message) async {
-    if (!_localNotificationsInitialized || !_localNotificationsAvailable) return;
+    if (!_localNotificationsInitialized || !_localNotificationsAvailable)
+      return;
 
     final title = (message.notification?.title ?? 'New notification').trim();
     final body = (message.notification?.body ?? '').trim();
@@ -801,7 +897,8 @@ class AuthService {
           android: AndroidNotificationDetails(
             'ousia_high_importance',
             'Ousia Notifications',
-            channelDescription: 'Used for likes, friend requests, and messages.',
+            channelDescription:
+                'Used for likes, friend requests, and messages.',
             importance: Importance.high,
             priority: Priority.high,
           ),
@@ -822,7 +919,9 @@ class AuthService {
     final nav = navigatorKey.currentState;
     if (nav == null) return;
 
-    final data = Map<String, dynamic>.from(notificationData ?? const <String, dynamic>{});
+    final data = Map<String, dynamic>.from(
+      notificationData ?? const <String, dynamic>{},
+    );
     final type = notificationType.trim().toLowerCase();
 
     if (type == 'friend_request') {
@@ -840,10 +939,7 @@ class AuthService {
       await AuthService().markConversationRead(conversationId);
 
       final chatArgs = await _buildChatRouteArgs(conversationId);
-      await nav.pushNamed(
-        RouteNames.chat,
-        arguments: chatArgs,
-      );
+      await nav.pushNamed(RouteNames.chat, arguments: chatArgs);
       return;
     }
 
@@ -869,10 +965,14 @@ class AuthService {
     return serverOk;
   }
 
-  static Future<Map<String, dynamic>> _buildChatRouteArgs(String conversationId) async {
+  static Future<Map<String, dynamic>> _buildChatRouteArgs(
+    String conversationId,
+  ) async {
     final result = await AuthService().fetchConversations();
     if (result['success'] == true) {
-      final conversations = List<Map<String, dynamic>>.from(result['conversations'] ?? []);
+      final conversations = List<Map<String, dynamic>>.from(
+        result['conversations'] ?? [],
+      );
       final match = conversations.cast<Map<String, dynamic>?>().firstWhere(
         (c) => c != null && c['id'].toString() == conversationId,
         orElse: () => null,
@@ -893,7 +993,8 @@ class AuthService {
         final pfpInfo = (match['pfp_info'] as List?) ?? [];
         final other = pfpInfo.firstWhere(
           (p) => p is Map<String, dynamic> && p['username'] != current,
-          orElse: () => pfpInfo.isNotEmpty ? pfpInfo.first : <String, dynamic>{},
+          orElse:
+              () => pfpInfo.isNotEmpty ? pfpInfo.first : <String, dynamic>{},
         );
 
         final otherMap = Map<String, dynamic>.from(other as Map);
@@ -914,7 +1015,9 @@ class AuthService {
     };
   }
 
-  static Future<void> _markConversationReadLocally(String conversationId) async {
+  static Future<void> _markConversationReadLocally(
+    String conversationId,
+  ) async {
     if (conversationId.isEmpty) return;
 
     try {
@@ -926,14 +1029,16 @@ class AuthService {
       }
 
       final payload = jsonDecode(raw) as Map<String, dynamic>;
-      final conversations = (payload['conversations'] as List?)
+      final conversations =
+          (payload['conversations'] as List?)
               ?.map((c) => Map<String, dynamic>.from(c as Map))
               .toList() ??
           <Map<String, dynamic>>[];
 
       bool changed = false;
       for (final convo in conversations) {
-        if (convo['id'].toString() == conversationId && (convo['unread_count'] ?? 0) != 0) {
+        if (convo['id'].toString() == conversationId &&
+            (convo['unread_count'] ?? 0) != 0) {
           convo['unread_count'] = 0;
           changed = true;
           break;
@@ -962,10 +1067,7 @@ class AuthService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_accessToken',
         },
-        body: jsonEncode({
-          'token': token,
-          'platform': _platformLabel(),
-        }),
+        body: jsonEncode({'token': token, 'platform': _platformLabel()}),
       );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -983,7 +1085,8 @@ class AuthService {
     }
 
     try {
-      final token = _registeredFcmToken ?? await FirebaseMessaging.instance.getToken();
+      final token =
+          _registeredFcmToken ?? await FirebaseMessaging.instance.getToken();
       if (token != null && token.isNotEmpty) {
         await http.post(
           Uri.parse('$baseUrl/device-token/unregister/'),
@@ -1020,16 +1123,15 @@ class AuthService {
         final result = data['Result'] ?? data['result'];
         final List interests = result['data'] ?? [];
 
-        return {
-          'success': true,
-          'interests': interests,
-        };
+        return {'success': true, 'interests': interests};
       } else {
         final error = data['ErrorMessage'] ?? data['error_message'];
         return {
           'success': false,
           'message': _parseBackendErrorMessage(
-              error, 'Failed to load interests.'),
+            error,
+            'Failed to load interests.',
+          ),
         };
       }
     } catch (e) {
@@ -1046,9 +1148,7 @@ class AuthService {
       final response = await authenticatedRequest(
         method: 'POST',
         endpoint: '/user-interests/',
-        body: {
-          'users_interest': interestId,
-        },
+        body: {'users_interest': interestId},
       );
 
       final data = jsonDecode(response.body);
@@ -1066,7 +1166,9 @@ class AuthService {
         return {
           'success': false,
           'message': _parseBackendErrorMessage(
-              error, 'Failed to save interests.'),
+            error,
+            'Failed to save interests.',
+          ),
         };
       }
     } catch (e) {
@@ -1079,7 +1181,10 @@ class AuthService {
   }
 
   // Fetch Posts with cache fallback
-  Future<Map<String, dynamic>> fetchPosts({String? nextUrl, String? username}) async {
+  Future<Map<String, dynamic>> fetchPosts({
+    String? nextUrl,
+    String? username,
+  }) async {
     // Pagination pages are never cached
     if (nextUrl != null) {
       return _fetchPostsFromNetwork(nextUrl: nextUrl);
@@ -1107,15 +1212,17 @@ class AuthService {
     return _readFeedCache();
   }
 
-  Future<Map<String, dynamic>> _fetchPostsFromNetwork({String? nextUrl, String? username}) async {
+  Future<Map<String, dynamic>> _fetchPostsFromNetwork({
+    String? nextUrl,
+    String? username,
+  }) async {
     String endpoint;
     if (nextUrl != null) {
       final uri = Uri.parse(nextUrl);
       endpoint = '/post/?${uri.query}';
     } else if (username != null) {
       endpoint = '/post/?posted_by=$username';
-    }
-    else {
+    } else {
       endpoint = '/post/';
     }
 
@@ -1173,9 +1280,10 @@ class AuthService {
       final isStale = age > _staleDuration.inMilliseconds;
 
       final payload = jsonDecode(raw) as Map<String, dynamic>;
-      final posts = (payload['posts'] as List)
-          .map((p) => Post.fromJson(p as Map<String, dynamic>))
-          .toList();
+      final posts =
+          (payload['posts'] as List)
+              .map((p) => Post.fromJson(p as Map<String, dynamic>))
+              .toList();
 
       return {
         'success': true,
@@ -1196,9 +1304,10 @@ class AuthService {
       if (raw == null) return;
 
       final payload = jsonDecode(raw) as Map<String, dynamic>;
-      final posts = (payload['posts'] as List)
-          .map((p) => Post.fromJson(p as Map<String, dynamic>))
-          .toList();
+      final posts =
+          (payload['posts'] as List)
+              .map((p) => Post.fromJson(p as Map<String, dynamic>))
+              .toList();
 
       final idx = posts.indexWhere((p) => p.id == updated.id);
       if (idx != -1) {
@@ -1252,10 +1361,11 @@ class AuthService {
       if (raw == null) return;
 
       final payload = jsonDecode(raw) as Map<String, dynamic>;
-      final posts = (payload['posts'] as List)
-          .map((p) => Post.fromJson(p as Map<String, dynamic>))
-          .where((p) => p.id != postId)
-          .toList();
+      final posts =
+          (payload['posts'] as List)
+              .map((p) => Post.fromJson(p as Map<String, dynamic>))
+              .where((p) => p.id != postId)
+              .toList();
 
       payload['posts'] = posts.map((p) => p.toJson()).toList();
       await prefs.setString(_cacheKey, jsonEncode(payload));
@@ -1273,7 +1383,7 @@ class AuthService {
       if ((data['IsSuccess'] ?? false) == true) {
         return {'success': true, 'like_id': data['Result']['id']};
       }
-      
+
       return {
         'success': false,
         'message': data['ErrorMessage'] ?? 'Failed to like post',
@@ -1292,7 +1402,7 @@ class AuthService {
       if (response.statusCode == 204 || response.statusCode == 200) {
         return {'success': true};
       }
-      
+
       final data = jsonDecode(response.body);
       return {
         'success': false,
@@ -1342,11 +1452,13 @@ class AuthService {
 
       for (final file in mediaFiles) {
         final mimeType = _getMimeType(file.path);
-        request.files.add(await http.MultipartFile.fromPath(
-          'media', // backend field name
-          file.path,
-          contentType: mimeType,
-        ));
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'media', // backend field name
+            file.path,
+            contentType: mimeType,
+          ),
+        );
       }
 
       final streamed = await request.send();
@@ -1357,23 +1469,23 @@ class AuthService {
         final result = data['Result'] as Map<String, dynamic>?;
         return {
           'success': true,
-          'message': result?['message']?.toString() ?? 'Post created successfully.',
+          'message':
+              result?['message']?.toString() ?? 'Post created successfully.',
           'data': result?['data'],
         };
       }
       final error = data['ErrorMessage'];
       String message;
       if (error is Map) {
-        message = error.values.map((v) => v is List ? v.join(', ') : v.toString()).join('\n');
+        message = error.values
+            .map((v) => v is List ? v.join(', ') : v.toString())
+            .join('\n');
       } else if (error is List) {
         message = error.join(', ');
       } else {
         message = error.toString();
       }
-      return {
-        'success': false,
-        'message': message,
-      };
+      return {'success': false, 'message': message};
     } catch (e) {
       return {'success': false, 'message': 'Network error: $e'};
     }
@@ -1391,7 +1503,8 @@ class AuthService {
         final result = data['Result'] as Map<String, dynamic>?;
         return {
           'success': true,
-          'message': result?['message']?.toString() ?? 'Post fetched successfully.',
+          'message':
+              result?['message']?.toString() ?? 'Post fetched successfully.',
           'data': result?['data'],
         };
       }
@@ -1445,7 +1558,9 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> checkFriendRequestStatus(String toUsername) async {
+  Future<Map<String, dynamic>> checkFriendRequestStatus(
+    String toUsername,
+  ) async {
     try {
       final currentUsername = AuthService.currentUsername;
       final response = await authenticatedRequest(
@@ -1456,9 +1571,10 @@ class AuthService {
       if (body['IsSuccess'] == true) {
         final requests = body['Result']['data']['results'] as List;
         final sentRequest = requests.firstWhere(
-          (r) => r['from_user'] == currentUsername &&
-                r['to_user'] == toUsername &&
-                r['status'] == 'pending',
+          (r) =>
+              r['from_user'] == currentUsername &&
+              r['to_user'] == toUsername &&
+              r['status'] == 'pending',
           orElse: () => null,
         );
         final receivedRequest = requests.firstWhere(
@@ -1476,9 +1592,19 @@ class AuthService {
           'received_request_id': receivedRequest?['id'],
         };
       }
-      return {'success': false, 'sent': false, 'received': false, 'received_request_id': null};
+      return {
+        'success': false,
+        'sent': false,
+        'received': false,
+        'received_request_id': null,
+      };
     } catch (e) {
-      return {'success': false, 'sent': false, 'received': false, 'received_request_id': null};
+      return {
+        'success': false,
+        'sent': false,
+        'received': false,
+        'received_request_id': null,
+      };
     }
   }
 
@@ -1493,12 +1619,15 @@ class AuthService {
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
         final results = body['Result']['data']['results'] as List;
-        final requests = results
-            .map((r) => {
-                  ...Map<String, dynamic>.from(r),
-                  'is_received': r['to_user'] == currentUsername,
-                })
-            .toList();
+        final requests =
+            results
+                .map(
+                  (r) => {
+                    ...Map<String, dynamic>.from(r),
+                    'is_received': r['to_user'] == currentUsername,
+                  },
+                )
+                .toList();
         return {'success': true, 'requests': requests};
       }
       return {'success': false, 'message': 'Failed to load requests'};
@@ -1507,7 +1636,10 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> respondFriendRequest(int id, String status) async {
+  Future<Map<String, dynamic>> respondFriendRequest(
+    int id,
+    String status,
+  ) async {
     try {
       final response = await authenticatedRequest(
         method: 'PATCH',
@@ -1549,8 +1681,9 @@ class AuthService {
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
         final results = body['Result']['data']['results'] as List;
-        final isFriend = results.any((r) =>
-            r['user1'] == userId || r['user2'] == userId);
+        final isFriend = results.any(
+          (r) => r['user1'] == userId || r['user2'] == userId,
+        );
         return {'success': true, 'is_friend': isFriend};
       }
       return {'success': false, 'is_friend': false};
@@ -1578,12 +1711,19 @@ class AuthService {
   }
 
   // Search users
-  Future<Map<String, dynamic>> searchUsers(String query, {String? nextUrl}) async {
+  Future<Map<String, dynamic>> searchUsers(
+    String query, {
+    String? nextUrl,
+  }) async {
     try {
-      final endpoint = nextUrl != null
-          ? '/user/search/?${Uri.parse(nextUrl).query}'
-          : '/user/search/?q=${Uri.encodeComponent(query)}';
-      final response = await authenticatedRequest(method: 'GET', endpoint: endpoint);
+      final endpoint =
+          nextUrl != null
+              ? '/user/search/?${Uri.parse(nextUrl).query}'
+              : '/user/search/?q=${Uri.encodeComponent(query)}';
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: endpoint,
+      );
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
         final results = body['Result']['data'] as List;
@@ -1633,14 +1773,17 @@ class AuthService {
     }
   }
 
-  Future<void> _writeConversationCache(List<Map<String, dynamic>> conversations) async {
+  Future<void> _writeConversationCache(
+    List<Map<String, dynamic>> conversations,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final payload = jsonEncode({
-        'conversations': conversations,
-      });
+      final payload = jsonEncode({'conversations': conversations});
       await prefs.setString(_conversationCacheKey, payload);
-      await prefs.setInt(_conversationCacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+      await prefs.setInt(
+        _conversationCacheTimeKey,
+        DateTime.now().millisecondsSinceEpoch,
+      );
     } catch (_) {}
   }
 
@@ -1657,9 +1800,10 @@ class AuthService {
       final isStale = age > _staleDuration.inMilliseconds;
 
       final payload = jsonDecode(raw) as Map<String, dynamic>;
-      final conversations = (payload['conversations'] as List)
-          .map((c) => Map<String, dynamic>.from(c as Map))
-          .toList();
+      final conversations =
+          (payload['conversations'] as List)
+              .map((c) => Map<String, dynamic>.from(c as Map))
+              .toList();
 
       return {
         'success': true,
@@ -1682,9 +1826,10 @@ class AuthService {
 
   Future<Map<String, dynamic>> fetchNotifications({String? nextUrl}) async {
     try {
-      final endpoint = nextUrl != null
-          ? '/notifications/?${Uri.parse(nextUrl).query}'
-          : '/notifications/';
+      final endpoint =
+          nextUrl != null
+              ? '/notifications/?${Uri.parse(nextUrl).query}'
+              : '/notifications/';
 
       final response = await authenticatedRequest(
         method: 'GET',
@@ -1710,7 +1855,8 @@ class AuthService {
         }
 
         final items = (data as List?) ?? [];
-        unreadNotifications.value = items.where((n) => n['is_read'] != true).length;
+        unreadNotifications.value =
+            items.where((n) => n['is_read'] != true).length;
         return {
           'success': true,
           'items': List<Map<String, dynamic>>.from(items),
@@ -1797,25 +1943,34 @@ class AuthService {
 
     try {
       _notificationChannel = WebSocketChannel.connect(uri);
-      _notificationSub = _notificationChannel!.stream.listen((event) {
-        try {
-          final payload = jsonDecode(event.toString()) as Map<String, dynamic>;
-          if (payload['notification'] is Map) {
-            final notification = Map<String, dynamic>.from(payload['notification']);
-            if (notification['is_read'] != true) {
-              unreadNotifications.value = unreadNotifications.value + 1;
+      _notificationSub = _notificationChannel!.stream.listen(
+        (event) {
+          try {
+            final payload =
+                jsonDecode(event.toString()) as Map<String, dynamic>;
+            if (payload['notification'] is Map) {
+              final notification = Map<String, dynamic>.from(
+                payload['notification'],
+              );
+              if (notification['is_read'] != true) {
+                unreadNotifications.value = unreadNotifications.value + 1;
+              }
+              if ((notification['notification_type'] ?? '').toString() ==
+                  'message') {
+                messageNotificationTick.value =
+                    messageNotificationTick.value + 1;
+              }
+              _notificationCallback?.call(notification);
             }
-            if ((notification['notification_type'] ?? '').toString() == 'message') {
-              messageNotificationTick.value = messageNotificationTick.value + 1;
-            }
-            _notificationCallback?.call(notification);
-          }
-        } catch (_) {}
-      }, onDone: () {
-        _handleNotificationSocketDisconnect();
-      }, onError: (_) {
-        _handleNotificationSocketDisconnect();
-      });
+          } catch (_) {}
+        },
+        onDone: () {
+          _handleNotificationSocketDisconnect();
+        },
+        onError: (_) {
+          _handleNotificationSocketDisconnect();
+        },
+      );
 
       AuthService().refreshUnreadNotificationCount();
     } catch (_) {
@@ -1855,7 +2010,10 @@ class AuthService {
       final response = await authenticatedRequest(
         method: 'POST',
         endpoint: '/conversation-create/',
-        body: {'participants': [userId], 'is_group': false},
+        body: {
+          'participants': [userId],
+          'is_group': false,
+        },
       );
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
@@ -1910,7 +2068,9 @@ class AuthService {
   }
 
   // Conversation options
-  Future<Map<String, dynamic>> deleteConversationForUser(String conversationId) async {
+  Future<Map<String, dynamic>> deleteConversationForUser(
+    String conversationId,
+  ) async {
     try {
       final response = await authenticatedRequest(
         method: 'DELETE',
@@ -1945,12 +2105,17 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> addParticipant(String conversationId, int userId) async {
+  Future<Map<String, dynamic>> addParticipant(
+    String conversationId,
+    int userId,
+  ) async {
     try {
       final response = await authenticatedRequest(
         method: 'POST',
         endpoint: '/add_participant/$conversationId/',
-        body: {'user_ids': [userId]},
+        body: {
+          'user_ids': [userId],
+        },
       );
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
@@ -1963,12 +2128,19 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> removeParticipant(String conversationId, int userId, {bool confirmation = false}) async {
+  Future<Map<String, dynamic>> removeParticipant(
+    String conversationId,
+    int userId, {
+    bool confirmation = false,
+  }) async {
     try {
       final response = await authenticatedRequest(
         method: 'POST',
         endpoint: '/remove_participant/$conversationId/',
-        body: {'user_ids': [userId], 'confirmation': confirmation},
+        body: {
+          'user_ids': [userId],
+          'confirmation': confirmation,
+        },
       );
       final body = jsonDecode(response.body);
       if ((body['IsSuccess'] ?? body['is_success']) == true) {
@@ -1981,18 +2153,27 @@ class AuthService {
         return {
           'success': false,
           'requires_confirmation': true,
-          'message': result['message']?.toString() ?? 'This action requires confirmation.',
+          'message':
+              result['message']?.toString() ??
+              'This action requires confirmation.',
         };
       }
 
-      final errorMessage = body['ErrorMessage'] ?? body['error_message'] ?? result?['message'];
-      return {'success': false, 'message': errorMessage?.toString() ?? 'Failed to remove participant'};
+      final errorMessage =
+          body['ErrorMessage'] ?? body['error_message'] ?? result?['message'];
+      return {
+        'success': false,
+        'message': errorMessage?.toString() ?? 'Failed to remove participant',
+      };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  Future<Map<String, dynamic>> updateConversation(String conversationId, String groupName) async {
+  Future<Map<String, dynamic>> updateConversation(
+    String conversationId,
+    String groupName,
+  ) async {
     try {
       final response = await authenticatedRequest(
         method: 'PATCH',
@@ -2034,7 +2215,21 @@ class AuthService {
         endpoint: '/admin/dashboard/screentime/',
       );
       final body = jsonDecode(response.body);
-      return List<Map<String, dynamic>>.from(body);
+
+      // Standard backend shape: { IsSuccess: true, Result: [ ... ] }
+      if ((body['IsSuccess'] ?? body['is_success']) == true) {
+        final result = body['Result'] ?? body['result'] ?? [];
+        if (result is List) {
+          return List<Map<String, dynamic>>.from(result);
+        }
+      }
+
+      // Backward-compatible fallback if endpoint ever returns a raw list.
+      if (body is List) {
+        return List<Map<String, dynamic>>.from(body);
+      }
+
+      return [];
     } catch (e) {
       return [];
     }
@@ -2059,7 +2254,10 @@ class AuthService {
 
       return {
         'success': false,
-        'message': _parseBackendErrorMessage(body['ErrorMessage'], 'Failed to load moderation queue'),
+        'message': _parseBackendErrorMessage(
+          body['ErrorMessage'],
+          'Failed to load moderation queue',
+        ),
       };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
@@ -2074,10 +2272,7 @@ class AuthService {
       final response = await authenticatedRequest(
         method: 'POST',
         endpoint: '/admin/moderation/action/',
-        body: {
-          'post_id': postId,
-          'action': action,
-        },
+        body: {'post_id': postId, 'action': action},
       );
 
       final body = jsonDecode(response.body);
@@ -2087,7 +2282,10 @@ class AuthService {
 
       return {
         'success': false,
-        'message': _parseBackendErrorMessage(body['ErrorMessage'], 'Failed to update moderation status'),
+        'message': _parseBackendErrorMessage(
+          body['ErrorMessage'],
+          'Failed to update moderation status',
+        ),
       };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
@@ -2115,13 +2313,25 @@ class AuthService {
         response = await http.get(uri, headers: headers);
         break;
       case 'POST':
-        response = await http.post(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
+        response = await http.post(
+          uri,
+          headers: headers,
+          body: body != null ? jsonEncode(body) : null,
+        );
         break;
       case 'PUT':
-        response = await http.put(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
+        response = await http.put(
+          uri,
+          headers: headers,
+          body: body != null ? jsonEncode(body) : null,
+        );
         break;
       case 'PATCH':
-        response = await http.patch(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
+        response = await http.patch(
+          uri,
+          headers: headers,
+          body: body != null ? jsonEncode(body) : null,
+        );
         break;
       case 'DELETE':
         response = await http.delete(uri, headers: headers);
@@ -2136,20 +2346,32 @@ class AuthService {
       if (refreshed) {
         // Update headers with new token
         headers['Authorization'] = 'Bearer $_accessToken';
-        
+
         // Retry the request
         switch (method.toUpperCase()) {
           case 'GET':
             response = await http.get(uri, headers: headers);
             break;
           case 'POST':
-            response = await http.post(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
+            response = await http.post(
+              uri,
+              headers: headers,
+              body: body != null ? jsonEncode(body) : null,
+            );
             break;
           case 'PUT':
-            response = await http.put(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
+            response = await http.put(
+              uri,
+              headers: headers,
+              body: body != null ? jsonEncode(body) : null,
+            );
             break;
           case 'PATCH':
-            response = await http.patch(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
+            response = await http.patch(
+              uri,
+              headers: headers,
+              body: body != null ? jsonEncode(body) : null,
+            );
             break;
           case 'DELETE':
             response = await http.delete(uri, headers: headers);

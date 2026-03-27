@@ -26,6 +26,7 @@ from drf_yasg.utils import swagger_auto_schema
 
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.utils import timezone
 
 
 class ConversationListAPI(generics.ListAPIView):
@@ -608,5 +609,41 @@ class LeaveGroupAPI(APIView):
         return api_response(
             is_success=True,
             result={"message": "You have left the group."},
+            status_code=status.HTTP_200_OK
+        )
+
+
+class MarkConversationReadAPI(APIView):
+    permission_classes = [IsAuthenticated, BelongsToConversation]
+
+    def get_object(self):
+        return get_object_or_404(Conversation, id=self.kwargs["id"])
+
+    @swagger_auto_schema(
+        operation_description="Mark conversation as read for the current user.",
+        responses={
+            200: openapi.Response(
+                description="Conversation marked as read",
+                examples={"application/json": {
+                    "is_success": True,
+                    "result": {"message": "Conversation marked as read."}
+                }},
+            ),
+            403: "Permission denied",
+            404: "Conversation not found"
+        },
+        tags=["Conversation Utilities"]
+    )
+    def post(self, request, id):
+        conversation = self.get_object()
+
+        ConversationParticipant.objects.filter(
+            conversation=conversation,
+            user=request.user,
+        ).update(last_read_at=timezone.now())
+
+        return api_response(
+            is_success=True,
+            result={"message": "Conversation marked as read."},
             status_code=status.HTTP_200_OK
         )

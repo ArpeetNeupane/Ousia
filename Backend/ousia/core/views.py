@@ -36,6 +36,7 @@ from core.notifications import create_notification
 from accounts.models import User
 from accounts.interest_sync import get_user_interest_hashtag_ids
 from myproject.utils import api_response
+from django.conf import settings
 
 from rest_framework import generics, status, filters
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -55,6 +56,52 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 import cloudinary, os, tempfile, random, datetime
 from datetime import timedelta
+
+
+def _daily_usage_status(user, reference_time=None):
+    now = reference_time or timezone.now()
+    local_now = timezone.localtime(now)
+    day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1)
+    daily_limit_seconds = int(getattr(settings, 'DAILY_USAGE_LIMIT_SECONDS', 3600))
+
+    sessions = UserSession.objects.filter(
+        user=user,
+        start_time__lt=day_end,
+    ).filter(
+        Q(end_time__gt=day_start) | Q(end_time__isnull=True)
+    )
+
+    used_seconds = 0
+    for session in sessions:
+        start = max(session.start_time, day_start)
+        end = min(session.end_time or now, now)
+        if end > start:
+            used_seconds += int((end - start).total_seconds())
+
+    remaining_seconds = max(daily_limit_seconds - used_seconds, 0)
+    used_minutes = used_seconds / 60.0
+    remaining_minutes = remaining_seconds / 60.0
+
+    print(
+        "###############################################",
+        "[USAGE_LIMIT_DEBUG] "
+        f"user={user.username} "
+        f"used_seconds={used_seconds} "
+        f"used_minutes={used_minutes:.2f} "
+        f"remaining_seconds={remaining_seconds} "
+        f"remaining_minutes={remaining_minutes:.2f} "
+        f"daily_limit_seconds={daily_limit_seconds} "
+        f"is_locked={remaining_seconds <= 0}"
+    )
+
+    return {
+        'daily_limit_seconds': daily_limit_seconds,
+        'used_seconds': used_seconds,
+        'remaining_seconds': remaining_seconds,
+        'is_locked': remaining_seconds <= 0,
+        'resets_at': day_end.isoformat(),
+    }
 
 
 
@@ -1544,11 +1591,18 @@ class AdminDashboardSummaryAPI(generics.GenericAPIView):
             status=Post.ModerationStatus.PENDING_REVIEW,
         ).count()
 
-        active_poster_ids = Post.objects.filter(is_deleted=False).values_list('posted_by_id', flat=True).distinct()
-        active_posters = len(active_poster_ids)
-        silent_users = max(total_users - active_posters, 0)
+        logged_in_user_ids = UserSession.objects.filter(
+            start_time__gte=month_ago
+        ).values_list('user_id', flat=True).distinct()
+        active_session_users = logged_in_user_ids.count()
 
-        active_session_users = UserSession.objects.filter(start_time__gte=month_ago).values('user_id').distinct().count()
+        active_posters = Post.objects.filter(
+            is_deleted=False,
+            created_at__gte=month_ago,
+            posted_by_id__in=logged_in_user_ids,
+        ).values('posted_by_id').distinct().count()
+        silent_users = max(active_session_users - active_posters, 0)
+
         retention_rate = round((active_session_users / total_users) * 100, 1) if total_users else 0.0
 
         return api_response(
@@ -1691,13 +1745,25 @@ class SessionStartAPI(generics.GenericAPIView):
     serializer_class = UserSessionStartSerializer
 
     def post(self, request, *args, **kwargs):
+        limit_status = _daily_usage_status(request.user)
+        if limit_status['is_locked']:
+            return api_response(
+                is_success=False,
+                error_message='Daily usage limit reached.',
+                result={'session_limit': limit_status},
+                status_code=status.HTTP_423_LOCKED,
+            )
+
         session = UserSession.objects.create(user=request.user)
         data = self.get_serializer(session).data
+
+        limit_status = _daily_usage_status(request.user)
         return api_response(
             is_success=True,
             result={
                 'session_id': data['id'],
                 'data': data,
+                'session_limit': limit_status,
             },
             status_code=status.HTTP_201_CREATED,
         )
@@ -1709,16 +1775,32 @@ class SessionUpdateAPI(generics.GenericAPIView):
     serializer_class = UserSessionStartSerializer
 
     def patch(self, request, *args, **kwargs):
+        now = timezone.now()
         session = get_object_or_404(UserSession, id=self.kwargs['session_id'], user=request.user)
-        session.end_time = timezone.now()
+        session.end_time = now
         session.save(update_fields=['end_time', 'duration_seconds'])
 
+        limit_status = _daily_usage_status(request.user, reference_time=now)
         data = self.get_serializer(session).data
+
+        if limit_status['is_locked']:
+            return api_response(
+                is_success=False,
+                error_message='Daily usage limit reached.',
+                result={
+                    'session_id': data['id'],
+                    'data': data,
+                    'session_limit': limit_status,
+                },
+                status_code=status.HTTP_423_LOCKED,
+            )
+
         return api_response(
             is_success=True,
             result={
                 'session_id': data['id'],
                 'data': data,
+                'session_limit': limit_status,
             },
             status_code=status.HTTP_200_OK,
         )
@@ -1730,17 +1812,32 @@ class SessionEndAPI(generics.GenericAPIView):
     serializer_class = UserSessionStartSerializer
 
     def post(self, request, *args, **kwargs):
+        now = timezone.now()
         session = get_object_or_404(UserSession, id=self.kwargs['session_id'], user=request.user)
-        session.end_time = timezone.now()
+        session.end_time = now
         session.save(update_fields=['end_time', 'duration_seconds'])
 
+        limit_status = _daily_usage_status(request.user, reference_time=now)
         data = self.get_serializer(session).data
         return api_response(
             is_success=True,
             result={
                 'session_id': data['id'],
                 'data': data,
+                'session_limit': limit_status,
             },
+            status_code=status.HTTP_200_OK,
+        )
+
+
+class SessionLimitStatusAPI(generics.GenericAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        return api_response(
+            is_success=True,
+            result={'session_limit': _daily_usage_status(request.user)},
             status_code=status.HTTP_200_OK,
         )
 
