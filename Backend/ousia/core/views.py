@@ -33,6 +33,7 @@ from core.permissions import OwnsObjectOrAdmin, IsOwnerOfLike
 from core.filters import PostFilter
 from core.utils.nsfw_classifier import moderate_post, NSFWVerdict
 from core.notifications import create_notification
+from core.email_alerts import send_moderation_parent_email
 from accounts.models import User
 from accounts.interest_sync import get_user_interest_hashtag_ids
 from myproject.utils import api_response
@@ -761,6 +762,15 @@ class PostListCreateAPI(generics.ListCreateAPIView):
                         pass
 
             if mod_result.verdict == NSFWVerdict.BLOCK:
+                send_moderation_parent_email(
+                    user=request.user,
+                    content_type='post',
+                    moderation_status='blocked',
+                    reason=mod_result.reason,
+                    score=mod_result.score,
+                    label=mod_result.label,
+                    model_used=mod_result.model_used,
+                )
                 return api_response(
                     is_success=False,
                     error_message={
@@ -769,10 +779,13 @@ class PostListCreateAPI(generics.ListCreateAPIView):
                     status_code=status.HTTP_400_BAD_REQUEST
                 )
         
+            #determining moderation status before saving
+            moderation_status_value = 'pending_review' if mod_result.verdict == NSFWVerdict.REVIEW else 'approved'
+            
+            #saving post with actual moderation status
             post = serializer.save()
-
-            post.moderation_status = 'pending_review' if mod_result.verdict == NSFWVerdict.REVIEW else 'approved'
-            post.status = post.moderation_status
+            post.moderation_status = moderation_status_value
+            post.status = moderation_status_value
             post.ai_score = mod_result.score
             post.moderation_score = mod_result.score
             post.moderation_label = mod_result.label
@@ -784,17 +797,32 @@ class PostListCreateAPI(generics.ListCreateAPIView):
                 'moderation_label', 'moderation_model', 'moderation_reason'
             ])
 
+            if post.status == Post.ModerationStatus.PENDING_REVIEW:
+                send_moderation_parent_email(
+                    user=request.user,
+                    content_type='post',
+                    moderation_status='pending_review',
+                    reason=mod_result.reason,
+                    score=mod_result.score,
+                    label=mod_result.label,
+                    model_used=mod_result.model_used,
+                )
+
             success_message = (
                 "Post submitted for review."
                 if post.status == Post.ModerationStatus.PENDING_REVIEW
                 else "Post creation successful."
             )
 
+            #not returning post data if it's not approved (pending review or blocked)
+            #so that frontend doesn't display it in feed temporarily
+            post_data = serializer.data if post.status == Post.ModerationStatus.APPROVED else None
+
             return api_response(
                 is_success=True,
                 result={
                     "message": success_message,
-                    "data": serializer.data
+                    "data": post_data
                 },
                 status_code=status.HTTP_201_CREATED
             )

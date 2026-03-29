@@ -409,6 +409,7 @@ class _FeedPageState extends State<FeedPage> {
       onRefresh: _loadPosts,
       child: ListView.builder(
         controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
         itemCount: _posts.length + (_isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == _posts.length) {

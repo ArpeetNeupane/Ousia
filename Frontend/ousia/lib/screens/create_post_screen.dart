@@ -6,6 +6,7 @@ import 'package:ousia/services/auth_service.dart';
 
 enum PostVisibility {
   public('public', 'Public', Icons.public),
+  private('private', 'Private', Icons.lock),
   friendsOnly('friends_only', 'Friends Only', Icons.people);
 
   final String value;
@@ -30,6 +31,7 @@ class CreatePostPage extends StatefulWidget {
 class _CreatePostPageState extends State<CreatePostPage> {
   final AuthService _service = AuthService();
   final TextEditingController _captionController = TextEditingController();
+  final FocusNode _captionFocusNode = FocusNode();
   List<Map<String, dynamic>> _hashtags = [];
   List<int> _selectedHashtagIds = [];
   List<String> _selectedHashtagNames = [];
@@ -44,7 +46,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
   bool _profileLoading = true;
 
   final List<_SelectedMedia> _mediaFiles = [];
-  PostVisibility _visibility = PostVisibility.public;
+  PostVisibility _visibility = PostVisibility.friendsOnly;
   bool _isPosting = false;
 
   static const int _maxTotal = 5;
@@ -62,6 +64,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
   @override
   void dispose() {
     _captionController.dispose();
+    _captionFocusNode.dispose();
     super.dispose();
   }
 
@@ -389,26 +392,27 @@ class _CreatePostPageState extends State<CreatePostPage> {
       ),
       child: TextField(
         controller: _captionController,
+        focusNode: _captionFocusNode,
         maxLines: 5,
         minLines: 3,
         maxLength: 500,
         style: TextStyle(color: onSurface),
-        decoration: InputDecoration(
-          hintText: "What's on your mind?",
-          hintStyle: TextStyle(color: onSurface.withOpacity(0.4), fontSize: 15),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: surfaceColor,
-          contentPadding: const EdgeInsets.all(16),
-          counterStyle: TextStyle(
-            color: onSurface.withOpacity(0.4),
-            fontSize: 11,
+          decoration: InputDecoration(
+            hintText: "What's on your mind?",
+            hintStyle: TextStyle(color: onSurface.withOpacity(0.4), fontSize: 15),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            filled: true,
+            fillColor: surfaceColor,
+            contentPadding: const EdgeInsets.all(16),
+            counterStyle: TextStyle(
+              color: onSurface.withOpacity(0.4),
+              fontSize: 11,
+            ),
           ),
         ),
-      ),
     );
   }
 

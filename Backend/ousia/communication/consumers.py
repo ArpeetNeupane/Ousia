@@ -8,9 +8,11 @@ from django.core.exceptions import ValidationError
 from accounts.models import User
 from communication.models import Conversation, Message, ConversationParticipant
 from communication.serializers import MessageCreateSerializer
-from communication.utils import should_block_message
+from communication.utils import moderate_message
 from core.models import Notification
 from core.notifications import acreate_notification_by_ids
+from core.email_alerts import send_moderation_parent_email
+from core.utils.nsfw_classifier import NSFWVerdict
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -116,7 +118,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
         
         #checking message content for inappropriate material
         if message_type in ['text', 'system'] and content:
-            if should_block_message(content):
+            mod_result = moderate_message(content)
+
+            if mod_result.verdict in [NSFWVerdict.BLOCK, NSFWVerdict.REVIEW]:
+                moderation_status = 'blocked' if mod_result.verdict == NSFWVerdict.BLOCK else 'pending_review'
+                await self.send_parent_moderation_alert(
+                    content_type='message',
+                    moderation_status=moderation_status,
+                    reason=mod_result.reason,
+                    score=mod_result.score,
+                    label=mod_result.label,
+                    model_used=mod_result.model_used,
+                )
+
+            if mod_result.verdict == NSFWVerdict.BLOCK:
                 await self.send_error('This message contains inappropriate content and cannot be sent.')
                 return
 
@@ -339,6 +354,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 conversation_id=self.conversation_id,
                 deleted_for_user=False,
             ).exclude(user_id=self.user.id).values_list('user_id', flat=True)
+        )
+
+    @database_sync_to_async
+    def send_parent_moderation_alert(self, content_type, moderation_status, reason, score, label, model_used):
+        send_moderation_parent_email(
+            user=self.user,
+            content_type=content_type,
+            moderation_status=moderation_status,
+            reason=reason,
+            score=score,
+            label=label,
+            model_used=model_used,
         )
 
     async def notify_recipients_for_message(self, message, content, message_type):

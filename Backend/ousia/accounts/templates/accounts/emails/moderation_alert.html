@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ousia Safety Alert</title>
+</head>
+<body style="margin:0; padding:0; background:#f4f6fb; font-family:Arial, Helvetica, sans-serif; color:#1f2937;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f6fb; padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px; background:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 12px 30px rgba(15,23,42,0.08);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#0f766e,#0ea5e9); padding:24px; color:#ffffff;">
+              <h1 style="margin:0; font-size:24px; line-height:1.2; font-weight:700;">Ousia</h1>
+              <p style="margin:8px 0 0; font-size:14px; opacity:0.95;">Content Safety Alert</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 12px; font-size:15px; line-height:1.5;">Hi {{ username }}'s parent/guardian,</p>
+              <p style="margin:0 0 12px; font-size:15px; line-height:1.5;">Your ward/child has attempted to post content that may violate our community guidelines.</p>
+              <p style="margin:0 0 18px; font-size:15px; line-height:1.6;">
+                {{ status_message }}
+              </p>
+
+              <div style="margin:0 0 18px; text-align:center;">
+                <span style="display:inline-block; font-size:14px; font-weight:700; color:#ffffff; background:{{ status_badge_color }}; border-radius:999px; padding:8px 14px;">
+                  {{ status_title }}
+                </span>
+              </div>
+
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin:0 0 14px;">
+                <p style="margin:0 0 8px; font-size:13px; color:#334155;"><strong>Content type:</strong> {{ content_type|title }}</p>
+                <p style="margin:0 0 8px; font-size:13px; color:#334155;"><strong>Reason:</strong> {{ reason }}</p>
+                <p style="margin:0 0 8px; font-size:13px; color:#334155;"><strong>Score:</strong> {{ score }}</p>
+                <p style="margin:0 0 8px; font-size:13px; color:#334155;"><strong>Label:</strong> {{ label }}</p>
+                <p style="margin:0; font-size:13px; color:#334155;"><strong>Model:</strong> {{ model_used }}</p>
+              </div>
+
+              <p style="margin:0; font-size:14px; line-height:1.6; color:#64748b;">
+                If this seems incorrect, please contact the support team.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px 24px; border-top:1px solid #e2e8f0;">
+              <p style="margin:0; font-size:12px; line-height:1.5; color:#94a3b8;">
+                This is an automated message from Ousia. Please do not reply.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
