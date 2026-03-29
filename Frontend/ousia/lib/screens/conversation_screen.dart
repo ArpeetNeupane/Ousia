@@ -113,6 +113,7 @@ class _MessagesPageState extends State<MessagesPage> {
           'name': username,
           'pfp_url': result['pfp_url'],
           'is_group': false,
+          'other_user_id': userId,
         },
       );
       // Refresh conversations when returning
@@ -672,6 +673,17 @@ class _MessagesPageState extends State<MessagesPage> {
                                     pfpUrl: _getConversationPfp(convo),
                                     primaryColor: _primary,
                                     onTap: () async {
+                                      final currentUserId = AuthService.currentUser?.id;
+                                      int? otherUserId;
+                                      if (convo['is_group'] != true) {
+                                        final participants = convo['participants'] as List? ?? [];
+                                        final other = participants.firstWhere(
+                                          (p) => p['id'] != currentUserId,
+                                          orElse: () => <String, dynamic>{},
+                                        );
+                                        otherUserId = other['id'] as int?;
+                                      }
+
                                       final convoId = convo['id'].toString();
                                       setState(() {
                                         _conversations = _conversations.map((c) {
@@ -701,6 +713,7 @@ class _MessagesPageState extends State<MessagesPage> {
                                           'pfp_url': _getConversationPfp(convo),
                                           'is_group': convo['is_group'],
                                           'group_name': convo['group_name'],
+                                          'other_user_id': otherUserId,
                                         },
                                       );
                                     _loadConversations();
@@ -726,7 +739,7 @@ class _MessagesPageState extends State<MessagesPage> {
       builder: (_) => _NewConversationSheet(
         service: _service,
         primaryColor: _primary,
-        onConversationCreated: (conversationId, name, pfpUrl, isGroup) {
+        onConversationCreated: (conversationId, name, pfpUrl, isGroup, otherUserId) {
           Navigator.pop(context);
           _loadConversations();
           Navigator.pushNamed(
@@ -737,6 +750,7 @@ class _MessagesPageState extends State<MessagesPage> {
               'name': name,
               'pfp_url': pfpUrl,
               'is_group': isGroup,
+              'other_user_id': otherUserId,
             },
           );
           _loadConversations();
@@ -883,7 +897,7 @@ class _ConversationTile extends StatelessWidget {
 class _NewConversationSheet extends StatefulWidget {
   final AuthService service;
   final Color primaryColor;
-  final Function(String conversationId, String name, String? pfpUrl, bool isGroup)
+  final Function(String conversationId, String name, String? pfpUrl, bool isGroup, int? otherUserId)
       onConversationCreated;
 
   const _NewConversationSheet({
@@ -946,14 +960,14 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
           : _groupNameController.text.trim(),
       );
       if (result['success']) {
-        widget.onConversationCreated(result['conversation_id'], result['name'], null, true);
+        widget.onConversationCreated(result['conversation_id'], result['name'], null, true, null);
       }
     } else {
       // Create 1-on-1
       final user = _selectedUsers.first;
       final result = await widget.service.createOrGetConversation(user['id']);
       if (result['success']) {
-        widget.onConversationCreated(result['conversation_id'], user['username'], user['pfp_url'], false);
+        widget.onConversationCreated(result['conversation_id'], user['username'], user['pfp_url'], false, user['id'] as int?);
       }
     }
     if (mounted) setState(() => _isCreating = false);

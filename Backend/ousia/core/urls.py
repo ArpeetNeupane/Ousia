@@ -16,6 +16,8 @@ from core.views import (
     FriendRequestResponseAPI,
     FriendRequestDeleteAPI,
     FriendListAPI,
+    UnfriendAPI,
+    BlockAPI,
     AdminDashboardSummaryAPI,
     AdminDashboardScreenTimeAPI,
     AdminModerationQueueAPI,
@@ -50,6 +52,8 @@ urlpatterns = [
     path('friend_request_response/<int:pk>/', FriendRequestResponseAPI.as_view(), name='friend_request_response'),
     path('friend_request_delete/<int:pk>/', FriendRequestDeleteAPI.as_view(), name='friend_request_delete'),
     path('friends/', FriendListAPI.as_view(), name='friend_list'),
+    path('friends/unfriend/<int:user_id>/', UnfriendAPI.as_view(), name='unfriend'),
+    path('friends/block/<int:user_id>/', BlockAPI.as_view(), name='block'),
 
     path('admin/dashboard/summary/', AdminDashboardSummaryAPI.as_view(), name='admin_dashboard_summary'),
     path('admin/dashboard/screentime/', AdminDashboardScreenTimeAPI.as_view(), name='admin_dashboard_screentime'),

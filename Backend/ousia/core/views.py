@@ -60,8 +60,8 @@ from datetime import timedelta
 
 def _daily_usage_status(user, reference_time=None):
     now = reference_time or timezone.now()
-    local_now = timezone.localtime(now)
-    day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    utc_now = now.astimezone(datetime.timezone.utc) if now.tzinfo else timezone.make_aware(now, datetime.timezone.utc)
+    day_start = utc_now.replace(hour=0, minute=0, second=0, microsecond=0)
     day_end = day_start + timedelta(days=1)
     daily_limit_seconds = int(getattr(settings, 'DAILY_USAGE_LIMIT_SECONDS', 3600))
 
@@ -72,12 +72,28 @@ def _daily_usage_status(user, reference_time=None):
         Q(end_time__gt=day_start) | Q(end_time__isnull=True)
     )
 
-    used_seconds = 0
+    intervals = []
     for session in sessions:
         start = max(session.start_time, day_start)
-        end = min(session.end_time or now, now)
+        end = min(session.end_time or utc_now, utc_now)
         if end > start:
-            used_seconds += int((end - start).total_seconds())
+            intervals.append((start, end))
+
+    #merging overlapping intervals so concurrent/stale sessions do not get double-counted
+    used_seconds = 0
+    if intervals:
+        intervals.sort(key=lambda item: item[0])
+        current_start, current_end = intervals[0]
+
+        for start, end in intervals[1:]:
+            if start <= current_end:
+                if end > current_end:
+                    current_end = end
+            else:
+                used_seconds += int((current_end - current_start).total_seconds())
+                current_start, current_end = start, end
+
+        used_seconds += int((current_end - current_start).total_seconds())
 
     remaining_seconds = max(daily_limit_seconds - used_seconds, 0)
     used_minutes = used_seconds / 60.0
@@ -647,6 +663,15 @@ class PostListCreateAPI(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         posted_by_username = self.request.query_params.get('posted_by')
+
+        blocked_friendships = Friend.objects.filter(
+            Q(user1=user) | Q(user2=user),
+            blocked_by__isnull=False,
+        ).values_list('user1_id', 'user2_id')
+
+        blocked_user_ids = set()
+        for user1_id, user2_id in blocked_friendships:
+            blocked_user_ids.add(user2_id if user1_id == user.id else user1_id)
         
         #when viewing a specific user's posts, skip visibility filter
         if posted_by_username:
@@ -655,12 +680,14 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             ).filter(
                 status=Post.ModerationStatus.APPROVED,
                 posted_by__username=posted_by_username
+            ).exclude(
+                posted_by_id__in=blocked_user_ids
             ).distinct().order_by('-created_at') #default ordering newest first for profile grid
         
         #feed with visibility filtering + scoring
         friends = Friend.objects.filter(
             Q(user1=user) | Q(user2=user),
-            is_blocked=False
+            blocked_by__isnull=True
         ).values_list('user1', 'user2')
         
         friend_ids = set()
@@ -676,6 +703,8 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             like_count=Count('like_on_post')
         ).filter(
             status=Post.ModerationStatus.APPROVED
+        ).exclude(
+            posted_by_id__in=blocked_user_ids
         ).filter(
             Q(visibility=Post.VisibilityEnum.PUBLIC) |
             Q(visibility=Post.VisibilityEnum.FRIENDS_ONLY, posted_by__in=friend_ids) |
@@ -866,6 +895,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             )
 
         except Exception as e:
+            print(str(e))
             return api_response(
                 is_success=False,
                 error_message=str(e),
@@ -1527,24 +1557,48 @@ class FriendRequestDeleteAPI(generics.DestroyAPIView):
 class FriendListAPI(generics.ListAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
-    serializer_class = FriendSerializer
+    serializer_class = FriendResponseSerializer
     pagination_class = DefaultPagination
     http_method_names = ['get']
 
     def get_queryset(self):
         user = self.request.user
-        return Friend.objects.filter(
-            Q(user1=user) | Q(user2=user)
-        ).select_related('user1', 'user2')
+        user_id_param = self.request.query_params.get('user_id')
+        include_blocked = self.request.query_params.get('include_blocked') in ['1', 'true', 'True']
+
+        if user_id_param:
+            target_user = get_object_or_404(User, id=user_id_param)
+            self._list_owner = target_user
+        else:
+            self._list_owner = user
+
+        queryset = Friend.objects.filter(
+            Q(user1=self._list_owner) | Q(user2=self._list_owner)
+        )
+
+        if not include_blocked:
+            queryset = queryset.filter(blocked_by__isnull=True)
+
+        return queryset.select_related('user1', 'user2')
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['list_owner'] = getattr(self, '_list_owner', self.request.user)
+        return context
 
     def list(self, request, *args, **kwargs):
         try:
             response = super().list(request, *args, **kwargs)
+            total_friends = 0
+            if isinstance(response.data, dict):
+                total_friends = response.data.get('count', 0)
+
             return api_response(
                 is_success=True,
                 result={
                     "message": "Successfully retrieved friends list.",
-                    "data": response.data
+                    "data": response.data,
+                    "total_friends": total_friends,
                 },
                 status_code=status.HTTP_200_OK
             )
@@ -1570,6 +1624,124 @@ class FriendListAPI(generics.ListAPIView):
     )
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
+
+
+class UnfriendAPI(generics.GenericAPIView):
+    """
+    API endpoint to unfriend a user (delete Friend relationship).
+    POST /friends/unfriend/<int:user_id>/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, user_id, *args, **kwargs):
+        """
+        Unfriend a user by deleting the Friend relationship.
+        """
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return api_response(
+                is_success=False,
+                error_message='User not found',
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        auth_user = request.user
+        
+        #preventing unfriending yourself
+        if auth_user.id == user_id:
+            return api_response(
+                is_success=False,
+                error_message='You cannot unfriend yourself',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        #finding the friendship (checking both directions: user1-user2 and user2-user1)
+        friendship = Friend.objects.filter(
+            Q(user1=auth_user, user2=target_user) |
+            Q(user1=target_user, user2=auth_user)
+        ).first()
+        
+        if not friendship:
+            return api_response(
+                is_success=False,
+                error_message='You are not friends with this user',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        #deleting any existing friend requests between the two users
+        FriendRequest.objects.filter(
+            Q(from_user=auth_user, to_user=target_user) |
+            Q(from_user=target_user, to_user=auth_user)
+        ).delete()
+        
+        #deleting the friendship
+        friendship.delete()
+        
+        return api_response(
+            is_success=True,
+            result={'message': 'Successfully unfriended user', 'user_id': user_id}
+        )
+
+
+class BlockAPI(generics.GenericAPIView):
+    """
+    API endpoint to block a user (set blocked_by on Friend relationship).
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, user_id, *args, **kwargs):
+        """
+        Block a user by setting blocked_by on the Friend relationship.
+        """
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return api_response(
+                is_success=False,
+                error_message='User not found',
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        auth_user = request.user
+        
+        #preventing blocking yourself
+        if auth_user.id == user_id:
+            return api_response(
+                is_success=False,
+                error_message='You cannot block yourself',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        #finding the friendship (checking both directions: user1-user2 and user2-user1)
+        friendship = Friend.objects.filter(
+            Q(user1=auth_user, user2=target_user) |
+            Q(user1=target_user, user2=auth_user)
+        ).first()
+        
+        if not friendship:
+            return api_response(
+                is_success=False,
+                error_message='You are not friends with this user',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        #deleting any existing friend requests between the two users
+        FriendRequest.objects.filter(
+            Q(from_user=auth_user, to_user=target_user) |
+            Q(from_user=target_user, to_user=auth_user)
+        ).delete()
+        
+        #setting the blocker
+        friendship.blocked_by = auth_user
+        friendship.save()
+        
+        #serializing and returning updated friendship
+        serializer = FriendSerializer(friendship)
+        return api_response(
+            is_success=True,
+            result={'message': 'Successfully blocked user', 'friendship': serializer.data}
+        )
 
 
 class AdminDashboardSummaryAPI(generics.GenericAPIView):
@@ -1659,7 +1831,7 @@ class AdminDashboardScreenTimeAPI(generics.GenericAPIView):
         payload = [
             {
                 'username': username,
-                'total_minutes': int(total_seconds / 60),
+                'total_hours': round(total_seconds / 3600, 2),
             }
             for username, total_seconds in sorted(per_user_seconds.items(), key=lambda x: x[1], reverse=True)
         ]
@@ -1752,6 +1924,25 @@ class SessionStartAPI(generics.GenericAPIView):
                 error_message='Daily usage limit reached.',
                 result={'session_limit': limit_status},
                 status_code=status.HTTP_423_LOCKED,
+            )
+
+        # Reuse a currently active session (common in dev hot-restart scenarios)
+        # to avoid creating overlapping sessions that inflate usage.
+        active_session = UserSession.objects.filter(
+            user=request.user,
+            end_time__isnull=True,
+        ).order_by('-start_time').first()
+
+        if active_session:
+            data = self.get_serializer(active_session).data
+            return api_response(
+                is_success=True,
+                result={
+                    'session_id': data['id'],
+                    'data': data,
+                    'session_limit': limit_status,
+                },
+                status_code=status.HTTP_200_OK,
             )
 
         session = UserSession.objects.create(user=request.user)

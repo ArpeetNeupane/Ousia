@@ -258,7 +258,7 @@ class Friend(models.Model):
     created_at = models.DateTimeField(auto_now_add=True) #for db
     accepted_at = models.DateTimeField(auto_now_add=True) #for ui, if batch friend create, data might be different
 
-    is_blocked = models.BooleanField(default=False)
+    blocked_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='blocks_initiated')
 
     class Meta:
         constraints = [

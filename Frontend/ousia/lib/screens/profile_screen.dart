@@ -32,6 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _username = AuthService.currentUser?.username ?? 'User';
   String? _userPostsNextUrl;
   bool _isLoadingMorePosts = false;
+  int _friendCount = 0;
   final ScrollController _scrollController = ScrollController();
   ProfilePostCategory _selectedPostCategory = ProfilePostCategory.media;
   final Map<int, Map<String, dynamic>> _captionOnlyPostDetails = {};
@@ -75,10 +76,138 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isLoading = false;
       });
     }
+
+    final friendsResult = await authService.fetchFriends();
+    if (mounted && friendsResult['success'] == true) {
+      setState(() {
+        _friendCount = friendsResult['total_friends'] ?? 0;
+      });
+    }
+
     // Fetch this user's posts after profile loads
     if (_profile != null) {
       await _loadUserPosts(_profile!.username);
     }
+  }
+
+  Future<void> _showFriendsListSheet() async {
+    final cs = Theme.of(context).colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.72,
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cs.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Friends',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Divider(height: 1),
+              Expanded(
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: authService.fetchAllFriends(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final friends =
+                        (snapshot.data?['friends'] as List?)
+                            ?.cast<Map<String, dynamic>>() ??
+                        <Map<String, dynamic>>[];
+
+                    if (friends.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No friends yet',
+                          style: GoogleFonts.inter(
+                            color: cs.onSurface.withOpacity(0.65),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      itemCount: friends.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final item = friends[index];
+                        final friend = item['friend'] as Map<String, dynamic>?;
+                        final profile = item['friend_profile'] as Map<String, dynamic>?;
+                        final friendId = friend?['id'] as int?;
+                        final username = (friend?['username'] ?? '').toString();
+                        final pfpUrl = profile?['pfp_url'] as String?;
+
+                        void openProfile() {
+                          if (friendId == null) return;
+                          Navigator.pop(ctx);
+                          if (!mounted) return;
+                          Navigator.pushNamed(
+                            context,
+                            '/others-profile',
+                            arguments: friendId,
+                          );
+                        }
+
+                        return ListTile(
+                          onTap: openProfile,
+                          leading: GestureDetector(
+                            onTap: openProfile,
+                            child: CircleAvatar(
+                              radius: 22,
+                              backgroundColor: cs.surfaceContainerHighest,
+                              backgroundImage:
+                                  pfpUrl != null && pfpUrl.isNotEmpty
+                                      ? CachedNetworkImageProvider(pfpUrl)
+                                      : null,
+                              child: (pfpUrl == null || pfpUrl.isEmpty)
+                                  ? Icon(Icons.person, color: cs.onSurfaceVariant)
+                                  : null,
+                            ),
+                          ),
+                          title: GestureDetector(
+                            onTap: openProfile,
+                            child: Text(
+                              username,
+                              style: GoogleFonts.inter(
+                                color: cs.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadUserPosts(String username) async {
@@ -822,8 +951,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
               const SizedBox(height: 20),
 
-              // Post count
-              _buildStatColumn('Posts', '${_userPosts.length}'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildStatColumn('Posts', '${_userPosts.length}'),
+                  const SizedBox(width: 40),
+                  _buildStatColumn(
+                    'Friends',
+                    '$_friendCount',
+                    onTap: _showFriendsListSheet,
+                  ),
+                ],
+              ),
               const SizedBox(height: 20),
 
               // Action buttons
@@ -1015,8 +1154,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatColumn(String label, String count) {
-    return Column(
+  Widget _buildStatColumn(String label, String count, {VoidCallback? onTap}) {
+    final content = Column(
       children: [
         Text(
           count,
@@ -1031,6 +1170,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade600),
         ),
       ],
+    );
+
+    if (onTap == null) return content;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: content,
+      ),
     );
   }
 }

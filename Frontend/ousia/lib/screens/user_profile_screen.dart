@@ -27,8 +27,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _hasError = false;
   String? _nextUrl;
   bool _isLoadingMore = false;
+  int _friendCount = 0;
   bool _friendRequestSent = false;
   bool _isFriend = false;
+  bool _isBlocked = false;
+  bool _isBlockedByMe = false;
+  bool _isBlockedMe = false;
   bool _hasReceivedRequest = false;
   int? _receivedRequestId;
   int? _sentRequestId;
@@ -78,12 +82,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       _service.fetchPosts(username: profile.username),
       _service.checkFriendRequestStatus(profile.username),
       _service.checkFriendship(widget.userId),
+      _service.fetchFriends(userId: widget.userId),
     ]);
     if (!mounted) return;
 
     final postsResult = results[0];
     final friendResult = results[1];
     final friendshipResult = results[2];
+    final friendsListResult = results[3];
 
     setState(() {
       _profile = profile;
@@ -93,10 +99,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
       _friendRequestSent = friendResult['sent'] == true;
       _isFriend = friendshipResult['is_friend'] == true;
+      _isBlocked = friendshipResult['is_blocked'] == true;
+      _isBlockedByMe = friendshipResult['is_blocked_by_me'] == true;
+      _isBlockedMe = friendshipResult['is_blocked_me'] == true;
       _friendRequestSent = friendResult['sent'] == true;
       _sentRequestId = friendResult['sent_request_id'];
       _hasReceivedRequest = friendResult['received'] == true;
       _receivedRequestId = friendResult['received_request_id'];
+      _friendCount = friendsListResult['total_friends'] ?? 0;
       _isLoading = false;
     });
 
@@ -124,6 +134,126 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
     }
     setState(() => _isLoadingMore = false);
+  }
+
+  Future<void> _showFriendsListSheet() async {
+    final cs = Theme.of(context).colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.72,
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cs.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Friends',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Divider(height: 1),
+              Expanded(
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: _service.fetchAllFriends(userId: widget.userId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final friends =
+                        (snapshot.data?['friends'] as List?)
+                            ?.cast<Map<String, dynamic>>() ??
+                        <Map<String, dynamic>>[];
+
+                    if (friends.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No friends yet',
+                          style: GoogleFonts.inter(
+                            color: cs.onSurface.withOpacity(0.65),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      itemCount: friends.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final item = friends[index];
+                        final friend = item['friend'] as Map<String, dynamic>?;
+                        final profile = item['friend_profile'] as Map<String, dynamic>?;
+                        final friendId = friend?['id'] as int?;
+                        final username = (friend?['username'] ?? '').toString();
+                        final pfpUrl = profile?['pfp_url'] as String?;
+
+                        void openProfile() {
+                          if (friendId == null) return;
+                          Navigator.pop(ctx);
+                          if (!mounted) return;
+                          Navigator.pushNamed(
+                            context,
+                            '/others-profile',
+                            arguments: friendId,
+                          );
+                        }
+
+                        return ListTile(
+                          onTap: openProfile,
+                          leading: GestureDetector(
+                            onTap: openProfile,
+                            child: CircleAvatar(
+                              radius: 22,
+                              backgroundColor: cs.surfaceContainerHighest,
+                              backgroundImage:
+                                  pfpUrl != null && pfpUrl.isNotEmpty
+                                      ? CachedNetworkImageProvider(pfpUrl)
+                                      : null,
+                              child: (pfpUrl == null || pfpUrl.isEmpty)
+                                  ? Icon(Icons.person, color: cs.onSurfaceVariant)
+                                  : null,
+                            ),
+                          ),
+                          title: GestureDetector(
+                            onTap: openProfile,
+                            child: Text(
+                              username,
+                              style: GoogleFonts.inter(
+                                color: cs.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _scheduleEnsureScrollableMediaPosts() {
@@ -196,6 +326,208 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _friendRequestSent = false;
         _sentRequestId = null;
       });
+    }
+  }
+
+  final GlobalKey _friendsButtonKey = GlobalKey();
+
+  Future<void> _showFriendActionsMenu() async {
+    final buttonContext = _friendsButtonKey.currentContext;
+    if (buttonContext == null) return;
+
+    final buttonBox = buttonContext.findRenderObject() as RenderBox?;
+    final overlayBox = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (buttonBox == null || overlayBox == null) return;
+
+    final buttonOffset = buttonBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final buttonSize = buttonBox.size;
+    final theme = Theme.of(context);
+
+    final selected = await showMenu<String>(
+      context: context,
+      color: theme.colorScheme.surface,
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      constraints: BoxConstraints(
+        minWidth: buttonSize.width,
+        maxWidth: buttonSize.width,
+      ),
+      position: RelativeRect.fromLTRB(
+        buttonOffset.dx,
+        buttonOffset.dy + buttonSize.height + 4,
+        overlayBox.size.width - (buttonOffset.dx + buttonSize.width),
+        0,
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'unfriend',
+          padding: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            child: Row(
+              children: [
+                Icon(Icons.person_remove, size: 18),
+                const SizedBox(width: 12),
+                Text(
+                  'Unfriend',
+                  style: GoogleFonts.inter(
+                    fontSize: 16, fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'block',
+          padding: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            child: Row(
+              children: [
+                Icon(Icons.block, size: 18, color: theme.colorScheme.error),
+                const SizedBox(width: 12),
+                Text(
+                  'Block',
+                  style: TextStyle(
+                    color: theme.colorScheme.error,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (!mounted || selected == null) return;
+    if (selected == 'unfriend') {
+      await _unfriendUser();
+    } else if (selected == 'block') {
+      await _blockUser();
+    }
+  }
+
+  Future<void> _unfriendUser() async {
+    if (_profile == null) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Unfriend User',
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        content: Text(
+          'Are you sure you want to unfriend ${_profile?.username}?',
+          style: GoogleFonts.inter(fontSize: 16, color: const Color.fromARGB(255, 154, 152, 152)),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.grey,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Cancel',
+                style: GoogleFonts.inter(
+                    color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              backgroundColor: const Color.fromARGB(255, 236, 115, 133),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Unfriend',
+                style: GoogleFonts.inter(
+                    color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) return;
+    
+    final result = await _service.unfriendUser(_profile!.id);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() {
+        _isFriend = false;
+        _isBlocked = false;
+        _isBlockedByMe = false;
+        _isBlockedMe = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Successfully unfriended user')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Failed to unfriend user')),
+      );
+    }
+  }
+
+  Future<void> _blockUser() async {
+    if (_profile == null) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Block User',
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        content: Text(
+          'Are you sure you want to block ${_profile?.username}? They won\'t be able to send you friend requests.',
+          style: GoogleFonts.inter(fontSize: 16, color: const Color.fromARGB(255, 154, 152, 152)),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.grey,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Cancel',
+                style: GoogleFonts.inter(
+                    color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Block',
+                style: GoogleFonts.inter(
+                    color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) return;
+    
+    final result = await _service.blockUser(_profile!.id);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() {
+        _isBlocked = true;
+        _isBlockedByMe = true;
+        _isBlockedMe = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Successfully blocked user')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Failed to block user')),
+      );
     }
   }
 
@@ -316,18 +648,56 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
           ],
           const SizedBox(height: 20),
-          Column(children: [
-            Text('${_posts.length}',
-                style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface)),
-            Text('Posts', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade600)),
-          ]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildStatColumn('Posts', '${_posts.length}'),
+              const SizedBox(width: 40),
+              _buildStatColumn(
+                'Friends',
+                '$_friendCount',
+                onTap: _showFriendsListSheet,
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           // Action buttons
           Row(
             children: [
               Expanded(
-                child: _hasReceivedRequest
+                child: _isBlockedByMe
+                    ? ElevatedButton(
+                        onPressed: null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey,
+                          disabledBackgroundColor: Colors.grey,
+                          disabledForegroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        child: Text(
+                          'Blocked',
+                          style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w600, color: Colors.white),
+                        ),
+                      )
+                    : _isBlockedMe
+                    ? ElevatedButton(
+                        onPressed: null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey.shade500,
+                          disabledBackgroundColor: Colors.grey.shade500,
+                          disabledForegroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        child: Text(
+                          'Add Friend',
+                          style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w600, color: Colors.white),
+                        ),
+                      )
+                    : _hasReceivedRequest
                     ? ElevatedButton(
                         onPressed: () async {
                           if (_receivedRequestId == null) return;
@@ -388,30 +758,45 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             style: GoogleFonts.inter(
                                 fontWeight: FontWeight.w600, color: Colors.black)),
                       )
+                    : _isFriend
+                    ? ElevatedButton(
+                        key: _friendsButtonKey,
+                        onPressed: _showFriendActionsMenu,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.check, color: Colors.white, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Friends',
+                              style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w600, color: Colors.white),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.arrow_drop_down, color: Colors.white, size: 16),
+                          ],
+                        ),
+                      )
                     : Opacity(
-                        opacity: (_friendRequestSent || _isFriend) ? 0.8 : 1.0,
+                        opacity: _friendRequestSent ? 0.8 : 1.0,
                         child: ElevatedButton(
-                          onPressed: _isFriend ? null : _friendRequestSent ? _cancelFriendRequest : _sendFriendRequest,
+                          onPressed: _friendRequestSent ? _cancelFriendRequest : _sendFriendRequest,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _isFriend ? Colors.green : _primary,
-                            disabledBackgroundColor: _isFriend ? Colors.green : _primary.withOpacity(0.6),
+                            backgroundColor: _primary,
+                            disabledBackgroundColor: _primary.withOpacity(0.6),
                             disabledForegroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             padding: const EdgeInsets.symmetric(vertical: 10),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (_isFriend) ...[
-                                const Icon(Icons.check, color: Colors.white, size: 16),
-                                const SizedBox(width: 6),
-                              ],
-                              Text(
-                                _isFriend ? 'Friends' : _friendRequestSent ? 'Cancel Request' : 'Add Friend',
-                                style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.w600, color: Colors.white),
-                              ),
-                            ],
+                          child: Text(
+                            _friendRequestSent ? 'Cancel Request' : 'Add Friend',
+                            style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w600, color: Colors.white),
                           ),
                         ),
                       ),
@@ -535,6 +920,35 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String label, String count, {VoidCallback? onTap}) {
+    final content = Column(
+      children: [
+        Text(
+          count,
+          style: GoogleFonts.inter(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade600),
+        ),
+      ],
+    );
+
+    if (onTap == null) return content;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: content,
       ),
     );
   }

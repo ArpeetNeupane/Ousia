@@ -65,8 +65,8 @@ class FriendRequestAdmin(admin.ModelAdmin):
 
 @admin.register(Friend)
 class FriendAdmin(admin.ModelAdmin):
-    list_display = ['user1', 'user2', 'created_at', 'accepted_at', 'is_blocked']
-    list_filter = ['is_blocked', 'created_at']
+    list_display = ['user1', 'user2', 'created_at', 'accepted_at', 'blocked_by']
+    list_filter = ['blocked_by', 'created_at']
     search_fields = ['user1__username', 'user2__username']
 
 @admin.register(UserSession)

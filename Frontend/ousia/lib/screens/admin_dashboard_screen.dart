@@ -103,7 +103,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       const SizedBox(height: 24),
                       _buildSectionTitle(
                         theme,
-                        "Screen Time per User (Minutes)",
+                        "Screen Time per User (Hours)",
                       ),
                       _buildBarChart(theme),
                       const SizedBox(height: 24),
@@ -197,10 +197,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       );
     }
 
-    final maxMinutes = _screenTimeData
-        .map((e) => _toDouble(e['total_minutes']))
+    final maxHours = _screenTimeData
+        .map((e) => _toDouble(e['total_hours']))
         .fold<double>(0, (prev, curr) => curr > prev ? curr : prev);
-    final maxY = maxMinutes <= 0 ? 10.0 : (maxMinutes * 1.2).ceilToDouble();
+    final maxY = maxHours <= 0 ? 10.0 : (maxHours * 1.2).ceilToDouble();
     final yInterval = ((maxY / 5).ceilToDouble().clamp(1, 100000)).toDouble();
 
     return Container(
@@ -259,7 +259,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       axisNameWidget: const Padding(
                         padding: EdgeInsets.only(bottom: 6),
                         child: Text(
-                          'Minutes',
+                          'Hours',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
@@ -302,7 +302,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       x: i,
                       barRods: [
                         BarChartRodData(
-                          toY: _toDouble(_screenTimeData[i]['total_minutes']),
+                          toY: _toDouble(_screenTimeData[i]['total_hours']),
                           color: theme.colorScheme.primary,
                           width: 16,
                           borderRadius: BorderRadius.circular(4),

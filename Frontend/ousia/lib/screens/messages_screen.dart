@@ -12,6 +12,7 @@ class ChatScreen extends StatefulWidget {
   final String name;
   final String? pfpUrl;
   final bool isGroup;
+  final int? otherUserId;
 
   const ChatScreen({
     super.key,
@@ -19,6 +20,7 @@ class ChatScreen extends StatefulWidget {
     required this.name,
     required this.isGroup,
     this.pfpUrl,
+    this.otherUserId,
   });
 
   @override
@@ -34,13 +36,14 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Map<String, dynamic>> _messages = [];
   bool _isConnected = false;
   bool _isConnecting = true;
+  bool _isMessageBlocked = false;
   bool _isTyping = false;
   String? _typingUsername;
   Timer? _typingTimer;
   Timer? _typingDebounce;
 
   static const Color _primary = Color(0xFF7B5CF0);
-  static const String _wsBaseUrl = 'ws://192.168.1.10:8000';
+  static const String _wsBaseUrl = 'ws://192.168.1.8:8000';
 
   String get _currentUsername => AuthService.currentUsername;
   String get _currentUserId => AuthService.currentUser?.id.toString() ?? '';
@@ -49,7 +52,17 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     AuthService().markConversationRead(widget.conversationId);
+    _loadBlockState();
     _connectWebSocket();
+  }
+
+  Future<void> _loadBlockState() async {
+    if (widget.isGroup || widget.otherUserId == null) return;
+    final result = await AuthService().checkFriendship(widget.otherUserId!);
+    if (!mounted) return;
+    setState(() {
+      _isMessageBlocked = result['is_blocked_me'] == true;
+    });
   }
 
   @override
@@ -177,7 +190,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _sendMessage() {
     final content = _messageController.text.trim();
-    if (content.isEmpty || !_isConnected) return;
+    if (content.isEmpty || !_isConnected || _isMessageBlocked) return;
 
     _channel!.sink.add(jsonEncode({
       'action': 'send_message',
@@ -190,7 +203,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _sendTypingIndicator(bool isTyping) {
-    if (!_isConnected) return;
+    if (!_isConnected || _isMessageBlocked) return;
     _channel!.sink.add(jsonEncode({
       'action': 'typing_indicator',
       'is_typing': isTyping,
@@ -481,35 +494,42 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
+                  color: _isMessageBlocked
+                      ? cs.surfaceContainerHighest.withOpacity(0.6)
+                      : cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: TextField(
                   controller: _messageController,
                   focusNode: _focusNode,
                   onChanged: _onTextChanged,
+                  enabled: !_isMessageBlocked,
                   maxLines: 4,
                   minLines: 1,
                   style: GoogleFonts.inter(color: cs.onSurface, fontSize: 15),
                   decoration: InputDecoration(
-                    hintText: 'Message...',
+                    hintText: _isMessageBlocked
+                        ? 'You can\'t message this user.'
+                        : 'Message...',
                     hintStyle: GoogleFonts.inter(color: cs.onSurfaceVariant),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 10),
                   ),
-                  onSubmitted: (_) => _sendMessage(),
+                  onSubmitted: (_) {
+                    if (!_isMessageBlocked) _sendMessage();
+                  },
                 ),
               ),
             ),
             const SizedBox(width: 8),
             GestureDetector(
-              onTap: _sendMessage,
+              onTap: _isMessageBlocked ? null : _sendMessage,
               child: Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: _primary,
+                  color: _isMessageBlocked ? Colors.grey : _primary,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.send, color: Colors.white, size: 20),

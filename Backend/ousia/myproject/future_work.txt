@@ -196,3 +196,6 @@ username_friend1 = serializers.SerializerMethodField(read_only=True)
 # from push notification to type of notification screen ✅
 # in create post, click pic rn option ✅
 # in profile, categorize ✅
+
+# 28th March tasks
+# improve age estimation model for sign in

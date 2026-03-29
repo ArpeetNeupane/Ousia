@@ -168,7 +168,7 @@ class PostResponseCreateSerializer(MediaValidationMixin, serializers.ModelSerial
     class Meta:
         model = Post
         fields = [
-            'id', 'caption', 'visibility_label', 'created_at', 'updated_at', 'posted_by', 'posted_by_username', 'posted_by_profile',
+            'id', 'caption', 'visibility', 'visibility_label', 'created_at', 'updated_at', 'posted_by', 'posted_by_username', 'posted_by_profile',
             'type_of_post', 'media', 'media_files', 'post_like_count', 'post_comment_count', 'is_liked', 'user_like_id'
         ]
         read_only_fields = [
@@ -356,12 +356,24 @@ class FriendRequestCreateSerializer(serializers.ModelSerializer):
                 "friend_request": "You cannot send a friend request to yourself."
             })
 
+        active_friendship = Friend.objects.filter(
+            Q(user1=request_user, user2=to_user) | Q(user1=to_user, user2=request_user),
+            blocked_by__isnull=True,
+        )
+
         #checking if users are already friends
-        if Friend.objects.filter(
-            Q(user1=request_user, user2=to_user) | Q(user1=to_user, user2=request_user)
-        ).exists():
+        if active_friendship.exists():
             raise serializers.ValidationError({
                 "friend_request": f"You are already friends with {to_user}."
+            })
+
+        blocked_friendship = Friend.objects.filter(
+            Q(user1=request_user, user2=to_user) | Q(user1=to_user, user2=request_user),
+            blocked_by=to_user,
+        )
+        if blocked_friendship.exists():
+            raise serializers.ValidationError({
+                "friend_request": f"{to_user} has blocked you."
             })
 
         #checking for duplicate or cross friend requests
@@ -451,16 +463,29 @@ class FriendRequestResponseSerializer(serializers.ModelSerializer):
 
 class FriendResponseSerializer(serializers.ModelSerializer):
     friend = serializers.SerializerMethodField()
+    friend_profile = serializers.SerializerMethodField()
+
     class Meta:
         model = Friend
-        fields = ['id', 'friend', 'accepted_at', 'is_blocked']
-        read_only_fields = ['id', 'friend', 'accepted_at', 'is_blocked']
+        fields = ['id', 'friend', 'friend_profile', 'accepted_at', 'blocked_by']
+        read_only_fields = ['id', 'friend', 'friend_profile', 'accepted_at', 'blocked_by']
 
     def get_friend(self, obj):
-        #returning the other user in the friendship
+        #returning the other user in the friendship relative to list owner
         request_user = self.context['request'].user
-        friend = obj.user2 if obj.user1 == request_user else obj.user1
+        list_owner = self.context.get('list_owner', request_user)
+        friend = obj.user2 if obj.user1 == list_owner else obj.user1
         return {"id": friend.id, "username": friend.username}
+
+    def get_friend_profile(self, obj):
+        request_user = self.context['request'].user
+        list_owner = self.context.get('list_owner', request_user)
+        friend = obj.user2 if obj.user1 == list_owner else obj.user1
+        try:
+            profile = Profile.objects.get(user=friend)
+            return ProfilePictureSerializer(profile).data
+        except Profile.DoesNotExist:
+            return None
 
 class FriendSerializer(serializers.ModelSerializer):
     user1 = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
@@ -468,7 +493,7 @@ class FriendSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Friend
-        fields = ['id', 'user1', 'user2', 'created_at', 'accepted_at', 'is_blocked']
+        fields = ['id', 'user1', 'user2', 'created_at', 'accepted_at', 'blocked_by']
         read_only_fields = ['id', 'created_at', 'accepted_at']
 
     def validate(self, data):

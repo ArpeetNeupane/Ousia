@@ -17,6 +17,12 @@ import '../screens/forgot_password_screen.dart';
 import 'route_names.dart';
 import '../services/auth_service.dart';
 
+int? _toNullableInt(dynamic value) {
+  if (value is int) return value;
+  if (value is String) return int.tryParse(value);
+  return null;
+}
+
 class RouteConfig {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     if (settings.name == RouteNames.adminDash) {
@@ -89,6 +95,7 @@ class RouteConfig {
             name: args['name'],
             pfpUrl: args['pfp_url'],
             isGroup: args['is_group'] ?? false,
+            otherUserId: _toNullableInt(args['other_user_id']),
           ),
         );
       

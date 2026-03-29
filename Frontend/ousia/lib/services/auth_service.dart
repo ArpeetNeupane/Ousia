@@ -15,7 +15,7 @@ import '../utils/route_names.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.10:8000/api';
+  static const String baseUrl = 'http://192.168.1.8:8000/api';
 
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -990,6 +990,20 @@ class AuthService {
         }
 
         final current = currentUsername;
+        final participants = (match['participants'] as List?) ?? [];
+        Map<String, dynamic>? otherParticipant;
+        for (final participant in participants) {
+          if (participant is! Map) continue;
+          final participantMap = Map<String, dynamic>.from(participant as Map);
+          if ((participantMap['username'] ?? '').toString() != current) {
+            otherParticipant = participantMap;
+            break;
+          }
+        }
+        if (otherParticipant == null && participants.isNotEmpty) {
+          otherParticipant = Map<String, dynamic>.from(participants.first as Map);
+        }
+
         final pfpInfo = (match['pfp_info'] as List?) ?? [];
         final other = pfpInfo.firstWhere(
           (p) => p is Map<String, dynamic> && p['username'] != current,
@@ -1003,6 +1017,7 @@ class AuthService {
           'name': (otherMap['username'] ?? 'Conversation').toString(),
           'pfp_url': otherMap['pfp_url'],
           'is_group': false,
+          'other_user_id': otherParticipant?['id'],
         };
       }
     }
@@ -1012,6 +1027,7 @@ class AuthService {
       'name': 'Conversation',
       'pfp_url': null,
       'is_group': false,
+      'other_user_id': null,
     };
   }
 
@@ -1676,19 +1692,161 @@ class AuthService {
     try {
       final response = await authenticatedRequest(
         method: 'GET',
-        endpoint: '/friends/',
+        endpoint: '/friends/?include_blocked=1',
       );
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
         final results = body['Result']['data']['results'] as List;
-        final isFriend = results.any(
-          (r) => r['user1'] == userId || r['user2'] == userId,
+        
+        // Find friendship with this user (supports both legacy and current shapes)
+        final friendship = results.firstWhere(
+          (r) {
+            final friend = r['friend'];
+            if (friend is Map<String, dynamic>) {
+              return friend['id'] == userId;
+            }
+            return r['user1'] == userId || r['user2'] == userId;
+          },
+          orElse: () => null,
         );
-        return {'success': true, 'is_friend': isFriend};
+        
+        bool isFriend = friendship != null;
+        bool isBlocked = false;
+        bool isBlockedByMe = false;
+        bool isBlockedMe = false;
+        
+        if (isFriend) {
+          // blocked_by stores whichever side initiated the block.
+          final blockedById = friendship['blocked_by'];
+          isBlockedMe = blockedById != null && blockedById == userId;
+          isBlockedByMe = blockedById != null && blockedById != userId;
+          isBlocked = isBlockedMe || isBlockedByMe;
+        }
+        
+        return {
+          'success': true,
+          'is_friend': isFriend,
+          'is_blocked': isBlocked,
+          'is_blocked_by_me': isBlockedByMe,
+          'is_blocked_me': isBlockedMe,
+        };
       }
-      return {'success': false, 'is_friend': false};
+      return {
+        'success': false,
+        'is_friend': false,
+        'is_blocked': false,
+        'is_blocked_by_me': false,
+        'is_blocked_me': false,
+      };
     } catch (e) {
-      return {'success': false, 'is_friend': false};
+      return {
+        'success': false,
+        'is_friend': false,
+        'is_blocked': false,
+        'is_blocked_by_me': false,
+        'is_blocked_me': false,
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchFriends({
+    int? userId,
+    String? nextUrl,
+  }) async {
+    try {
+      final endpoint =
+          nextUrl != null
+              ? '/friends/?${Uri.parse(nextUrl).query}'
+              : userId != null
+              ? '/friends/?user_id=$userId'
+              : '/friends/';
+
+      final response = await authenticatedRequest(
+        method: 'GET',
+        endpoint: endpoint,
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        final data = body['Result']['data'] as Map<String, dynamic>;
+        final results = (data['results'] as List)
+            .map((r) => Map<String, dynamic>.from(r as Map))
+            .toList();
+        final totalFriends =
+            body['Result']['total_friends'] ?? data['count'] ?? results.length;
+
+        return {
+          'success': true,
+          'friends': results,
+          'total_friends': totalFriends,
+          'next': data['next'],
+        };
+      }
+      return {'success': false, 'friends': <Map<String, dynamic>>[]};
+    } catch (e) {
+      return {'success': false, 'friends': <Map<String, dynamic>>[]};
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchAllFriends({int? userId}) async {
+    try {
+      final allFriends = <Map<String, dynamic>>[];
+      String? nextUrl;
+      int totalFriends = 0;
+      bool firstCall = true;
+
+      do {
+        final result = await fetchFriends(userId: userId, nextUrl: nextUrl);
+        if (result['success'] != true) {
+          return {'success': false, 'friends': <Map<String, dynamic>>[]};
+        }
+
+        final pageFriends =
+            (result['friends'] as List).cast<Map<String, dynamic>>();
+        allFriends.addAll(pageFriends);
+        totalFriends = result['total_friends'] ?? allFriends.length;
+        nextUrl = result['next'] as String?;
+        firstCall = false;
+      } while (nextUrl != null && firstCall == false);
+
+      return {
+        'success': true,
+        'friends': allFriends,
+        'total_friends': totalFriends,
+      };
+    } catch (e) {
+      return {'success': false, 'friends': <Map<String, dynamic>>[]};
+    }
+  }
+
+  Future<Map<String, dynamic>> unfriendUser(int userId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/friends/unfriend/$userId/',
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        return {'success': true, 'message': body['Result']['message']};
+      }
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> blockUser(int userId) async {
+    try {
+      final response = await authenticatedRequest(
+        method: 'POST',
+        endpoint: '/friends/block/$userId/',
+      );
+      final body = jsonDecode(response.body);
+      if (body['IsSuccess'] == true) {
+        return {'success': true, 'message': body['Result']['message']};
+      }
+      return {'success': false, 'message': body['ErrorMessage'].toString()};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
     }
   }
 

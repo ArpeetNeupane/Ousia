@@ -6,8 +6,7 @@ import 'package:ousia/services/auth_service.dart';
 
 enum PostVisibility {
   public('public', 'Public', Icons.public),
-  friendsOnly('friends_only', 'Friends Only', Icons.people),
-  private('private', 'Private', Icons.lock);
+  friendsOnly('friends_only', 'Friends Only', Icons.people);
 
   final String value;
   final String label;
@@ -45,7 +44,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
   bool _profileLoading = true;
 
   final List<_SelectedMedia> _mediaFiles = [];
-  PostVisibility _visibility = PostVisibility.friendsOnly;
+  PostVisibility _visibility = PostVisibility.public;
   bool _isPosting = false;
 
   static const int _maxTotal = 5;
@@ -95,13 +94,21 @@ class _CreatePostPageState extends State<CreatePostPage> {
   int get _imageCount => _mediaFiles.where((m) => !m.isVideo).length;
 
   Future<void> _capturePhoto() async {
-    if (_mediaFiles.length >= _maxTotal) { _showSnack('Maximum $_maxTotal files allowed'); return; }
-    if (_imageCount >= _maxImages) { _showSnack('Maximum $_maxImages images allowed'); return; }
+    if (_mediaFiles.length >= _maxTotal) {
+      _showSnack('Maximum $_maxTotal files allowed');
+      return;
+    }
+    if (_imageCount >= _maxImages) {
+      _showSnack('Maximum $_maxImages images allowed');
+      return;
+    }
 
     try {
       final XFile? file = await _picker.pickImage(source: ImageSource.camera);
       if (file != null) {
-        setState(() => _mediaFiles.add(_SelectedMedia(file: file, isVideo: false)));
+        setState(
+          () => _mediaFiles.add(_SelectedMedia(file: file, isVideo: false)),
+        );
       }
     } catch (_) {
       _showSnack('Failed to open camera');
@@ -109,20 +116,36 @@ class _CreatePostPageState extends State<CreatePostPage> {
   }
 
   Future<void> _pickMedia({required bool isVideo}) async {
-    if (_mediaFiles.length >= _maxTotal) { _showSnack('Maximum $_maxTotal files allowed'); return; }
-    if (isVideo && _videoCount >= _maxVideos) { _showSnack('Maximum $_maxVideos videos allowed'); return; }
-    if (!isVideo && _imageCount >= _maxImages) { _showSnack('Maximum $_maxImages images allowed'); return; }
+    if (_mediaFiles.length >= _maxTotal) {
+      _showSnack('Maximum $_maxTotal files allowed');
+      return;
+    }
+    if (isVideo && _videoCount >= _maxVideos) {
+      _showSnack('Maximum $_maxVideos videos allowed');
+      return;
+    }
+    if (!isVideo && _imageCount >= _maxImages) {
+      _showSnack('Maximum $_maxImages images allowed');
+      return;
+    }
 
     try {
       if (isVideo) {
-        final XFile? file = await _picker.pickVideo(source: ImageSource.gallery);
-        if (file != null) setState(() => _mediaFiles.add(_SelectedMedia(file: file, isVideo: true)));
+        final XFile? file = await _picker.pickVideo(
+          source: ImageSource.gallery,
+        );
+        if (file != null)
+          setState(
+            () => _mediaFiles.add(_SelectedMedia(file: file, isVideo: true)),
+          );
       } else {
         final List<XFile> files = await _picker.pickMultiImage();
         for (final file in files) {
           if (_mediaFiles.length >= _maxTotal) break;
           if (_imageCount >= _maxImages) break;
-          setState(() => _mediaFiles.add(_SelectedMedia(file: file, isVideo: false)));
+          setState(
+            () => _mediaFiles.add(_SelectedMedia(file: file, isVideo: false)),
+          );
         }
       }
     } catch (e) {
@@ -134,7 +157,10 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
   Future<void> _submitPost() async {
     final caption = _captionController.text.trim();
-    if (caption.isEmpty && _mediaFiles.isEmpty) { _showSnack('Add a caption or media to post'); return; }
+    if (caption.isEmpty && _mediaFiles.isEmpty) {
+      _showSnack('Add a caption or media to post');
+      return;
+    }
 
     setState(() => _isPosting = true);
     final result = await _service.createPost(
@@ -151,18 +177,16 @@ class _CreatePostPageState extends State<CreatePostPage> {
       _showSnack(result['message']?.toString() ?? 'Post created successfully.');
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
-      Navigator.of(context).pop({
-        'created': true,
-        'postData': result['data'],
-      });
+      Navigator.of(context).pop({'created': true, 'postData': result['data']});
     } else {
       _showSnack(result['message'] ?? 'Failed to create post');
     }
   }
 
   void _showSnack(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 5)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 5)),
+    );
   }
 
   void _showVisibilitySheet() {
@@ -172,14 +196,15 @@ class _CreatePostPageState extends State<CreatePostPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _VisibilitySheet(
-        current: _visibility,
-        primaryColor: _primary,
-        onSelected: (v) {
-          setState(() => _visibility = v);
-          Navigator.pop(context);
-        },
-      ),
+      builder:
+          (_) => _VisibilitySheet(
+            current: _visibility,
+            primaryColor: _primary,
+            onSelected: (v) {
+              setState(() => _visibility = v);
+              Navigator.pop(context);
+            },
+          ),
     );
   }
 
@@ -188,9 +213,12 @@ class _CreatePostPageState extends State<CreatePostPage> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: _buildAppBar(context),
-      body: _profileLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF7B5CF0)))
-          : _buildBody(),
+      body:
+          _profileLoading
+              ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFF7B5CF0)),
+              )
+              : _buildBody(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _buildCameraFab(),
     );
@@ -205,24 +233,41 @@ class _CreatePostPageState extends State<CreatePostPage> {
         icon: Icon(Icons.close, color: onSurface),
         onPressed: () => Navigator.pop(context),
       ),
-      title: Text('New Post',
-          style: TextStyle(color: onSurface, fontWeight: FontWeight.w700, fontSize: 18)),
+      title: Text(
+        'New Post',
+        style: TextStyle(
+          color: onSurface,
+          fontWeight: FontWeight.w700,
+          fontSize: 18,
+        ),
+      ),
       centerTitle: true,
       actions: [
         Padding(
           padding: const EdgeInsets.only(right: 12),
-          child: _isPosting
-              ? const Center(
-                  child: SizedBox(
-                    width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7B5CF0)),
+          child:
+              _isPosting
+                  ? const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF7B5CF0),
+                      ),
+                    ),
+                  )
+                  : TextButton(
+                    onPressed: _submitPost,
+                    child: const Text(
+                      'Post',
+                      style: TextStyle(
+                        color: Color(0xFF7B5CF0),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
-                )
-              : TextButton(
-                  onPressed: _submitPost,
-                  child: const Text('Post',
-                      style: TextStyle(color: Color(0xFF7B5CF0), fontWeight: FontWeight.w700, fontSize: 16)),
-                ),
         ),
       ],
     );
@@ -269,18 +314,31 @@ class _CreatePostPageState extends State<CreatePostPage> {
       children: [
         CircleAvatar(
           radius: 22,
-          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-          backgroundImage: (_pfpUrl != null && _pfpUrl!.isNotEmpty)
-              ? CachedNetworkImageProvider(_pfpUrl!)
-              : null,
-          child: (_pfpUrl == null || _pfpUrl!.isEmpty)
-              ? Icon(Icons.person, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 24)
-              : null,
+          backgroundColor:
+              Theme.of(context).colorScheme.surfaceContainerHighest,
+          backgroundImage:
+              (_pfpUrl != null && _pfpUrl!.isNotEmpty)
+                  ? CachedNetworkImageProvider(_pfpUrl!)
+                  : null,
+          child:
+              (_pfpUrl == null || _pfpUrl!.isEmpty)
+                  ? Icon(
+                    Icons.person,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 24,
+                  )
+                  : null,
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(_username,
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: onSurface)),
+          child: Text(
+            _username,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: onSurface,
+            ),
+          ),
         ),
         GestureDetector(
           onTap: _showVisibilitySheet,
@@ -296,8 +354,14 @@ class _CreatePostPageState extends State<CreatePostPage> {
               children: [
                 Icon(_visibility.icon, color: _primary, size: 14),
                 const SizedBox(width: 5),
-                Text(_visibility.label,
-                    style: TextStyle(color: _primary, fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(
+                  _visibility.label,
+                  style: TextStyle(
+                    color: _primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(width: 4),
                 Icon(Icons.keyboard_arrow_down, color: _primary, size: 14),
               ],
@@ -339,7 +403,10 @@ class _CreatePostPageState extends State<CreatePostPage> {
           filled: true,
           fillColor: surfaceColor,
           contentPadding: const EdgeInsets.all(16),
-          counterStyle: TextStyle(color: onSurface.withOpacity(0.4), fontSize: 11),
+          counterStyle: TextStyle(
+            color: onSurface.withOpacity(0.4),
+            fontSize: 11,
+          ),
         ),
       ),
     );
@@ -348,9 +415,10 @@ class _CreatePostPageState extends State<CreatePostPage> {
   Widget _buildTypeField() {
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    final visibleHashtags = _showAllHashtags || _hashtags.length <= _initialVisibleHashtags
-        ? _hashtags
-        : _hashtags.take(_initialVisibleHashtags).toList();
+    final visibleHashtags =
+        _showAllHashtags || _hashtags.length <= _initialVisibleHashtags
+            ? _hashtags
+            : _hashtags.take(_initialVisibleHashtags).toList();
 
     return Container(
       decoration: BoxDecoration(
@@ -365,88 +433,112 @@ class _CreatePostPageState extends State<CreatePostPage> {
         ],
       ),
       padding: const EdgeInsets.all(12),
-      child: _hashtagsLoading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7B5CF0)))
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.tag, color: _primary, size: 18),
-                    const SizedBox(width: 8),
-                    Text('Add topics',
-                        style: TextStyle(color: onSurface.withOpacity(0.5), fontSize: 14)),
-                  ],
+      child:
+          _hashtagsLoading
+              ? const Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF7B5CF0),
                 ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: visibleHashtags.map((tag) {
-                    final id = tag['id'] as int;
-                    final name = tag['name'] as String;
-                    final isSelected = _selectedHashtagIds.contains(id);
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          if (isSelected) {
-                            _selectedHashtagIds.remove(id);
-                            _selectedHashtagNames.remove(name);
-                          } else {
-                            _selectedHashtagIds.add(id);
-                            _selectedHashtagNames.add(name);
-                          }
-                        });
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isSelected ? _primary : _primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected ? _primary : _primary.withValues(alpha: 0.3),
+              )
+              : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.tag, color: _primary, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Add topics',
+                        style: TextStyle(
+                          color: onSurface.withOpacity(0.5),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                        visibleHashtags.map((tag) {
+                          final id = tag['id'] as int;
+                          final name = tag['name'] as String;
+                          final isSelected = _selectedHashtagIds.contains(id);
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                if (isSelected) {
+                                  _selectedHashtagIds.remove(id);
+                                  _selectedHashtagNames.remove(name);
+                                } else {
+                                  _selectedHashtagIds.add(id);
+                                  _selectedHashtagNames.add(name);
+                                }
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    isSelected
+                                        ? _primary
+                                        : _primary.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color:
+                                      isSelected
+                                          ? _primary
+                                          : _primary.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.white : _primary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                  ),
+                  if (_hashtags.length > _initialVisibleHashtags) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _showAllHashtags = !_showAllHashtags;
+                          });
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
                           ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: Text(
-                          name,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : _primary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                          _showAllHashtags ? 'See less' : 'See more',
+                          style: const TextStyle(
+                            color: Color(0xFF7B5CF0),
+                            fontWeight: FontWeight.w700,
                           ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                if (_hashtags.length > _initialVisibleHashtags) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _showAllHashtags = !_showAllHashtags;
-                        });
-                      },
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        _showAllHashtags ? 'See less' : 'See more',
-                        style: const TextStyle(
-                          color: Color(0xFF7B5CF0),
-                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
-            ),
+              ),
     );
   }
 
@@ -455,7 +547,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8,
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
       ),
       itemCount: _mediaFiles.length,
       itemBuilder: (context, index) {
@@ -465,29 +559,53 @@ class _CreatePostPageState extends State<CreatePostPage> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: media.isVideo
-                  ? Container(
-                      color: Colors.black87,
-                      child: const Center(child: Icon(Icons.videocam, color: Colors.white, size: 32)),
-                    )
-                  : Image.file(File(media.file.path), fit: BoxFit.cover),
+              child:
+                  media.isVideo
+                      ? Container(
+                        color: Colors.black87,
+                        child: const Center(
+                          child: Icon(
+                            Icons.videocam,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                        ),
+                      )
+                      : Image.file(File(media.file.path), fit: BoxFit.cover),
             ),
             if (media.isVideo)
               Positioned(
-                bottom: 6, left: 6,
+                bottom: 6,
+                left: 6,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)),
-                  child: const Text('VID',
-                      style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'VID',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             Positioned(
-              top: 4, right: 4,
+              top: 4,
+              right: 4,
               child: GestureDetector(
                 onTap: () => _removeMedia(index),
                 child: Container(
-                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
                   padding: const EdgeInsets.all(4),
                   child: const Icon(Icons.close, color: Colors.white, size: 14),
                 ),
@@ -541,7 +659,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
   }
 
   Widget _buildCameraFab() {
-    final bool canCapture = _mediaFiles.length < _maxTotal && _imageCount < _maxImages;
+    final bool canCapture =
+        _mediaFiles.length < _maxTotal && _imageCount < _maxImages;
 
     return FloatingActionButton.extended(
       onPressed: canCapture ? _capturePhoto : null,
@@ -585,9 +704,10 @@ class _MediaButton extends StatelessWidget {
             color: surfaceColor,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: enabled
-                  ? primaryColor.withValues(alpha: 0.4)
-                  : Colors.grey.withValues(alpha: 0.3),
+              color:
+                  enabled
+                      ? primaryColor.withValues(alpha: 0.4)
+                      : Colors.grey.withValues(alpha: 0.3),
             ),
             boxShadow: [
               BoxShadow(
@@ -601,12 +721,14 @@ class _MediaButton extends StatelessWidget {
             children: [
               Icon(icon, color: enabled ? primaryColor : Colors.grey, size: 26),
               const SizedBox(height: 6),
-              Text(label,
-                  style: TextStyle(
-                    color: enabled ? primaryColor : Colors.grey,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  )),
+              Text(
+                label,
+                style: TextStyle(
+                  color: enabled ? primaryColor : Colors.grey,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
@@ -637,7 +759,8 @@ class _VisibilitySheet extends StatelessWidget {
         children: [
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: Colors.grey[300],
                 borderRadius: BorderRadius.circular(2),
@@ -645,15 +768,23 @@ class _VisibilitySheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          Text('Who can see this?',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: onSurface)),
+          Text(
+            'Who can see this?',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 17,
+              color: onSurface,
+            ),
+          ),
           const SizedBox(height: 16),
-          ...PostVisibility.values.map((v) => _VisibilityOption(
-                visibility: v,
-                isSelected: v == current,
-                primaryColor: primaryColor,
-                onTap: () => onSelected(v),
-              )),
+          ...PostVisibility.values.map(
+            (v) => _VisibilityOption(
+              visibility: v,
+              isSelected: v == current,
+              primaryColor: primaryColor,
+              onTap: () => onSelected(v),
+            ),
+          ),
         ],
       ),
     );
@@ -683,7 +814,8 @@ class _VisibilityOption extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected ? primaryColor.withValues(alpha: 0.08) : surfaceColor,
+          color:
+              isSelected ? primaryColor.withValues(alpha: 0.08) : surfaceColor,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected ? primaryColor : Colors.transparent,
@@ -692,8 +824,11 @@ class _VisibilityOption extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(visibility.icon,
-                color: isSelected ? primaryColor : onSurface.withOpacity(0.5), size: 22),
+            Icon(
+              visibility.icon,
+              color: isSelected ? primaryColor : onSurface.withOpacity(0.5),
+              size: 22,
+            ),
             const SizedBox(width: 14),
             Text(
               visibility.label,
@@ -704,7 +839,8 @@ class _VisibilityOption extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            if (isSelected) Icon(Icons.check_circle, color: primaryColor, size: 20),
+            if (isSelected)
+              Icon(Icons.check_circle, color: primaryColor, size: 20),
           ],
         ),
       ),

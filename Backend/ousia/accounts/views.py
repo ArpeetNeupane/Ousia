@@ -11,8 +11,10 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
+from django.db.models import Q
 
 from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest, PasswordResetOTP, UserDeviceToken
+from core.models import Friend
 from accounts.serializers import UserRegistrationSerializer, UserLoginSerializer, UserPasswordUpdateSerializer, ProfileUpdateSerializer, ProfileAdminUpdateSerializer, ProfileSerializer, AreaOfInterestSerializer, UserAreaOfInterestSerializer, UserSearchSerializer
 from accounts.permissions import IsOwnerOfProfile, CreatorOfInterest, IsOwnerOfUserInterest
 from accounts.paginations import DefaultPagination
@@ -780,11 +782,20 @@ class UserSearchAPI(generics.ListAPIView):
         query = self.request.query_params.get('q', '').strip()
         if not query:
             return User.objects.none()
+
+        blocker_ids = Friend.objects.filter(
+            blocked_by__isnull=False,
+        ).filter(
+            Q(user1=self.request.user) | Q(user2=self.request.user)
+        ).exclude(
+            blocked_by=self.request.user
+        ).values_list('blocked_by_id', flat=True)
+
         return User.objects.filter(
             username__icontains=query,
             is_deleted=False,
             is_active=True,
-        ).exclude(id=self.request.user.id)[:20]
+        ).exclude(id=self.request.user.id).exclude(id__in=blocker_ids)[:20]
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
