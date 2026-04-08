@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import BaseUserManager, AbstractBaseUser
+from django.contrib.auth.models import BaseUserManager, AbstractBaseUser, PermissionsMixin
 from django.conf import settings
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.utils import timezone
@@ -60,7 +60,7 @@ class UserManager(BaseUserManager):
         return username.lower().strip()
 
 
-class User(AbstractBaseUser): #abstractbaseuser provides password, last_login, is_authenticated
+class User(AbstractBaseUser, PermissionsMixin): #abstractbaseuser provides password, last_login, is_authenticated
     class Meta:
         verbose_name = 'User'
         verbose_name_plural = 'Users'

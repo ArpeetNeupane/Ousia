@@ -50,7 +50,8 @@ INSTALLED_APPS = [
     "cloudinary",
     "cloudinary_storage",
     "django_filters",
-    'corsheaders',
+    "corsheaders",
+    "jazzmin",
     
     #project apps
     "accounts.apps.AccountsConfig",
