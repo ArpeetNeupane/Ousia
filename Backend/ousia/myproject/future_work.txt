@@ -9,14 +9,14 @@ also see Improvements no 3.
 ✅ for now country code support is through eg: 977980......5, 977 is country code, validation checks for at least 10 digits, max 15
 
 2. Admin Site Security: Ensure the Django admin site is properly secured, especially in production. Using a package like 
-django-admin-honeypot to add a fake admin login page to trap malicious users. Enable Two-Factor Authentication(2FA) for the admin site.
+django-admin-honeypot to add a fake admin login page to trap malicious users. Enable Two-Factor Authentication(2FA) for the admin site. ✅only added jazzmin to admin side cause i havent deployed for now
 
 3. CSRF Protection: Django has built-in CSRF protection. Make sure to use {% csrf_token %} in forms and that the CsrfViewMiddleware 
 is enabled. For API endpoints, use a suitable mechanism to prevent CSRF attacks, such as checking the Origin or Referer header.
 ✅ using jwt
 
 4. SQL Injection: Ensure that all database queries are properly parameterized to prevent SQL injection attacks. Django's ORM helps with this, 
-but double-check any raw SQL queries.
+but double-check any raw SQL queries. ✅haven't used any raw queries
 
 5. To protect from brute force attacks, use packages like django-ratelimit ✅
 
@@ -32,10 +32,10 @@ consider configuring session invalidation after a password change ✅
 
 1.5. user profile signal when account creation ✅
 
-1.75. password reset using email
+1.75. password reset using email ✅used gmail
 
 2. send_email_to_user method: While convenient, maybe Django's send_mail asynchronously (e.g., Celery) to avoid blocking the main 
-thread.
+thread. ✅didnt do celery
 
 3. also validate phn no in the model ✅
 
@@ -62,9 +62,9 @@ def validate(self, data):
     self.user = user
     return data ✅
 
-5. using logging module for logs
+5. using logging module for logs ❌not yet
 
-6. Monitoring application: Using tools like Sentry or New Relic to monitor application for errors and performance issues.
+6. Monitoring application: Using tools like Sentry or New Relic to monitor application for errors and performance issues. ❌not yet
 
 
 
@@ -84,15 +84,15 @@ python-magic to inspect the file's content and determine its true MIME type. ✅
 The maximum file size limits (6MB for images and 100MB for videos) are hardcoded. It would be more flexible and maintainable to move these 
 limits to settings.py. ✅
 Consider scanning the files for malicious content using an anti-virus library or service.
-Double-check your Cloudinary upload settings. You may want to specify allowed formats, transformations, and other security-related options. 
+Double-check Cloudinary upload settings. You may want to specify allowed formats, transformations, and other security-related options. 
 
-2. logging deletion failed exception of cloudinary media deletion when a transaction fails, use logging.
+2. logging deletion failed exception of cloudinary media deletion when a transaction fails, use logging. 🐘🐘🐘
 
-3. double check sql injection vulnurability
+3. double check sql injection vulnurability ✅isnt possible cause orm
 
 4. Post.post_like_count and Post.post_comment_count: These are implemented as properties. Depending on how frequently these counts are 
 accessed, consider caching these values or using Django's aggregation features to improve performance, especially for posts with many 
-likes/comments.
+likes/comments. ❌
 
 5. In both PostResponseCreateSerializer and PostResponseUpdateSerializer, the logic for handling media uploads and associating them with 
 posts is complex. Consider refactoring this into a separate service class or helper function to improve readability and maintainability. ✅
@@ -104,22 +104,22 @@ hashtag exists. This is an O(n) operation and can be optimized by using a set to
 by user, hashtags, or date range. ✅
 
 8. Consider a task queue: For long-running tasks like media processing and deletion, use a task queue like Celery to avoid blocking the main 
-thread.
+thread. ❌
 
 9. Data Sanitization: Sanitize user inputs (especially captions and comments) to prevent cross-site scripting (XSS) attacks. Consider using a 
 library like bleach to allow only a safe subset of HTML tags. ✅xss doesnt matter for mobile app.
 
-10. tests - not api tests but django tests
+10. tests - not api tests but django tests ❌
 
 
 
-# emotion update delete garda clean vaira xaina test required
+# emotion update delete garda clean vaira xaina test required ❌removed emotion feature
 
-# post delete ma delete vairaxina probably test, update ma hunxa hola
+# post delete ma delete vairaxina probably test, update ma hunxa hola ✅its being deleted
 
-# test soft delete of post
+# test soft delete of post 🐘🐘🐘
 
-# search for any user filter
+# search for any user filter ✅
 
 # in conversation, there is a check in convo create that if the convo with the other user exists, return the convo id instead
 # and imma add a feature that if the convo was deleted_for_user and user creates a convo with the same person or searches in the filter
@@ -127,7 +127,7 @@ library like bleach to allow only a safe subset of HTML tags. ✅xss doesnt matt
 # so that for the one who deleted the convo, it seems like its a new chat, but for the other user who kept it, it will seem like the
 # conversation is continuing ✅for conversation left for message
 
-# refactor into a service class image upload logic
+# refactor into a service class image upload logic ✅
 
 
 
@@ -148,13 +148,13 @@ eg: {
     "Result": null
 }
 '''
-#to solve this in other places see UserAreaOfInterestSerializer
+#to solve this in other places see UserAreaOfInterestSerializer 🐘🐘🐘
 
-# need to make it so that you can only message your friends by importing friend model in conversation create serializer and
-# add participant API
+# need to make it so that you can only message your friends by importing friend model in conversation create serializer and ❌made it so you can message any user
+# add participant API ✅
 
-#update the FriendSerializer so that API response is better, instead of SerializerMethodField, charfield source would be better 
-#check if ive used SerializerMethodField anywhere else and replace with source as its better for single attributes and better in performace too
+#update the FriendSerializer so that API response is better, instead of SerializerMethodField, charfield source would be better ❌didn't
+#check if ive used SerializerMethodField anywhere else and replace with source as its better for single attributes and better in performace too ❌didn't
 '''
 username_friend1 = serializers.SerializerMethodField(read_only=True)
     username_friend2 = serializers.SerializerMethodField(read_only=True)
@@ -166,20 +166,20 @@ username_friend1 = serializers.SerializerMethodField(read_only=True)
         return obj.user2.username
 '''
 
-# use uuid instead of id when creating pk for everything not just conversation
+# use uuid instead of id when creating pk for everything not just conversation 🐘🐘🐘
 
-# since im using a custom exception handler, remove try-except from all views and test all APIs once
+# since im using a custom exception handler, remove try-except from all views and test all APIs once 🐘🐘🐘
 
-# feed filtering according to user interest + an algorithm, merge user interests and tag
+# feed filtering according to user interest + an algorithm, merge user interests and tag ✅
 
-# search for todo in frontend
+# search for todo in frontend ❌what todo
 
-# proper commenting on frontend code
+# proper commenting on frontend code 🐘🐘🐘
 
 # run using: uv run python -m daphne -b 0.0.0.0 -p 8000 myproject.asgi:application
 
 # Tomorrow 24th March task:
-# create logbook
+# create logbook ✅
 # create admin page with statistics graph and review content ✅
 # fix nsfw for image in post, test with mom thinker image to see if its opposite ✅
 # sync hashtags and user interests ✅
@@ -198,4 +198,34 @@ username_friend1 = serializers.SerializerMethodField(read_only=True)
 # in profile, categorize ✅
 
 # 28th March tasks
-# improve age estimation model for sign in
+# improve age estimation model for sign in 🐘🐘🐘
+
+
+
+
+
+# FINAL IMPROVEMENTS BEFORE SUBMISSION
+
+# improve age estimation model for sign in 🐘🐘🐘
+# proper commenting on frontend code 🐘🐘🐘
+# use uuid instead of id when creating pk for everything not just conversation 🐘🐘🐘
+# since im using a custom exception handler, remove try-except from all views and test all APIs once 🐘🐘🐘
+#error messages needs to be fixed when pk related
+#When posting a bad users_interest ID (like "0"), DRF’s PrimaryKeyRelatedField raises a ValidationError, and custom exception handler 
+#wraps it as-is, producing:
+'''
+eg: {
+    "StatusCode": 400,
+    "IsSuccess": false,
+    "ErrorMessage": {
+        "post": [
+            "Invalid pk \"2\" - object does not exist."
+        ]
+    },
+    "Result": null
+}
+'''
+# to solve this in other places see UserAreaOfInterestSerializer 🐘🐘🐘
+# logging deletion failed exception of cloudinary media deletion when a transaction fails, use logging. 🐘🐘🐘
+# remove interest selection screen for admin and superuser
+# add a terms and policy section in sign up continue page
