@@ -25,8 +25,8 @@ IMAGE_SMALL_PATH = os.path.abspath(
 BLOCK_THRESHOLD_TEXT = 0.85
 REVIEW_THRESHOLD_TEXT = 0.5
 
-BLOCK_THRESHOLD_IMAGE = 0.6
-REVIEW_THRESHOLD_IMAGE = 0.25
+BLOCK_THRESHOLD_IMAGE = 0.5
+REVIEW_THRESHOLD_IMAGE = 0.2
 
 #video frame sampling — checking first, last, and every Nth frame
 VIDEO_FRAME_INTERVAL = 30  #every 30 frames (~1s at 30fps)
@@ -128,6 +128,22 @@ PROFANITY_REGEX_LOOSE = [
 
 
 def _normalize_text(text: str) -> str:
+    """
+    Normalizes text for loose pattern matching.
+
+    - Converts to lowercase
+    - Applies Unicode normalization (NFKD)
+    - Removes all whitespace
+
+    Useful for detecting obfuscated grooming/profanity patterns.
+
+    Args:
+        text (str): Input text.
+
+    Returns:
+        str: Normalized text.
+    """
+
     text = text.lower()
     text = unicodedata.normalize('NFKD', text)
     return re.sub(r'\s+', '', text)
@@ -136,12 +152,38 @@ def _normalize_text(text: str) -> str:
 #text classifier
 
 class NSFWTextClassifier:
+    """
+    Text-based NSFW classifier with multi-layer detection.
+
+    Pipeline:
+    1. Rule-based detection (grooming + profanity regex)
+    2. Small ML model (fast inference)
+    3. Large ML model (fallback for uncertain cases)
+
+    Uses threshold-based decision logic:
+    - BLOCK: high confidence unsafe
+    - REVIEW: uncertain / borderline
+    - PASS: safe content
+
+    Models are lazily loaded and cached at class level.
+    """
+
     _small_pipeline = None
     _large_pipeline = None
     _loaded = False
 
     @classmethod
     def _load_models(cls):
+        """
+        Lazily loads text classification models.
+
+        Loads:
+        - Small model (fast, primary)
+        - Large model (fallback for ambiguous cases)
+
+        Ensures models are loaded only once per process.
+        """
+
         if cls._loaded:
             return
         try:
@@ -178,12 +220,38 @@ class NSFWTextClassifier:
 
     @classmethod
     def _is_nsfw_label(cls, label: str) -> bool:
+        """
+        Determines whether a model label indicates NSFW content.
+
+        Uses keyword matching on label text.
+
+        Args:
+            label (str): Model output label.
+
+        Returns:
+            bool: True if label is considered NSFW.
+        """
+
         label_lower = label.lower()
         nsfw_keywords = ["nsfw", "unsafe", "explicit", "adult", "toxic", "offensive", "hate", "sexual", "body", "explicit", "nudity", "suggestive", "erotic", "obscene"]
         return any(k in label_lower for k in nsfw_keywords)
 
     @classmethod
     def _run_pipeline(cls, pipe, text: str) -> tuple[float, str]:
+        """
+        Runs a HuggingFace pipeline and extracts NSFW score.
+
+        Iterates through all returned labels and prioritizes
+        NSFW-related labels if present.
+
+        Args:
+            pipe: HuggingFace pipeline instance.
+            text (str): Input text.
+
+        Returns:
+            tuple[float, str]: (score, label)
+        """
+
         results = pipe(text, top_k=None)
         for r in results:
             if cls._is_nsfw_label(r["label"]):
@@ -193,6 +261,27 @@ class NSFWTextClassifier:
 
     @classmethod
     def classify(cls, text: str) -> NSFWResult:
+        """
+        Classifies text content for NSFW, grooming, or profanity.
+
+        Detection order:
+        1. Grooming regex (strict + obfuscated)
+        2. Local profanity regex
+        3. Small ML model
+        4. Large ML model (if needed)
+
+        Applies threshold-based escalation:
+        - High score → BLOCK
+        - Medium score → REVIEW
+        - Low score → PASS
+
+        Args:
+            text (str): Input text.
+
+        Returns:
+            NSFWResult: Structured moderation result.
+        """
+
         cls._load_models()
 
         if not text or not text.strip():
@@ -317,11 +406,30 @@ class NSFWTextClassifier:
 #image classifier
 
 class NSFWImageClassifier:
+    """
+    Image-based NSFW classifier using a lightweight YOLO model.
+
+    Pipeline:
+    - Loads a single image classification model
+    - Detects NSFW vs normal content
+    - Applies threshold-based verdict
+
+    Designed for fast inference and safe fallback (block on failure).
+    """
+
     _small_model = None   #YOLOv9
     _loaded = False
 
     @classmethod
     def _load_models(cls):
+        """
+        Lazily loads the image classification model.
+
+        Handles torch loading quirks and ensures:
+        - GPU usage if available
+        - Model is loaded only once
+        """
+
         if cls._loaded:
             return
 
@@ -347,12 +455,34 @@ class NSFWImageClassifier:
 
     @classmethod
     def _is_nsfw_label(cls, label: str) -> bool:
+        """
+        Determines whether a label indicates NSFW image content.
+
+        Args:
+            label (str): Model output label.
+
+        Returns:
+            bool: True if label is considered NSFW.
+        """
+
         label_lower = label.lower()
         nsfw_keywords = ["nsfw", "unsafe", "explicit", "adult", "porn", "nude", "hentai", "sexy"]
         return any(k in label_lower for k in nsfw_keywords)
 
     @classmethod
     def _run_yolo(cls, image: Image.Image) -> tuple[float, str]:
+        """
+        Runs YOLO-based image classification.
+
+        Extracts NSFW score from model outputs.
+
+        Args:
+            image (PIL.Image.Image): Input image.
+
+        Returns:
+            tuple[float, str]: (score, label)
+        """
+
         results = cls._small_model(image, top_k=None)
         print(f"FalconSAI RAW RESULTS: {results}")
         for r in results:
@@ -362,6 +492,23 @@ class NSFWImageClassifier:
 
     @classmethod
     def classify_image(cls, image: Image.Image) -> NSFWResult:
+        """
+        Classifies an image for NSFW content.
+
+        Applies thresholds:
+        - BLOCK: high confidence NSFW
+        - REVIEW: possible NSFW
+        - PASS: safe
+
+        Falls back to BLOCK if model fails (safety-first design).
+
+        Args:
+            image (PIL.Image.Image): Input image.
+
+        Returns:
+            NSFWResult: Structured moderation result.
+        """
+
         cls._load_models()
         
         if cls._small_model is None:
@@ -385,7 +532,23 @@ class NSFWImageClassifier:
 #video frame extractor
 
 def _extract_frames(video_path: str) -> list[Image.Image]:
-    """Extract first, last, and every VIDEO_FRAME_INTERVAL frames."""
+    """
+    Extracts representative frames from a video.
+
+    Strategy:
+    - First frame
+    - Last frame
+    - Every Nth frame (defined by VIDEO_FRAME_INTERVAL)
+
+    Converts frames from OpenCV (BGR) to PIL (RGB).
+
+    Args:
+        video_path (str): Path to video file.
+
+    Returns:
+        list[PIL.Image.Image]: Extracted frames.
+    """
+
     try:
         import cv2
     except ImportError:
@@ -424,10 +587,33 @@ def _extract_frames(video_path: str) -> list[Image.Image]:
 
 def moderate_post(caption: str | None, media_files: list) -> NSFWResult:
     """
-    Run full moderation on a post.
-    media_files: list of dicts with keys 'path' (str) and 'is_video' (bool)
-    Returns the worst NSFWResult found (BLOCK > REVIEW > PASS).
+    Runs full moderation on a post (text + media).
+
+    Workflow:
+    1. Classify caption (if present)
+    2. If BLOCK → return immediately
+    3. Process media:
+        - Images → direct classification
+        - Videos → extract frames → classify each frame
+    4. Return worst verdict:
+        BLOCK > REVIEW > PASS
+
+    Media format:
+        [
+            {
+                "path": str,
+                "is_video": bool
+            }
+        ]
+
+    Args:
+        caption (str | None): Post caption text.
+        media_files (list): List of media descriptors.
+
+    Returns:
+        NSFWResult: Final moderation decision.
     """
+    
     results: list[NSFWResult] = []
 
     #text check

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../services/auth_service.dart';
@@ -28,11 +29,61 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
   final _picker = ImagePicker();
   bool _isLoading = false;
 
+  late final TapGestureRecognizer _termsRecognizer;
+
   File? _selfieFile;
   File? _idCardFile;
 
   @override
+  void initState() {
+    super.initState();
+    _termsRecognizer = TapGestureRecognizer()..onTap = _showTermsDialog;
+  }
+
+  void _showTermsDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          titleTextStyle: const TextStyle(
+            color: Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+          contentTextStyle: const TextStyle(color: Colors.black, fontSize: 14),
+          title: const Text('Terms and Conditions'),
+          content: const SingleChildScrollView(
+            child: Text(
+              'Basic terms:\n'
+              '\n'
+              '• Be respectful: no bullying, harassment, or hate.\n'
+              '• No grooming or sexual content.\n'
+              '• No sharing personal information (addresses, phone numbers, passwords).\n'
+              '• No illegal content or dangerous challenges.\n'
+              '• Don\'t impersonate others or attempt to bypass safety systems.\n'
+              '\n'
+              'Important privacy note:\n'
+              'We feed your private messages into AI so that we can detect harmful content. '
+              'We do not use the messages for anything else, but because AI scans messages, '
+              'the messages aren\'t encrypted either — it\'s a tradeoff to keep users safe.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(foregroundColor: Colors.black),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
   void dispose() {
+    _termsRecognizer.dispose();
     _dateController.dispose();
     super.dispose();
   }
@@ -51,14 +102,14 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 20),
-                  
+
                   // Title
                   const Text(
                     'We need a bit more info',
                     style: TextStyle(
                       fontSize: 35,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xffB2A0A0)
+                      color: Color(0xffB2A0A0),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -69,9 +120,9 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       color: Color.fromARGB(255, 103, 103, 103),
                     ),
                   ),
-                  
-                  const SizedBox(height: 80),
-                  
+
+                  const SizedBox(height: 45),
+
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -97,11 +148,13 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                     onTap: () async {
                       DateTime? pickedDate = await showDatePicker(
                         context: context,
-                        initialDate: DateTime.now().subtract(const Duration(days: 365 * 13)),
+                        initialDate: DateTime.now().subtract(
+                          const Duration(days: 365 * 13),
+                        ),
                         firstDate: DateTime(2013),
                         lastDate: DateTime(2030),
                       );
-              
+
                       if (pickedDate != null) {
                         _dateController.text =
                             "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')}";
@@ -112,12 +165,12 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       hintStyle: TextStyle(color: Colors.grey[600]),
                       filled: true,
                       fillColor: const Color.fromARGB(255, 255, 255, 255),
-              
+
                       suffixIcon: Icon(
                         Icons.calendar_month,
                         color: Colors.grey[600],
                       ),
-              
+
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(color: Colors.grey[600]!),
@@ -132,7 +185,9 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       ),
                       errorBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: const Color.fromARGB(255, 225, 16, 16)!),
+                        borderSide: BorderSide(
+                          color: const Color.fromARGB(255, 225, 16, 16)!,
+                        ),
                       ),
                       errorStyle: TextStyle(
                         color: Color.fromARGB(255, 225, 16, 16),
@@ -144,7 +199,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       ),
                     ),
                   ),
-              
+
                   const SizedBox(height: 20),
                   // Selfie Upload Section
                   Align(
@@ -159,14 +214,14 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  
+
                   GestureDetector(
                     onTap: () async {
                       final XFile? image = await _picker.pickImage(
                         source: ImageSource.camera,
                         imageQuality: 85,
                       );
-              
+
                       if (image != null) {
                         setState(() {
                           _selfieFile = File(image.path);
@@ -189,21 +244,22 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Expanded(
-                                child: _selfieFile == null
-                                    ? Text(
-                                        'Smile!!',
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 16,
+                                child:
+                                    _selfieFile == null
+                                        ? Text(
+                                          'Smile!!',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 16,
+                                          ),
+                                        )
+                                        : Text(
+                                          'Great job. Selfie uploaded.',
+                                          style: TextStyle(
+                                            color: Colors.black54,
+                                            fontSize: 16,
+                                          ),
                                         ),
-                                      )
-                                    : Text(
-                                        'Great job. Selfie uploaded.',
-                                        style: TextStyle(
-                                          color: Colors.black54,
-                                          fontSize: 16,
-                                        ),
-                                      )
                               ),
                               Icon(
                                 Icons.upload_file_sharp,
@@ -215,9 +271,9 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Identity Card Upload Section
                   Align(
                     alignment: Alignment.centerLeft,
@@ -237,7 +293,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                         source: ImageSource.gallery,
                         imageQuality: 85,
                       );
-              
+
                       if (image != null) {
                         setState(() {
                           _idCardFile = File(image.path);
@@ -260,21 +316,22 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Expanded(
-                                child: _idCardFile == null
-                                    ? Text(
-                                        'Let\'s see your id card.',
-                                        style: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: 16,
+                                child:
+                                    _idCardFile == null
+                                        ? Text(
+                                          'Let\'s see your id card.',
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 16,
+                                          ),
+                                        )
+                                        : Text(
+                                          'Great job. Image Uploaded.',
+                                          style: TextStyle(
+                                            color: Colors.black54,
+                                            fontSize: 16,
+                                          ),
                                         ),
-                                      )
-                                    : Text(
-                                        'Great job. Image Uploaded.',
-                                        style: TextStyle(
-                                          color: Colors.black54,
-                                          fontSize: 16,
-                                        ),
-                                      )
                               ),
                               Icon(
                                 Icons.upload_file_sharp,
@@ -286,85 +343,127 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       ),
                     ),
                   ),
-                  
-                  const SizedBox(height: 55),
-                  
+
+                  const SizedBox(height: 50),
+
                   // Sign Up Button
                   SizedBox(
                     width: 150,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () async {
-                              if (_formKey.currentState!.validate()) {
-                                if (_selfieFile == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please upload a selfie')),
-                                  );
-                                  return;
-                                }
+                      onPressed:
+                          _isLoading
+                              ? null
+                              : () async {
+                                if (_formKey.currentState!.validate()) {
+                                  if (_selfieFile == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Please upload a selfie'),
+                                      ),
+                                    );
+                                    return;
+                                  }
 
-                                if (_idCardFile == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please upload your ID card')),
-                                  );
-                                  return;
-                                }
+                                  if (_idCardFile == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Please upload your ID card',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
 
-                                setState(() => _isLoading = true);
+                                  setState(() => _isLoading = true);
 
-                                final birthDate = _dateController.text;
-                                final authService = AuthService();
+                                  final birthDate = _dateController.text;
+                                  final authService = AuthService();
 
-                                final result = await authService.signup(
+                                  final result = await authService.signup(
                                     username: widget.username,
                                     email: widget.email,
                                     password: widget.password,
                                     confirmPassword: widget.confirmPassword,
                                     birthDate: DateTime.parse(birthDate),
                                     selfieImage: _selfieFile!,
-                                    idCardImage: _idCardFile!);
-
-                                if (!mounted) return;
-                                if (mounted) setState(() => _isLoading = false);
-
-                                if (result['success']) {
-                                  Navigator.pushNamedAndRemoveUntil(
-                                    context,
-                                    '/user-interest',
-                                    (route) => false,
+                                    idCardImage: _idCardFile!,
                                   );
-                                } else {
-                                  final errorMessage = result['message'] ?? 'Registration failed';
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(errorMessage)),
-                                  );
+
+                                  if (!mounted) return;
+                                  if (mounted)
+                                    setState(() => _isLoading = false);
+
+                                  if (result['success']) {
+                                    Navigator.pushNamedAndRemoveUntil(
+                                      context,
+                                      '/user-interest',
+                                      (route) => false,
+                                    );
+                                  } else {
+                                    final errorMessage =
+                                        result['message'] ??
+                                        'Registration failed';
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(errorMessage)),
+                                    );
+                                  }
                                 }
-                              }
-                            },
+                              },
                       style: ElevatedButton.styleFrom(),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2.5,
+                      child:
+                          _isLoading
+                              ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                              : const Text(
+                                'Sign Up',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.white,
+                                ),
                               ),
-                            )
-                          : const Text(
-                              'Sign Up',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.white,
-                              ),
-                            ),
                     ),
                   ),
-                  
+
+                  const SizedBox(height: 12),
+
+                  // Terms and Conditions
+                  Text.rich(
+                    TextSpan(
+                      style: const TextStyle(
+                        color: Color.fromARGB(255, 175, 171, 171),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      children: [
+                        const TextSpan(
+                          text:
+                              'By signing up, you are indicating that you have read and agreed to our ',
+                        ),
+                        TextSpan(
+                          text: 'terms and conditions',
+                          recognizer: _termsRecognizer,
+                          style: const TextStyle(
+                            color: Color.fromARGB(255, 179, 165, 236),
+                            decoration: TextDecoration.underline,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const TextSpan(text: '.'),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
                   const SizedBox(height: 16),
-                  
+
                   // Divider with "or"
                   const Text(
                     'or',
@@ -373,9 +472,9 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       fontSize: 14,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Login Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -402,7 +501,7 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 80),
                   // Paw prints decoration at bottom
                   SizedBox(

@@ -120,7 +120,10 @@ class _OusiaAppState extends State<OusiaApp> with WidgetsBindingObserver {
             ValueListenableBuilder<bool>(
               valueListenable: AuthService.dailyUsageLocked,
               builder: (context, isLocked, _) {
-                if (!isLocked || !AuthService.isLoggedIn) {
+                if (!isLocked ||
+                    !AuthService.isLoggedIn ||
+                    AuthService.isAdmin() ||
+                    AuthService.isSuperUser()) {
                   return const SizedBox.shrink();
                 }
                 return const _DailyUsageLockOverlay();

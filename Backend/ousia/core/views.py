@@ -60,6 +60,30 @@ from datetime import timedelta
 
 
 def _daily_usage_status(user, reference_time=None):
+    #admins/superusers should not be subject to daily screen-time limits.
+    role_value = str(getattr(user, 'role', '')).lower().strip()
+    if (
+        getattr(user, 'is_superuser', False)
+        or getattr(user, 'is_admin', False)
+        or role_value in {'admin', 'superuser'}
+    ):
+        daily_limit_seconds = int(getattr(settings, 'DAILY_USAGE_LIMIT_SECONDS', 3600))
+        now = reference_time or timezone.now()
+        utc_now = (
+            now.astimezone(datetime.timezone.utc)
+            if now.tzinfo
+            else timezone.make_aware(now, datetime.timezone.utc)
+        )
+        day_start = utc_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+        return {
+            'daily_limit_seconds': daily_limit_seconds,
+            'used_seconds': 0,
+            'remaining_seconds': daily_limit_seconds,
+            'is_locked': False,
+            'resets_at': day_end.isoformat(),
+        }
+
     now = reference_time or timezone.now()
     utc_now = now.astimezone(datetime.timezone.utc) if now.tzinfo else timezone.make_aware(now, datetime.timezone.utc)
     day_start = utc_now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -677,7 +701,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
         #when viewing a specific user's posts, skip visibility filter
         if posted_by_username:
             return Post.objects.prefetch_related("like_on_post", "type_of_post").annotate(
-                like_count=Count('like_on_post')
+                like_count=Count('like_on_post', distinct=True)
             ).filter(
                 status=Post.ModerationStatus.APPROVED,
                 posted_by__username=posted_by_username
@@ -698,10 +722,8 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             else:
                 friend_ids.add(user1_id)
 
-        interest_hashtag_ids = get_user_interest_hashtag_ids(user)
-
         base_queryset = Post.objects.prefetch_related("like_on_post", "type_of_post").annotate(
-            like_count=Count('like_on_post')
+            like_count=Count('like_on_post', distinct=True)
         ).filter(
             status=Post.ModerationStatus.APPROVED
         ).exclude(
@@ -711,14 +733,6 @@ class PostListCreateAPI(generics.ListCreateAPIView):
             Q(visibility=Post.VisibilityEnum.FRIENDS_ONLY, posted_by__in=friend_ids) |
             Q(posted_by=user)
         ).distinct()
-
-        if interest_hashtag_ids:
-            interest_filtered = base_queryset.filter(
-                Q(type_of_post__id__in=interest_hashtag_ids) | Q(posted_by=user)
-            ).distinct()
-            if interest_filtered.exists():
-                return interest_filtered
-
         return base_queryset
 
     def create(self, request, *args, **kwargs):
@@ -774,7 +788,7 @@ class PostListCreateAPI(generics.ListCreateAPIView):
                 return api_response(
                     is_success=False,
                     error_message={
-                        "caption": f"Post blocked due to content violating community guidelines: {mod_result.reason} (model: {mod_result.model_used}, score: {mod_result.score:.3f}, label: {mod_result.label})"
+                        "caption": f"Post blocked due to content violating community guidelines: {mod_result.reason}" #(model: {mod_result.model_used}, score: {mod_result.score:.3f}, label: {mod_result.label})
                     },
                     status_code=status.HTTP_400_BAD_REQUEST
                 )

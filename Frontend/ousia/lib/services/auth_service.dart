@@ -15,7 +15,7 @@ import '../utils/route_names.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.8:8000/api';
+  static const String baseUrl = 'http://192.168.1.5:8000/api';
 
   // Secure storage for JWT tokens
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -84,7 +84,7 @@ class AuthService {
   bool _hasCompletedInterests = false;
   bool get hasCompletedInterests => _hasCompletedInterests;
 
-  // Initialize auth service - load tokens from secure storage
+  /// Loads any saved tokens/profile from secure storage and restores a session if still valid.
   static Future<void> initialize() async {
     try {
       _accessToken = await _secureStorage.read(key: _accessTokenKey);
@@ -111,6 +111,7 @@ class AuthService {
     }
   }
 
+  /// Converts backend error payloads into a readable message string.
   static String _parseBackendErrorMessage(
     dynamic errorData, [
     String defaultMessage = 'An error occurred',
@@ -138,7 +139,7 @@ class AuthService {
     return errorMessages.isNotEmpty ? errorMessages.join('\n') : defaultMessage;
   }
 
-  // Checking if stored token is still valid
+  /// Validates the current access token by calling the profile endpoint and refreshes if needed.
   static Future<bool> _validateToken() async {
     if (_accessToken == null) return false;
 
@@ -181,7 +182,7 @@ class AuthService {
     }
   }
 
-  // Parse API error messages consistently
+  /// Normalizes various API error shapes (string/map/list) into a single user-facing message.
   static String _parseErrorMessage(
     dynamic errorData, [
     String defaultMessage = 'An error occurred',
@@ -225,6 +226,7 @@ class AuthService {
     return defaultMessage;
   }
 
+  /// Logs the user in, stores tokens securely, fetches profile, and sets up push notifications.
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
       final response = await http.post(
@@ -296,6 +298,7 @@ class AuthService {
     }
   }
 
+  /// Registers a new user account (optionally uploading selfie/ID images).
   Future<Map<String, dynamic>> signup({
     required String username,
     required String email,
@@ -380,7 +383,7 @@ class AuthService {
     }
   }
 
-  // Change password
+  /// Updates the logged-in user's password.
   Future<Map<String, dynamic>> updatePassword({
     required String currentPassword,
     required String newPassword,
@@ -415,7 +418,7 @@ class AuthService {
     }
   }
 
-  //Forgot password, otp, reset password
+  /// Starts the forgot-password flow by requesting an OTP to be emailed.
   Future<Map<String, dynamic>> forgotPassword(String email) async {
     try {
       final response = await http.post(
@@ -431,6 +434,7 @@ class AuthService {
     }
   }
 
+  /// Verifies an emailed OTP code for the forgot-password flow.
   Future<Map<String, dynamic>> verifyOtp(String email, String otp) async {
     try {
       final response = await http.post(
@@ -446,6 +450,7 @@ class AuthService {
     }
   }
 
+  /// Resets the password using an OTP code.
   Future<Map<String, dynamic>> resetPassword(
     String email,
     String otp,
@@ -471,6 +476,7 @@ class AuthService {
     }
   }
 
+  /// Starts (or reuses) a daily-usage session and applies server-provided screen-time limits.
   Future<bool> startSessionIfNeeded() async {
     if (!isLoggedIn) return false;
     if (_activeSessionId != null) {
@@ -496,6 +502,7 @@ class AuthService {
     }
   }
 
+  /// Updates the active session end-time on the server and refreshes screen-time limit state.
   Future<bool> updateSessionHeartbeat() async {
     if (!isLoggedIn || _activeSessionId == null) return false;
 
@@ -513,6 +520,7 @@ class AuthService {
     }
   }
 
+  /// Ends the active session on the server (best-effort) and clears local session state.
   Future<bool> endSessionIfNeeded() async {
     if (!isLoggedIn || _activeSessionId == null) return false;
 
@@ -533,6 +541,7 @@ class AuthService {
     }
   }
 
+  /// Fetches the current daily usage limit status without starting/ending a session.
   Future<bool> fetchSessionLimitStatus() async {
     if (!isLoggedIn) return false;
 
@@ -550,6 +559,7 @@ class AuthService {
     }
   }
 
+  /// Safely converts dynamic values to int with an optional fallback.
   static int _asInt(dynamic value, {int fallback = 0}) {
     if (value is int) return value;
     if (value is double) return value.toInt();
@@ -557,11 +567,26 @@ class AuthService {
     return fallback;
   }
 
+  /// Updates local notifiers for daily usage limits from an API response payload.
   static void _applySessionLimit(dynamic result) {
     if (result is! Map) return;
 
     final limit = result['session_limit'];
     if (limit is! Map) return;
+
+    // Admins/superusers are exempt from screen-time limits.
+    if (isAdmin() || isSuperUser()) {
+      dailyUsageLocked.value = false;
+      remainingDailyUsageSeconds.value = _asInt(
+        limit['daily_limit_seconds'],
+        fallback: remainingDailyUsageSeconds.value,
+      );
+      dailyUsageLimitSeconds.value = _asInt(
+        limit['daily_limit_seconds'],
+        fallback: dailyUsageLimitSeconds.value,
+      );
+      return;
+    }
 
     dailyUsageLocked.value = limit['is_locked'] == true;
     remainingDailyUsageSeconds.value = _asInt(limit['remaining_seconds']);
@@ -571,6 +596,7 @@ class AuthService {
     );
   }
 
+  /// Fetches and caches the current user's profile from the backend.
   Future<void> _fetchUserProfile() async {
     try {
       final response = await http.get(
@@ -599,6 +625,7 @@ class AuthService {
     }
   }
 
+  /// Returns the cached profile if available, otherwise fetches it from the server.
   Future<Map<String, dynamic>> fetchProfile() async {
     if (_currentUser != null) {
       return {'success': true, 'data': _currentUser!.toJson()};
@@ -611,7 +638,7 @@ class AuthService {
     return {'success': false, 'message': 'Failed to load profile'};
   }
 
-  // For other user's profile
+  /// Fetches another user's profile by ID.
   Future<Map<String, dynamic>> fetchUserProfile(int userId) async {
     try {
       final response = await authenticatedRequest(
@@ -636,6 +663,7 @@ class AuthService {
     }
   }
 
+  /// Updates the current user's profile fields (username/bio/profile picture).
   Future<Map<String, dynamic>> updateProfile({
     String? username,
     String? bio,
@@ -683,6 +711,7 @@ class AuthService {
     }
   }
 
+  /// Refreshes the access token using the stored refresh token.
   static Future<bool> refreshAccessToken() async {
     if (_refreshToken == null) return false;
 
@@ -713,6 +742,7 @@ class AuthService {
     return false;
   }
 
+  /// Logs out locally (clears tokens/cache) and best-effort blacklists refresh token server-side.
   static Future<void> logout() async {
     stopNotificationsStream();
     await unregisterCurrentDeviceToken();
@@ -762,6 +792,7 @@ class AuthService {
     await clearConversationCache();
   }
 
+  /// Returns a short platform label used when registering device tokens.
   static String _platformLabel() {
     if (kIsWeb) return 'web';
     if (Platform.isAndroid) return 'android';
@@ -769,6 +800,7 @@ class AuthService {
     return 'unknown';
   }
 
+  /// Requests notification permissions, registers the FCM token, and wires notification listeners.
   static Future<void> setupPushNotifications() async {
     if (_accessToken == null) return;
 
@@ -824,6 +856,7 @@ class AuthService {
     }
   }
 
+  /// Handles a push notification tap by routing to the correct in-app destination.
   static Future<void> _handleOpenedPushMessage(RemoteMessage message) async {
     final type = (message.data['notification_type'] ?? '').toString();
     await openNotificationTarget(
@@ -832,6 +865,7 @@ class AuthService {
     );
   }
 
+  /// Initializes local notifications (Android channel + click handler) for foreground messages.
   static Future<void> _initializeLocalNotifications() async {
     if (_localNotificationsInitialized || !_localNotificationsAvailable) return;
 
@@ -880,6 +914,7 @@ class AuthService {
     }
   }
 
+  /// Displays a local notification when an FCM message arrives while the app is foregrounded.
   static Future<void> _showForegroundNotification(RemoteMessage message) async {
     if (!_localNotificationsInitialized || !_localNotificationsAvailable)
       return;
@@ -910,6 +945,7 @@ class AuthService {
     }
   }
 
+  /// Navigates to the screen implied by a notification type/payload (friend requests, chat, etc.).
   static Future<void> openNotificationTarget({
     required String notificationType,
     Map<String, dynamic>? notificationData,
@@ -946,6 +982,7 @@ class AuthService {
     await nav.pushNamed(RouteNames.notifications);
   }
 
+  /// Marks a conversation as read on the server and updates local cached unread counts.
   Future<bool> markConversationRead(String conversationId) async {
     if (conversationId.isEmpty) return false;
 
@@ -965,6 +1002,7 @@ class AuthService {
     return serverOk;
   }
 
+  /// Builds route arguments for the chat screen from cached/loaded conversation details.
   static Future<Map<String, dynamic>> _buildChatRouteArgs(
     String conversationId,
   ) async {
@@ -1001,7 +1039,9 @@ class AuthService {
           }
         }
         if (otherParticipant == null && participants.isNotEmpty) {
-          otherParticipant = Map<String, dynamic>.from(participants.first as Map);
+          otherParticipant = Map<String, dynamic>.from(
+            participants.first as Map,
+          );
         }
 
         final pfpInfo = (match['pfp_info'] as List?) ?? [];
@@ -1031,6 +1071,7 @@ class AuthService {
     };
   }
 
+  /// Updates the local conversations cache to set unread_count=0 for a conversation.
   static Future<void> _markConversationReadLocally(
     String conversationId,
   ) async {
@@ -1072,6 +1113,7 @@ class AuthService {
     conversationReadTick.value = conversationReadTick.value + 1;
   }
 
+  /// Registers the current device's FCM token with the backend.
   static Future<void> registerDeviceToken(String token) async {
     if (_accessToken == null || token.isEmpty) return;
     if (_registeredFcmToken == token) return;
@@ -1092,6 +1134,7 @@ class AuthService {
     } catch (_) {}
   }
 
+  /// Unregisters the device token from the backend and tears down push listeners locally.
   static Future<void> unregisterCurrentDeviceToken() async {
     if (_accessToken == null) {
       _fcmTokenRefreshSub?.cancel();
@@ -1126,6 +1169,7 @@ class AuthService {
     }
   }
 
+  /// Fetches the list of available interests/hashtags from the backend.
   Future<Map<String, dynamic>> fetchInterests() async {
     try {
       final response = await authenticatedRequest(
@@ -1159,6 +1203,7 @@ class AuthService {
     }
   }
 
+  /// Saves a selected interest for the current user.
   Future<Map<String, dynamic>> saveUserInterests(int interestId) async {
     try {
       final response = await authenticatedRequest(
@@ -1196,7 +1241,7 @@ class AuthService {
     }
   }
 
-  // Fetch Posts with cache fallback
+  /// Loads posts (feed or profile) with network-first behavior and cache fallback for the feed.
   Future<Map<String, dynamic>> fetchPosts({
     String? nextUrl,
     String? username,
@@ -1228,6 +1273,7 @@ class AuthService {
     return _readFeedCache();
   }
 
+  /// Fetches posts from the API (supports pagination and profile filtering).
   Future<Map<String, dynamic>> _fetchPostsFromNetwork({
     String? nextUrl,
     String? username,
@@ -1251,6 +1297,7 @@ class AuthService {
     return _parsePosts(data);
   }
 
+  /// Parses the backend post list response into Post models + pagination info.
   static Map<String, dynamic> _parsePosts(Map<String, dynamic> data) {
     if ((data['IsSuccess'] ?? false) == true) {
       final result = data['Result'];
@@ -1270,7 +1317,7 @@ class AuthService {
     };
   }
 
-  // Cache helpers
+  /// Writes the current feed page and next link into SharedPreferences.
   Future<void> _writeFeedCache(List<Post> posts, String? next) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1283,6 +1330,7 @@ class AuthService {
     } catch (_) {}
   }
 
+  /// Reads cached feed data from SharedPreferences (includes stale indicator).
   Future<Map<String, dynamic>> _readFeedCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1313,6 +1361,7 @@ class AuthService {
     }
   }
 
+  /// Updates a single post in the local feed cache (best-effort).
   Future<void> updateCachedPost(Post updated) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1334,6 +1383,7 @@ class AuthService {
     } catch (_) {}
   }
 
+  /// Clears cached feed data.
   static Future<void> clearFeedCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1342,7 +1392,7 @@ class AuthService {
     } catch (_) {}
   }
 
-  // Delete Post
+  /// Deletes a post and removes it from the local feed cache on success.
   Future<Map<String, dynamic>> deletePost(int postId) async {
     try {
       final response = await authenticatedRequest(
@@ -1370,6 +1420,7 @@ class AuthService {
     }
   }
 
+  /// Removes a post from the local feed cache by ID.
   Future<void> _removeFromFeedCache(int postId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1388,6 +1439,7 @@ class AuthService {
     } catch (_) {}
   }
 
+  /// Likes a post (or returns an existing like) and returns the like ID.
   Future<Map<String, dynamic>> likePost(int postId) async {
     try {
       final response = await authenticatedRequest(
@@ -1409,6 +1461,7 @@ class AuthService {
     }
   }
 
+  /// Removes a like by like ID.
   Future<Map<String, dynamic>> unlikePost(int likeId) async {
     try {
       final response = await authenticatedRequest(
@@ -1429,6 +1482,7 @@ class AuthService {
     }
   }
 
+  /// Fetches all available hashtags.
   Future<List<Map<String, dynamic>>> fetchHashtags() async {
     try {
       final response = await authenticatedRequest(
@@ -1446,7 +1500,7 @@ class AuthService {
     }
   }
 
-  // Create post
+  /// Creates a post with optional caption, hashtags, and media uploads.
   Future<Map<String, dynamic>> createPost({
     String? caption,
     required String visibility,
@@ -1507,6 +1561,7 @@ class AuthService {
     }
   }
 
+  /// Fetches a single post by ID.
   Future<Map<String, dynamic>> fetchPostById(int postId) async {
     try {
       final response = await authenticatedRequest(
@@ -1535,6 +1590,7 @@ class AuthService {
     }
   }
 
+  /// Returns a best-effort MIME type for a file path.
   MediaType _getMimeType(String path) {
     final ext = path.split('.').last.toLowerCase();
     switch (ext) {
@@ -1556,7 +1612,7 @@ class AuthService {
     }
   }
 
-  // Send friend request
+  /// Sends a friend request to a user identified by username.
   Future<Map<String, dynamic>> sendFriendRequest(String toUsername) async {
     try {
       final response = await authenticatedRequest(
@@ -1574,6 +1630,7 @@ class AuthService {
     }
   }
 
+  /// Checks whether there is a pending friend request between the current user and another username.
   Future<Map<String, dynamic>> checkFriendRequestStatus(
     String toUsername,
   ) async {
@@ -1624,6 +1681,7 @@ class AuthService {
     }
   }
 
+  /// Fetches friend requests involving the current user and marks which are received.
   Future<Map<String, dynamic>> fetchFriendRequests() async {
     try {
       final currentUsername = _currentUser?.username ?? '';
@@ -1652,6 +1710,7 @@ class AuthService {
     }
   }
 
+  /// Accepts or rejects a friend request by ID.
   Future<Map<String, dynamic>> respondFriendRequest(
     int id,
     String status,
@@ -1672,6 +1731,7 @@ class AuthService {
     }
   }
 
+  /// Deletes a friend request by ID.
   Future<Map<String, dynamic>> deleteFriendRequest(int id) async {
     try {
       final response = await authenticatedRequest(
@@ -1688,6 +1748,7 @@ class AuthService {
     }
   }
 
+  /// Returns friendship/block status between the current user and a target user ID.
   Future<Map<String, dynamic>> checkFriendship(int userId) async {
     try {
       final response = await authenticatedRequest(
@@ -1697,24 +1758,21 @@ class AuthService {
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
         final results = body['Result']['data']['results'] as List;
-        
+
         // Find friendship with this user (supports both legacy and current shapes)
-        final friendship = results.firstWhere(
-          (r) {
-            final friend = r['friend'];
-            if (friend is Map<String, dynamic>) {
-              return friend['id'] == userId;
-            }
-            return r['user1'] == userId || r['user2'] == userId;
-          },
-          orElse: () => null,
-        );
-        
+        final friendship = results.firstWhere((r) {
+          final friend = r['friend'];
+          if (friend is Map<String, dynamic>) {
+            return friend['id'] == userId;
+          }
+          return r['user1'] == userId || r['user2'] == userId;
+        }, orElse: () => null);
+
         bool isFriend = friendship != null;
         bool isBlocked = false;
         bool isBlockedByMe = false;
         bool isBlockedMe = false;
-        
+
         if (isFriend) {
           // blocked_by stores whichever side initiated the block.
           final blockedById = friendship['blocked_by'];
@@ -1722,7 +1780,7 @@ class AuthService {
           isBlockedByMe = blockedById != null && blockedById != userId;
           isBlocked = isBlockedMe || isBlockedByMe;
         }
-        
+
         return {
           'success': true,
           'is_friend': isFriend,
@@ -1749,6 +1807,7 @@ class AuthService {
     }
   }
 
+  /// Fetches a paginated friends list (optionally for another user).
   Future<Map<String, dynamic>> fetchFriends({
     int? userId,
     String? nextUrl,
@@ -1768,9 +1827,10 @@ class AuthService {
       final body = jsonDecode(response.body);
       if (body['IsSuccess'] == true) {
         final data = body['Result']['data'] as Map<String, dynamic>;
-        final results = (data['results'] as List)
-            .map((r) => Map<String, dynamic>.from(r as Map))
-            .toList();
+        final results =
+            (data['results'] as List)
+                .map((r) => Map<String, dynamic>.from(r as Map))
+                .toList();
         final totalFriends =
             body['Result']['total_friends'] ?? data['count'] ?? results.length;
 
@@ -1787,6 +1847,7 @@ class AuthService {
     }
   }
 
+  /// Fetches all friends across pages and returns a combined list.
   Future<Map<String, dynamic>> fetchAllFriends({int? userId}) async {
     try {
       final allFriends = <Map<String, dynamic>>[];
@@ -1818,6 +1879,7 @@ class AuthService {
     }
   }
 
+  /// Unfriends a user by ID.
   Future<Map<String, dynamic>> unfriendUser(int userId) async {
     try {
       final response = await authenticatedRequest(
@@ -1834,6 +1896,7 @@ class AuthService {
     }
   }
 
+  /// Blocks a user by ID (requires an existing friendship in this backend).
   Future<Map<String, dynamic>> blockUser(int userId) async {
     try {
       final response = await authenticatedRequest(
@@ -1850,7 +1913,7 @@ class AuthService {
     }
   }
 
-  // Delete Account
+  /// Deletes the current user's account and logs out locally on success.
   Future<Map<String, dynamic>> deleteAccount() async {
     try {
       final response = await authenticatedRequest(
@@ -1868,7 +1931,7 @@ class AuthService {
     }
   }
 
-  // Search users
+  /// Searches users by query text (supports pagination if backend provides it).
   Future<Map<String, dynamic>> searchUsers(
     String query, {
     String? nextUrl,
@@ -1893,7 +1956,7 @@ class AuthService {
     }
   }
 
-  // Messages
+  /// Fetches the conversation list with network-first and cache fallback behavior.
   Future<Map<String, dynamic>> fetchConversations() async {
     try {
       final result = await _fetchConversationsFromNetwork();
@@ -1914,6 +1977,7 @@ class AuthService {
     return _readConversationCache();
   }
 
+  /// Fetches the conversation list from the backend.
   Future<Map<String, dynamic>> _fetchConversationsFromNetwork() async {
     try {
       final response = await authenticatedRequest(
@@ -1931,6 +1995,7 @@ class AuthService {
     }
   }
 
+  /// Writes conversation list data into SharedPreferences.
   Future<void> _writeConversationCache(
     List<Map<String, dynamic>> conversations,
   ) async {
@@ -1945,6 +2010,7 @@ class AuthService {
     } catch (_) {}
   }
 
+  /// Reads the cached conversation list from SharedPreferences (includes stale indicator).
   Future<Map<String, dynamic>> _readConversationCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1974,6 +2040,7 @@ class AuthService {
     }
   }
 
+  /// Clears cached conversations.
   static Future<void> clearConversationCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1982,6 +2049,7 @@ class AuthService {
     } catch (_) {}
   }
 
+  /// Fetches notifications and updates the local unread count when loading the first page.
   Future<Map<String, dynamic>> fetchNotifications({String? nextUrl}) async {
     try {
       final endpoint =
@@ -2028,10 +2096,12 @@ class AuthService {
     }
   }
 
+  /// Convenience wrapper to fetch the next notification page.
   Future<Map<String, dynamic>> fetchNextNotifications(String nextUrl) async {
     return fetchNotifications(nextUrl: nextUrl);
   }
 
+  /// Marks a single notification as read and decrements unread count locally.
   Future<bool> markNotificationRead(int notificationId) async {
     try {
       final response = await authenticatedRequest(
@@ -2049,6 +2119,7 @@ class AuthService {
     }
   }
 
+  /// Marks all notifications as read and resets unread count locally.
   Future<bool> markAllNotificationsRead() async {
     try {
       final response = await authenticatedRequest(
@@ -2066,6 +2137,7 @@ class AuthService {
     }
   }
 
+  /// Refreshes the unread notification count from the backend.
   Future<void> refreshUnreadNotificationCount() async {
     try {
       final response = await authenticatedRequest(
@@ -2081,6 +2153,7 @@ class AuthService {
     } catch (_) {}
   }
 
+  /// Starts the WebSocket notifications stream and reconnects automatically on disconnect.
   static void startNotificationsStream({
     void Function(Map<String, dynamic> notification)? onNotification,
   }) {
@@ -2136,6 +2209,7 @@ class AuthService {
     }
   }
 
+  /// Cleans up the socket subscription and schedules a reconnect if enabled.
   static void _handleNotificationSocketDisconnect() {
     _notificationSub?.cancel();
     _notificationSub = null;
@@ -2152,6 +2226,7 @@ class AuthService {
     });
   }
 
+  /// Stops the WebSocket notifications stream and cancels reconnect attempts.
   static void stopNotificationsStream() {
     _notificationReconnectEnabled = false;
     _notificationReconnectTimer?.cancel();
@@ -2163,6 +2238,7 @@ class AuthService {
     _notificationCallback = null;
   }
 
+  /// Creates (or fetches) a direct conversation with a user.
   Future<Map<String, dynamic>> createOrGetConversation(int userId) async {
     try {
       final response = await authenticatedRequest(
@@ -2195,6 +2271,7 @@ class AuthService {
     }
   }
 
+  /// Creates a group conversation with the given participants and name.
   Future<Map<String, dynamic>> createGroup({
     required List<int> participantIds,
     required String groupName,
@@ -2225,7 +2302,7 @@ class AuthService {
     }
   }
 
-  // Conversation options
+  /// Soft-deletes a conversation for the current user.
   Future<Map<String, dynamic>> deleteConversationForUser(
     String conversationId,
   ) async {
@@ -2245,6 +2322,7 @@ class AuthService {
     }
   }
 
+  /// Leaves a group conversation.
   Future<Map<String, dynamic>> leaveGroup(String conversationId) async {
     try {
       final response = await authenticatedRequest(
@@ -2263,6 +2341,7 @@ class AuthService {
     }
   }
 
+  /// Adds a participant to a group conversation.
   Future<Map<String, dynamic>> addParticipant(
     String conversationId,
     int userId,
@@ -2286,6 +2365,7 @@ class AuthService {
     }
   }
 
+  /// Removes a participant from a group conversation (may require confirmation).
   Future<Map<String, dynamic>> removeParticipant(
     String conversationId,
     int userId, {
@@ -2328,6 +2408,7 @@ class AuthService {
     }
   }
 
+  /// Updates a group's display name.
   Future<Map<String, dynamic>> updateConversation(
     String conversationId,
     String groupName,
@@ -2349,7 +2430,7 @@ class AuthService {
     }
   }
 
-  // Admin Dashboard
+  /// Fetches summary stats for the admin dashboard.
   Future<Map<String, dynamic>> fetchAdminDashboardStats() async {
     try {
       final response = await authenticatedRequest(
@@ -2366,6 +2447,7 @@ class AuthService {
     }
   }
 
+  /// Fetches admin screen-time stats aggregated per user.
   Future<List<Map<String, dynamic>>> fetchScreenTimeStats() async {
     try {
       final response = await authenticatedRequest(
@@ -2393,6 +2475,7 @@ class AuthService {
     }
   }
 
+  /// Fetches the moderation queue items for admin review.
   Future<Map<String, dynamic>> fetchModerationQueue() async {
     try {
       final response = await authenticatedRequest(
@@ -2422,6 +2505,7 @@ class AuthService {
     }
   }
 
+  /// Submits a moderation decision (approve/block) for a post.
   Future<Map<String, dynamic>> moderationAction({
     required int postId,
     required String action,
@@ -2450,7 +2534,7 @@ class AuthService {
     }
   }
 
-  // Helper method to make authenticated requests with auto-retry on token refresh
+  /// Makes an authenticated HTTP request and retries once if the access token is expired.
   Future<http.Response> authenticatedRequest({
     required String method,
     required String endpoint,
@@ -2541,15 +2625,17 @@ class AuthService {
     return response;
   }
 
-  // Helper method to check if user has specific role
+  /// Checks whether the current user has the given role string.
   static bool hasRole(String role) {
     final userRole = _currentUser?.role.toLowerCase().trim();
     final targetRole = role.toLowerCase().trim();
     return userRole == targetRole;
   }
 
-  // Helper methods for role checks
+  /// Returns true if the current user is an admin.
   static bool isAdmin() => hasRole('admin');
+  /// Returns true if the current user is a superuser.
   static bool isSuperUser() => hasRole('superuser');
+  /// Returns true if the current user is a regular user.
   static bool isUser() => hasRole('user');
 }

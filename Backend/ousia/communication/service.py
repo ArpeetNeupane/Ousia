@@ -1,6 +1,25 @@
 from communication.models import Conversation
 
 def check_for_existing_one_on_one_conversation(users):
+    """
+    Checks whether a one-on-one conversation already exists between two users.
+
+    Logic:
+    - Only considers exactly 2 users
+    - Filters non-group conversations where either user is a participant
+    - Iterates through results to find a conversation containing both users only
+
+    Note:
+    Initial queryset may include conversations where only one of the users
+    is present, so an explicit participant match check is required.
+
+    Args:
+        users (Iterable[User]): List or iterable of exactly two user instances.
+
+    Returns:
+        Conversation | None: Existing one-on-one conversation if found, else None.
+    """
+    
     if len(users) != 2:
         return False
 

@@ -20,6 +20,24 @@ face_cascade = cv2.CascadeClassifier(
 
 
 def extract_dob_from_text(text):
+    """
+    Extracts a date of birth from OCR-extracted text.
+
+    Supports multiple date formats including:
+    - (dd/mm/yyyy)
+    - dd/mm/yyyy or dd-mm-yyyy
+    - yyyy/mm/dd (optionally marked as BS)
+
+    If the detected year appears to be in Bikram Sambat (year > 2100),
+    it converts it to Gregorian (AD) using nepali_datetime.
+
+    Args:
+        text (str): OCR-extracted raw text.
+
+    Returns:
+        datetime.date | None: Parsed date of birth if found, else None.
+    """
+    
     text = text.lower()
 
     patterns = [
@@ -58,6 +76,19 @@ def extract_dob_from_text(text):
 
 
 def crop_largest_face(image):
+    """
+    Detects and crops the largest face from an image.
+
+    Uses Haar Cascade for face detection and selects the largest
+    detected face region. Adds a small margin around the face.
+
+    Args:
+        image (np.ndarray): Input image in OpenCV (BGR) format.
+
+    Returns:
+        np.ndarray | None: Cropped face image, or None if no face detected.
+    """
+
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     faces = face_cascade.detectMultiScale(
@@ -86,6 +117,21 @@ def crop_largest_face(image):
 
 
 def extract_text_from_id(idcard_cv):
+    """
+    Extracts text from an ID card image using EasyOCR.
+
+    Applies preprocessing such as resizing, grayscale conversion,
+    and histogram equalization to improve OCR accuracy.
+
+    Filters out low-confidence detections.
+
+    Args:
+        idcard_cv (np.ndarray): ID card image in OpenCV (BGR) format.
+
+    Returns:
+        str: Extracted text (lowercased). Returns empty string on failure.
+    """
+
     extracted_text = ""
 
     try:
@@ -121,6 +167,27 @@ def extract_text_from_id(idcard_cv):
 
 
 def verify_student_identity(selfie_bytes, idcard_bytes):
+    """
+    Verifies a student's identity using facial recognition and OCR.
+
+    Steps:
+    - Converts byte streams to OpenCV images
+    - Detects and crops faces from selfie and ID card
+    - Compares faces using DeepFace (ArcFace model)
+    - Extracts text from ID card using OCR
+
+    Args:
+        selfie_bytes (bytes): Byte stream of user's selfie image.
+        idcard_bytes (bytes): Byte stream of ID card image.
+
+    Returns:
+        dict: {
+            "is_match": bool,              # Face verification result
+            "extracted_text": str,        # OCR-extracted text from ID
+            "idcard_cv": np.ndarray       # Processed ID card image
+        }
+    """
+
     #converting byte streams to OpenCV formats / Numpy Arrays
     selfie_np = np.frombuffer(selfie_bytes, np.uint8)
     selfie_cv = cv2.imdecode(selfie_np, cv2.IMREAD_COLOR)
