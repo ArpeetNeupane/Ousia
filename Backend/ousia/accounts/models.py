@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import BaseUserManager, AbstractBaseUser, PermissionsMixin
 from django.conf import settings
 from django.core.mail import send_mail, EmailMultiAlternatives
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -57,7 +58,10 @@ class UserManager(BaseUserManager):
     def normalize_username(username):
         if not username:
             raise ValueError("Username cannot be empty or None.")
-        return username.lower().strip()
+        username = username.lower().strip()
+        if any(ch.isspace() for ch in username):
+            raise ValueError("Spaces aren't allowed in username.")
+        return username
 
 
 class User(AbstractBaseUser, PermissionsMixin): #abstractbaseuser provides password, last_login, is_authenticated
@@ -95,11 +99,10 @@ class User(AbstractBaseUser, PermissionsMixin): #abstractbaseuser provides passw
     def __str__(self):
         return self.username
 
-    # def clean(self):
-    #     if not self.phone_number.isdigit():
-    #         raise ValidationError({'phone_number': 'Phone number must only contain digits.'})
-    #     if len(self.phone_number) < 10:
-    #         raise ValidationError({'phone_number': 'Phone number must have at least 10 digits.'})
+    def clean(self):
+        super().clean()
+        if self.username and any(ch.isspace() for ch in self.username):
+            raise ValidationError({'username': "Spaces aren't allowed in username."})
 
     def save(self, *args, **kwargs):
         #running full validation before saving to ensure clean() rules are applied
