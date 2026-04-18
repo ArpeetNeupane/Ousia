@@ -11,7 +11,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
-from django.db.models import Q
+from django.db.models import Q, Case, When, F, IntegerField
 
 from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest, PasswordResetOTP, UserDeviceToken
 from core.models import Friend
@@ -780,8 +780,30 @@ class UserSearchAPI(generics.ListAPIView):
 
     def get_queryset(self):
         query = self.request.query_params.get('q', '').strip()
+        friends_only_raw = self.request.query_params.get('friends_only', '').strip().lower()
+        friends_only = friends_only_raw in {'1', 'true', 'yes'}
         if not query:
             return User.objects.none()
+
+        if friends_only:
+            friend_ids = Friend.objects.filter(
+                blocked_by__isnull=True,
+            ).filter(
+                Q(user1=self.request.user) | Q(user2=self.request.user)
+            ).annotate(
+                friend_id=Case(
+                    When(user1=self.request.user, then=F('user2_id')),
+                    When(user2=self.request.user, then=F('user1_id')),
+                    output_field=IntegerField(),
+                )
+            ).values_list('friend_id', flat=True)
+
+            return User.objects.filter(
+                id__in=friend_ids,
+                username__icontains=query,
+                is_deleted=False,
+                is_active=True,
+            ).exclude(id=self.request.user.id)[:20]
 
         blocker_ids = Friend.objects.filter(
             blocked_by__isnull=False,

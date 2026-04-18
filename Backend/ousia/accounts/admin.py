@@ -15,7 +15,7 @@ class UserAdmin(BaseUserAdmin):
         (None, {'fields': ('username', 'email', 'password')}),
         ('Personal info', {'fields': ('birth_date', 'role')}),
         ('Images', {'fields': ('selfie_public_id', 'idcard_public_id')}),
-        ('Permissions', {'fields': ('is_admin', 'is_staff', 'is_superuser', 'is_active')}),
+        ('Permissions', {'fields': ('is_admin', 'is_staff', 'is_superuser', 'is_active', 'has_completed_interests')}),
     )
     add_fieldsets = (
         (None, {

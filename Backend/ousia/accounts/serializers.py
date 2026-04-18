@@ -160,6 +160,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         confirm_password = data.get("confirm_password")
         role = data.get('role')
 
+        if username and any(ch.isspace() for ch in username):
+            raise serializers.ValidationError(
+                {"username": "Spaces aren't allowed in username."}
+            )
+
         if len(username) < 3 or len(username) > 20:
             raise serializers.ValidationError(
                 {"username": "Username must be between 3-20 letters long"}
@@ -403,6 +408,9 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("Username cannot be empty.")
 
+        if any(ch.isspace() for ch in value):
+            raise serializers.ValidationError("Spaces aren't allowed in username.")
+
         username_mod_result = NSFWTextClassifier.classify(value)
         if username_mod_result.verdict == NSFWVerdict.BLOCK:
             raise serializers.ValidationError("This username contains inappropriate language. Please choose another username.")
@@ -489,6 +497,9 @@ class ProfileAdminUpdateSerializer(serializers.ModelSerializer):
         value = value.strip()
         if not value:
             raise serializers.ValidationError("Username cannot be empty.")
+
+        if any(ch.isspace() for ch in value):
+            raise serializers.ValidationError("Spaces aren't allowed in username.")
 
         username_mod_result = NSFWTextClassifier.classify(value)
         if username_mod_result.verdict == NSFWVerdict.BLOCK:

@@ -379,7 +379,7 @@ class _MessagesPageState extends State<MessagesPage> {
                       onChanged: (q) async {
                         if (q.trim().isEmpty) { setSheet(() => results = []); return; }
                         setSheet(() => isLoading = true);
-                        final r = await _service.searchUsers(q);
+                        final r = await _service.searchUsers(q, friendsOnly: true);
                         setSheet(() { results = r['success'] == true ? List<Map<String, dynamic>>.from(r['users']) : []; isLoading = false; });
                       },
                       decoration: InputDecoration(
@@ -926,7 +926,7 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
       return;
     }
     setState(() => _isLoading = true);
-    final result = await widget.service.searchUsers(query);
+    final result = await widget.service.searchUsers(query, friendsOnly: true);
     if (!mounted) return;
     setState(() {
       _results = result['success'] == true

@@ -1931,16 +1931,18 @@ class AuthService {
     }
   }
 
-  /// Searches users by query text (supports pagination if backend provides it).
+  /// Searches users by query text (optionally limited to friends).
   Future<Map<String, dynamic>> searchUsers(
     String query, {
     String? nextUrl,
+    bool friendsOnly = false,
   }) async {
     try {
+      final friendsOnlyQuery = friendsOnly ? '&friends_only=true' : '';
       final endpoint =
           nextUrl != null
               ? '/user/search/?${Uri.parse(nextUrl).query}'
-              : '/user/search/?q=${Uri.encodeComponent(query)}';
+              : '/user/search/?q=${Uri.encodeComponent(query)}$friendsOnlyQuery';
       final response = await authenticatedRequest(
         method: 'GET',
         endpoint: endpoint,
