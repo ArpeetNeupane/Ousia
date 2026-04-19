@@ -125,7 +125,6 @@ def _daily_usage_status(user, reference_time=None):
     remaining_minutes = remaining_seconds / 60.0
 
     print(
-        "###############################################",
         "[USAGE_LIMIT_DEBUG] "
         f"user={user.username} "
         f"used_seconds={used_seconds} "
@@ -2064,6 +2063,7 @@ class SessionEndAPI(generics.GenericAPIView):
 
 
 class SessionLimitStatusAPI(generics.GenericAPIView):
+    serializer_class = UserSessionStartSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 

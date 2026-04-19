@@ -2,21 +2,28 @@
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
-import cv2, re, datetime, easyocr, nepali_datetime
+import datetime
+import re
+from functools import lru_cache
+
+import cv2
+import easyocr
+import nepali_datetime
 import numpy as np
-from deepface import DeepFace
 
 
-#loading OCR globally so it doesn't reload on every request
-easyocr_reader = easyocr.Reader(
-    ['en'],
-    gpu=False
-)
+@lru_cache(maxsize=1)
+def _get_easyocr_reader():
+    """Lazily initialize EasyOCR so importing this module stays fast."""
+    return easyocr.Reader(["en"], gpu=False)
 
-#loading face detector
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
+
+@lru_cache(maxsize=1)
+def _get_face_cascade():
+    """Lazily initialize the Haar Cascade face detector."""
+    return cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
 
 
 def extract_dob_from_text(text):
@@ -91,6 +98,7 @@ def crop_largest_face(image):
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
+    face_cascade = _get_face_cascade()
     faces = face_cascade.detectMultiScale(
         gray,
         scaleFactor=1.1,
@@ -150,7 +158,7 @@ def extract_text_from_id(idcard_cv):
         gray = cv2.cvtColor(idcard_cv, cv2.COLOR_BGR2GRAY)
         gray = cv2.equalizeHist(gray)
 
-        ocr_results = easyocr_reader.readtext(gray)
+        ocr_results = _get_easyocr_reader().readtext(gray)
 
         text_lines = []
         for _, text, confidence in ocr_results:
@@ -195,8 +203,11 @@ def verify_student_identity(selfie_bytes, idcard_bytes):
     idcard_np = np.frombuffer(idcard_bytes, np.uint8)
     idcard_cv = cv2.imdecode(idcard_np, cv2.IMREAD_COLOR)
 
-    #face Matching (selfie and ID) 
+    #face Matching (selfie and ID)
     try: 
+        # Importing DeepFace lazily keeps module import + test discovery fast.
+        from deepface import DeepFace
+
         selfie_face = crop_largest_face(selfie_cv)
         idcard_face = crop_largest_face(idcard_cv)
 

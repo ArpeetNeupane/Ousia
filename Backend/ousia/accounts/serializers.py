@@ -246,24 +246,24 @@ class UserLoginSerializer(serializers.Serializer): #using Serializer here instea
     password = serializers.CharField(write_only = True, required=True)
 
     def validate(self, data):
-        username = data['username']
-        password = data['password']
+        username = (data.get('username') or '').strip()
+        password = data.get('password') or ''
 
-        #authenticate() returns the user if credentials are correct
-        user = authenticate(username=username, password=password)
+        user = User.objects.filter(username__iexact=username).first()
 
-        if user is None:
-            raise serializers.ValidationError(
-                {"message": "Invalid Credentials."}
-            )
-        if not user.is_active:
-            raise serializers.ValidationError(
-                {"message": "Please activate your account by contacting the admin before attempting login."}
-            )
-        
+        #keeping a generic error for unknown users / wrong passwords
+        if not user or not user.check_password(password):
+            raise serializers.ValidationError({"message": "Invalid Credentials."})
+
+        #only after confirming the password, we return specific account-state errors
         if user.is_deleted:
             raise serializers.ValidationError(
                 {"message": "This account does not exist anymore because it has been deleted."}
+            )
+
+        if not user.is_active:
+            raise serializers.ValidationError(
+                {"message": "Please activate your account by contacting the admin before attempting login."}
             )
 
         self.user = user #storing for use in to_representation

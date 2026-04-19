@@ -210,7 +210,7 @@ username_friend1 = serializers.SerializerMethodField(read_only=True)
 # proper commenting on frontend code 🐘🐘🐘
 # use uuid instead of id when creating pk for everything not just conversation 🐘🐘🐘 ✅
 # since im using a custom exception handler, remove try-except from all views and test all APIs once 🐘🐘🐘 ❌
-# fix 401 and 403 🐘🐘🐘
+# fix 401 and 403 🐘🐘🐘 ❌
 #error messages needs to be fixed when pk related
 #When posting a bad users_interest ID (like "0"), DRF’s PrimaryKeyRelatedField raises a ValidationError, and custom exception handler 
 #wraps it as-is, producing:
@@ -231,3 +231,5 @@ eg: {
 # remove interest selection screen for admin and superuser ❌
 # add a terms and policy section in sign up continue page ✅
 # remove blocking after certain time for admins ✅ 
+
+# run tests.py using uv run python manage.py test app_name --testrunner myproject.test_runner.EmojiDiscoverRunner -v 2
