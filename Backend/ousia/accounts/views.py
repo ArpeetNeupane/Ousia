@@ -11,7 +11,10 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
+from django.db import transaction
 from django.db.models import Q, Case, When, F, IntegerField
+
+import re
 
 from accounts.models import User, Profile, AreaOfInterest, UserAreaOfInterest, PasswordResetOTP, UserDeviceToken
 from core.models import Friend
@@ -171,10 +174,17 @@ class UserPasswordUpdateAPI(APIView):
                 )
 
             serializer.save()
-            # manually incrementing throttle
-            throttle = SuccessfulUpdateThrottle()
-            throttle.get_cache_key(request, self)
-            throttle.throttle_success()
+            #recording throttle hit only on success (using the same throttle instance DRF checked).
+            throttles = getattr(self, 'throttles', None) or []
+            for throttle in throttles:
+                if isinstance(throttle, SuccessfulUpdateThrottle):
+                    throttle.throttle_success()
+                    break
+            else:
+                #fallback: creating an instance and computing its key.
+                throttle = SuccessfulUpdateThrottle()
+                throttle.key = throttle.get_cache_key(request, self)
+                throttle.throttle_success()
             
             blacklist_user_tokens(request.user)
             return api_response(
@@ -764,6 +774,29 @@ class UserAreaOfInterestDeleteAPI(generics.DestroyAPIView):
 class DeleteAccountAPI(APIView):
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_description="Soft-delete the authenticated user's account.",
+        responses={
+            200: openapi.Response(
+                description="Account deleted successfully.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'result': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'message': openapi.Schema(type=openapi.TYPE_STRING),
+                            },
+                        ),
+                    },
+                ),
+            ),
+            401: openapi.Response(description="Unauthorized - JWT token missing or invalid."),
+            500: openapi.Response(description="Internal server error."),
+        },
+        tags=["User"],
+    )
     def delete(self, request):
         user = request.user
         user.soft_delete()
@@ -831,11 +864,103 @@ class UserSearchAPI(generics.ListAPIView):
             status_code=status.HTTP_200_OK
         )
 
+    @swagger_auto_schema(
+        operation_description="Search users by username substring. Optionally restrict to friends only.",
+        manual_parameters=[
+            openapi.Parameter(
+                name="q",
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                required=True,
+                description="Search query (username substring).",
+            ),
+            openapi.Parameter(
+                name="friends_only",
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                required=False,
+                description="If true/1/yes, only search within friends.",
+            ),
+        ],
+        responses={
+            200: openapi.Response(
+                description="Search results.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'result': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'message': openapi.Schema(type=openapi.TYPE_STRING),
+                                'data': openapi.Schema(
+                                    type=openapi.TYPE_ARRAY,
+                                    items=openapi.Schema(
+                                        type=openapi.TYPE_OBJECT,
+                                        properties={
+                                            'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                            'username': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'pfp_url': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                                        },
+                                    ),
+                                ),
+                            },
+                        ),
+                    },
+                ),
+            ),
+            401: openapi.Response(description="Unauthorized - JWT token missing or invalid."),
+            500: openapi.Response(description="Internal server error."),
+        },
+        tags=["User"],
+    )
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
 
 class ForgotPasswordAPI(APIView):
     permission_classes = []
     authentication_classes = []
 
+    @swagger_auto_schema(
+        operation_description="Request a password reset OTP to be sent to the given email. Always returns a generic success message for existing/non-existing emails.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'email': openapi.Schema(type=openapi.TYPE_STRING, description='User email'),
+            },
+            required=['email'],
+        ),
+        responses={
+            200: openapi.Response(
+                description="Generic success response.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'result': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'message': openapi.Schema(type=openapi.TYPE_STRING),
+                            },
+                        ),
+                    },
+                ),
+            ),
+            400: openapi.Response(
+                description="Email is required.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'error_message': openapi.Schema(type=openapi.TYPE_STRING),
+                    },
+                ),
+            ),
+            500: openapi.Response(description="Internal server error."),
+        },
+        tags=["Password"],
+    )
     def post(self, request):
         email = request.data.get('email', '').strip()
         if not email:
@@ -844,10 +969,9 @@ class ForgotPasswordAPI(APIView):
                 error_message='Email is required.',
                 status_code=status.HTTP_400_BAD_REQUEST
             )
-        
-        try:
-            user = User.objects.get(email=email, is_deleted=False, is_active=True)
-        except User.DoesNotExist:
+
+        users = User.objects.filter(email=email, is_deleted=False, is_active=True).order_by('id')
+        if not users.exists():
             #shouldn't reveal if email exists
             return api_response(
                 is_success=True,
@@ -857,18 +981,28 @@ class ForgotPasswordAPI(APIView):
                 status_code=status.HTTP_200_OK
             )
 
-        otp = PasswordResetOTP.generate_for_user(user)
+        #email is not unique (parent email can be shared). Generating ONE code shared across all
+        #active accounts under this email, and later require `username` to choose the account
+        primary_user = users.first()
+        with transaction.atomic():
+            otp_obj = PasswordResetOTP.generate_for_user(primary_user)
+            otp_code = otp_obj.otp
+            for other_user in users[1:]:
+                PasswordResetOTP.objects.filter(user=other_user, is_used=False).delete()
+                PasswordResetOTP.objects.create(user=other_user, otp=otp_code)
+
         html_message = render_to_string(
             'accounts/emails/password_reset_otp.html',
             {
-                'username': user.username,
-                'otp': otp.otp,
+                #avoiding the leakage of child usernames when a parent email is shared
+                'username': 'there',
+                'otp': otp_code,
                 'expiry_minutes': 10,
             }
         )
         plain_message = strip_tags(html_message)
 
-        user.send_email_to_user(
+        primary_user.send_email_to_user(
             subject='Your Ousia Password Reset Code',
             message=plain_message,
             html_message=html_message,
@@ -886,43 +1020,149 @@ class VerifyOTPAPI(APIView):
     permission_classes = []
     authentication_classes = []
 
+    @swagger_auto_schema(
+        operation_description="Verify a password reset OTP for an email address.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'email': openapi.Schema(type=openapi.TYPE_STRING, description='User email'),
+                'otp': openapi.Schema(type=openapi.TYPE_STRING, description='OTP code'),
+            },
+            required=['email', 'otp'],
+        ),
+        responses={
+            200: openapi.Response(
+                description="OTP verified.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'result': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'message': openapi.Schema(type=openapi.TYPE_STRING),
+                            },
+                        ),
+                    },
+                ),
+            ),
+            400: openapi.Response(
+                description="Invalid OTP or OTP expired.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'error_message': openapi.Schema(type=openapi.TYPE_STRING),
+                    },
+                ),
+            ),
+            500: openapi.Response(description="Internal server error."),
+        },
+        tags=["Password"],
+    )
     def post(self, request):
         email = request.data.get('email', '').strip()
-        otp = request.data.get('otp', '').strip()
-        
-        try:
-            user = User.objects.get(email=email)
-            otp_obj = PasswordResetOTP.objects.filter(user=user, otp=otp, is_used=False).latest('created_at')
-            if not otp_obj.is_valid():
-                return api_response(
-                    is_success=False,
-                    error_message='OTP has expired.',
-                    status_code=status.HTTP_400_BAD_REQUEST
-                )
-            return api_response(
-                is_success=True,
-                result={
-                    'message': 'OTP verified.'
-                },
-                status_code=status.HTTP_200_OK
-            )
-        except (User.DoesNotExist, PasswordResetOTP.DoesNotExist):
+        otp_raw = (request.data.get('otp') or '').strip()
+        otp = re.sub(r'\D', '', otp_raw)
+
+        users = User.objects.filter(email=email, is_deleted=False, is_active=True)
+        if not users.exists():
             return api_response(
                 is_success=False,
                 error_message='Invalid OTP.',
                 status_code=status.HTTP_400_BAD_REQUEST
             )
 
+        otp_obj = PasswordResetOTP.objects.filter(
+            user__in=users,
+            otp=otp,
+            is_used=False,
+        ).order_by('-created_at').first()
+
+        if not otp_obj:
+            return api_response(
+                is_success=False,
+                error_message='Invalid OTP.',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not otp_obj.is_valid():
+            return api_response(
+                is_success=False,
+                error_message='OTP has expired.',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        return api_response(
+            is_success=True,
+            result={
+                'message': 'OTP verified.'
+            },
+            status_code=status.HTTP_200_OK
+        )
+
 
 class ResetPasswordAPI(APIView):
     permission_classes = []
     authentication_classes = []
 
+    @swagger_auto_schema(
+        operation_description="Reset password using a valid OTP.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'email': openapi.Schema(type=openapi.TYPE_STRING, description='User email'),
+                'username': openapi.Schema(type=openapi.TYPE_STRING, description='Username of the child account'),
+                'otp': openapi.Schema(type=openapi.TYPE_STRING, description='OTP code'),
+                'new_password': openapi.Schema(type=openapi.TYPE_STRING, description='New password'),
+                'confirm_password': openapi.Schema(type=openapi.TYPE_STRING, description='Confirm new password'),
+            },
+            required=['email', 'username', 'otp', 'new_password', 'confirm_password'],
+        ),
+        responses={
+            200: openapi.Response(
+                description="Password reset successful.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'result': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'message': openapi.Schema(type=openapi.TYPE_STRING),
+                            },
+                        ),
+                    },
+                ),
+            ),
+            400: openapi.Response(
+                description="Validation failed (OTP invalid/expired, passwords mismatch).",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'error_message': openapi.Schema(type=openapi.TYPE_STRING),
+                    },
+                ),
+            ),
+            500: openapi.Response(description="Internal server error."),
+        },
+        tags=["Password"],
+    )
     def post(self, request):
         email = request.data.get('email', '').strip()
-        otp = request.data.get('otp', '').strip()
+        username = (request.data.get('username') or '').strip()
+        otp_raw = (request.data.get('otp') or '').strip()
+        otp = re.sub(r'\D', '', otp_raw)
         new_password = request.data.get('new_password', '').strip()
         confirm_password = request.data.get('confirm_password', '').strip()
+
+        if not username:
+            return api_response(
+                is_success=False,
+                error_message='Username is required.',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
 
         if new_password != confirm_password:
             return api_response(
@@ -932,7 +1172,7 @@ class ResetPasswordAPI(APIView):
             )
 
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(username=username, email=email, is_deleted=False, is_active=True)
             otp_obj = PasswordResetOTP.objects.filter(user=user, otp=otp, is_used=False).latest('created_at')
             if not otp_obj.is_valid():
                 return api_response(
@@ -962,6 +1202,58 @@ class DeviceTokenRegisterAPI(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_description="Register (or re-activate) the authenticated user's device token for push notifications.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'token': openapi.Schema(type=openapi.TYPE_STRING, description='Device token'),
+                'platform': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Device platform (e.g. android/ios/web). Unknown is accepted.",
+                ),
+            },
+            required=['token'],
+        ),
+        responses={
+            200: openapi.Response(
+                description="Device token registered.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'result': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'message': openapi.Schema(type=openapi.TYPE_STRING),
+                                'data': openapi.Schema(
+                                    type=openapi.TYPE_OBJECT,
+                                    properties={
+                                        'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                        'platform': openapi.Schema(type=openapi.TYPE_STRING),
+                                        'is_active': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                                    },
+                                ),
+                            },
+                        ),
+                    },
+                ),
+            ),
+            400: openapi.Response(
+                description="Device token is required.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'error_message': openapi.Schema(type=openapi.TYPE_STRING),
+                    },
+                ),
+            ),
+            401: openapi.Response(description="Unauthorized - JWT token missing or invalid."),
+            500: openapi.Response(description="Internal server error."),
+        },
+        tags=["Device Tokens"],
+    )
     def post(self, request):
         token = (request.data.get('token') or '').strip()
         platform = (request.data.get('platform') or UserDeviceToken.Platform.UNKNOWN).strip().lower()
@@ -1004,6 +1296,46 @@ class DeviceTokenUnregisterAPI(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_description="Unregister (deactivate) a device token for the authenticated user.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'token': openapi.Schema(type=openapi.TYPE_STRING, description='Device token'),
+            },
+            required=['token'],
+        ),
+        responses={
+            200: openapi.Response(
+                description="Device token unregistered.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'result': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'message': openapi.Schema(type=openapi.TYPE_STRING),
+                            },
+                        ),
+                    },
+                ),
+            ),
+            400: openapi.Response(
+                description="Device token is required.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'is_success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'error_message': openapi.Schema(type=openapi.TYPE_STRING),
+                    },
+                ),
+            ),
+            401: openapi.Response(description="Unauthorized - JWT token missing or invalid."),
+            500: openapi.Response(description="Internal server error."),
+        },
+        tags=["Device Tokens"],
+    )
     def post(self, request):
         token = (request.data.get('token') or '').strip()
         if not token:

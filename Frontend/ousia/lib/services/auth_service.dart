@@ -453,6 +453,7 @@ class AuthService {
   /// Resets the password using an OTP code.
   Future<Map<String, dynamic>> resetPassword(
     String email,
+    String username,
     String otp,
     String newPassword,
     String confirmPassword,
@@ -463,6 +464,7 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
+          'username': username,
           'otp': otp,
           'new_password': newPassword,
           'confirm_password': confirmPassword,

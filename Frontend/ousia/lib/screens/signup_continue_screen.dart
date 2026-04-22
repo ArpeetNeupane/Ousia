@@ -351,66 +351,60 @@ class _SignupContinueScreenState extends State<SignupContinueScreen> {
                     width: 150,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed:
-                          _isLoading
-                              ? null
-                              : () async {
-                                if (_formKey.currentState!.validate()) {
-                                  if (_selfieFile == null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Please upload a selfie'),
-                                      ),
-                                    );
-                                    return;
-                                  }
+                      onPressed: () async {
+                        if (_isLoading) return;
+                        if (_formKey.currentState!.validate()) {
+                          if (_selfieFile == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please upload a selfie'),
+                              ),
+                            );
+                            return;
+                          }
 
-                                  if (_idCardFile == null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Please upload your ID card',
-                                        ),
-                                      ),
-                                    );
-                                    return;
-                                  }
+                          if (_idCardFile == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please upload your ID card'),
+                              ),
+                            );
+                            return;
+                          }
 
-                                  setState(() => _isLoading = true);
+                          setState(() => _isLoading = true);
 
-                                  final birthDate = _dateController.text;
-                                  final authService = AuthService();
+                          final birthDate = _dateController.text;
+                          final authService = AuthService();
 
-                                  final result = await authService.signup(
-                                    username: widget.username,
-                                    email: widget.email,
-                                    password: widget.password,
-                                    confirmPassword: widget.confirmPassword,
-                                    birthDate: DateTime.parse(birthDate),
-                                    selfieImage: _selfieFile!,
-                                    idCardImage: _idCardFile!,
-                                  );
+                          final result = await authService.signup(
+                            username: widget.username,
+                            email: widget.email,
+                            password: widget.password,
+                            confirmPassword: widget.confirmPassword,
+                            birthDate: DateTime.parse(birthDate),
+                            selfieImage: _selfieFile!,
+                            idCardImage: _idCardFile!,
+                          );
 
-                                  if (!mounted) return;
-                                  if (mounted)
-                                    setState(() => _isLoading = false);
+                          if (!mounted) return;
+                          setState(() => _isLoading = false);
 
-                                  if (result['success']) {
-                                    Navigator.pushNamedAndRemoveUntil(
-                                      context,
-                                      '/user-interest',
-                                      (route) => false,
-                                    );
-                                  } else {
-                                    final errorMessage =
-                                        result['message'] ??
-                                        'Registration failed';
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(errorMessage)),
-                                    );
-                                  }
-                                }
-                              },
+                          if (result['success']) {
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              '/user-interest',
+                              (route) => false,
+                            );
+                          } else {
+                            final errorMessage =
+                                result['message'] ?? 'Registration failed';
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(errorMessage)),
+                            );
+                          }
+                        }
+                      },
                       style: ElevatedButton.styleFrom(),
                       child:
                           _isLoading

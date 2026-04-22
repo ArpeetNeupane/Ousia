@@ -20,6 +20,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   final _emailController = TextEditingController();
   final _otpController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _newPassController = TextEditingController();
   final _confirmPassController = TextEditingController();
   bool _showNew = false;
@@ -29,6 +30,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   void dispose() {
     _emailController.dispose();
     _otpController.dispose();
+    _usernameController.dispose();
     _newPassController.dispose();
     _confirmPassController.dispose();
     super.dispose();
@@ -54,7 +56,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _verifyOtp() async {
-    final otp = _otpController.text.trim();
+    final otp = _otpController.text.replaceAll(RegExp(r'\D'), '').trim();
     if (otp.length != 6) {
       setState(() => _error = 'Enter the 6-digit code');
       return;
@@ -71,15 +73,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _resetPassword() async {
+    final username = _usernameController.text.trim();
     final newPass = _newPassController.text.trim();
     final confirm = _confirmPassController.text.trim();
-    final otp = _otpController.text.trim();
-    if (newPass.isEmpty || confirm.isEmpty) {
+    final otp = _otpController.text.replaceAll(RegExp(r'\D'), '').trim();
+    if (username.isEmpty || newPass.isEmpty || confirm.isEmpty) {
       setState(() => _error = 'Please fill in all fields');
       return;
     }
     setState(() { _isLoading = true; _error = null; });
-    final result = await _service.resetPassword(_email, otp, newPass, confirm);
+    final result = await _service.resetPassword(_email, username, otp, newPass, confirm);
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (result['success'] == true) {
@@ -170,7 +173,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               ] else ...[
                 Text('Set new password', style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.bold, color: cs.onSurface)),
+                const SizedBox(height: 8),
+                Text('Enter your username to reset the correct account.', style: GoogleFonts.inter(color: cs.onSurfaceVariant)),
                 const SizedBox(height: 24),
+                TextField(
+                  controller: _usernameController,
+                  style: GoogleFonts.inter(color: cs.onSurface),
+                  decoration: InputDecoration(
+                    labelText: 'Username',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    prefixIcon: Icon(Icons.person_outline, color: cs.onSurfaceVariant),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: _newPassController,
                   obscureText: !_showNew,
@@ -209,7 +224,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : (_step == 0 ? _sendOtp : _step == 1 ? _verifyOtp : _resetPassword),
+                  onPressed: () async {
+                    if (_isLoading) return;
+                    if (_step == 0) {
+                      await _sendOtp();
+                    } else if (_step == 1) {
+                      await _verifyOtp();
+                    } else {
+                      await _resetPassword();
+                    }
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: cs.primary,
                     foregroundColor: cs.onPrimary,

@@ -29,6 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Profile? _profile;
   bool _isLoading = true;
   List<Post> _userPosts = [];
+  final Set<int> _deletingPostIds = <int>{};
   final _username = AuthService.currentUser?.username ?? 'User';
   String? _userPostsNextUrl;
   bool _isLoadingMorePosts = false;
@@ -286,6 +287,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await Future.wait(futures);
     if (!mounted) return;
     setState(() => _isLoadingCaptionPostDetails = false);
+  }
+
+  Future<void> _deletePostFromProfile(int postId) async {
+    if (_deletingPostIds.contains(postId)) return;
+
+    setState(() => _deletingPostIds.add(postId));
+    final result = await authService.deletePost(postId);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      setState(() {
+        _userPosts.removeWhere((p) => p.id == postId);
+        _captionOnlyPostDetails.remove(postId);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Post deleted')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']?.toString() ?? 'Failed to delete post'),
+        ),
+      );
+    }
+
+    if (!mounted) return;
+    setState(() => _deletingPostIds.remove(postId));
+  }
+
+  Future<void> _confirmAndDeletePost(int postId) async {
+    if (_deletingPostIds.contains(postId)) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Delete Post',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text('Are you sure you want to delete this post?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color.fromARGB(255, 161, 159, 159),
+            ),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    if (confirmed == true) {
+      await _deletePostFromProfile(postId);
+    }
   }
 
   Future<void> _logout() async {
@@ -1074,22 +1138,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           itemBuilder: (context, index) {
                             final post = _mediaPosts[index];
                             final media = post.mediaFiles.first;
-                            return media.isVideo
+
+                            final isDeleting = _deletingPostIds.contains(post.id);
+                            final tile = media.isVideo
                                 ? Stack(
                                     fit: StackFit.expand,
                                     children: [
                                       CachedNetworkImage(
-                                          imageUrl: media.videoThumbnailUrl,
-                                          fit: BoxFit.cover),
+                                        imageUrl: media.videoThumbnailUrl,
+                                        fit: BoxFit.cover,
+                                      ),
                                       const Align(
                                         alignment: Alignment.center,
-                                        child: Icon(Icons.play_circle_outline,
-                                            color: Colors.white, size: 28),
+                                        child: Icon(
+                                          Icons.play_circle_outline,
+                                          color: Colors.white,
+                                          size: 28,
+                                        ),
                                       ),
                                     ],
                                   )
                                 : CachedNetworkImage(
-                                    imageUrl: media.mediaUrl, fit: BoxFit.cover);
+                                    imageUrl: media.mediaUrl,
+                                    fit: BoxFit.cover,
+                                  );
+
+                            return GestureDetector(
+                              onLongPress:
+                                  isDeleting ? null : () => _confirmAndDeletePost(post.id),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  tile,
+                                  if (isDeleting)
+                                    Container(
+                                      color: Colors.black.withOpacity(0.35),
+                                      alignment: Alignment.center,
+                                      child: const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
                           },
                         )
                       : Column(
@@ -1111,37 +1207,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 createdAt = null;
                               }
 
-                              return Container(
-                                width: double.infinity,
-                                margin: const EdgeInsets.only(bottom: 10),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.surface,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      caption.isEmpty ? '(No caption)' : caption,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: Theme.of(context).colorScheme.onSurface,
-                                      ),
+                              final isDeleting = _deletingPostIds.contains(post.id);
+                              return GestureDetector(
+                                onLongPress:
+                                    isDeleting ? null : () => _confirmAndDeletePost(post.id),
+                                child: Opacity(
+                                  opacity: isDeleting ? 0.6 : 1,
+                                  child: Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.surface,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
                                     ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      createdAt == null
-                                          ? ''
-                                          : '${createdAt.toLocal().year}-${createdAt.toLocal().month.toString().padLeft(2, '0')}-${createdAt.toLocal().day.toString().padLeft(2, '0')}',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                                      ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          caption.isEmpty ? '(No caption)' : caption,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Theme.of(context).colorScheme.onSurface,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          createdAt == null
+                                              ? ''
+                                              : '${createdAt.toLocal().year}-${createdAt.toLocal().month.toString().padLeft(2, '0')}-${createdAt.toLocal().day.toString().padLeft(2, '0')}',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                                .withOpacity(0.5),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
                               );
                             }),

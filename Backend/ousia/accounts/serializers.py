@@ -449,7 +449,7 @@ class ProfileAdminUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            'id', 'synced_username', 'synced_email', 'synced_birth_date', 'bio', 'address', 'birth_date',
+            'id', 'synced_username', 'synced_email', 'synced_birth_date', 'bio', 'address',
             'created_at', 'updated_at', 'pfp_public_id', 'pfp_url', 'pfp'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'pfp_public_id', 'pfp_url']

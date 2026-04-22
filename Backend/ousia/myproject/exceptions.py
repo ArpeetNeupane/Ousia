@@ -25,7 +25,14 @@ def custom_exception_handler(exc, context):
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         )
 
-    if isinstance(exc, (PermissionDenied, NotAuthenticated)):
+    if isinstance(exc, (NotAuthenticated)):
+        return api_response(
+            is_success=False,
+            error_message=str(exc),
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    if isinstance(exc, (PermissionDenied)):
         return api_response(
             is_success=False,
             error_message=str(exc),

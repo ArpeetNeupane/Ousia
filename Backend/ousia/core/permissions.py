@@ -15,6 +15,18 @@ class OwnsObjectOrAdmin(BasePermission):
         return owner == request.user
 
 
+class OwnsMediaOrAdmin(BasePermission):
+    """Allows deleting media if the requester owns the parent post or is staff."""
+
+    def has_object_permission(self, request, view, obj):
+        if request.user and request.user.is_staff:
+            return True
+
+        post = getattr(obj, 'post', None)
+        posted_by = getattr(post, 'posted_by', None)
+        return posted_by == request.user
+
+
 class IsOwnerOfLike(BasePermission):
     """
     Custom permission to only allow users to delete a like object belonging to them.

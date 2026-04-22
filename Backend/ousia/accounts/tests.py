@@ -27,6 +27,8 @@ from accounts.serializers import (
 	UserPasswordUpdateSerializer,
 	UserRegistrationSerializer,
 )
+from accounts.views import ForgotPasswordAPI, ResetPasswordAPI, VerifyOTPAPI
+from accounts.utils import SuccessfulUpdateThrottle
 from core.models import HashTag
 from core.utils.nsfw_classifier import NSFWVerdict
 
@@ -209,6 +211,33 @@ class UserPasswordUpdateSerializerTests(TestCase):
 		self.assertFalse(serializer.is_valid())
 		self.assertIn("current_password", serializer.errors)
 
+
+class SuccessfulUpdateThrottleTests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(
+			username="throttleuser",
+			email="throttle@example.com",
+			password="OldPass123!",
+			birth_date=date(2015, 8, 8),
+			role=RoleEnum.USER,
+		)
+		self.factory = APIRequestFactory()
+
+	def test_blocks_second_success_within_window(self):
+		request = self.factory.put(
+			"/api/user/password/",
+			{"current_password": "OldPass123!", "new_password": "NewPass123!", "confirm_new_password": "NewPass123!"},
+			format="json",
+		)
+		request.user = self.user
+
+		throttle = SuccessfulUpdateThrottle()
+		self.assertTrue(throttle.allow_request(request, view=None))
+		throttle.throttle_success()
+
+		throttle2 = SuccessfulUpdateThrottle()
+		self.assertFalse(throttle2.allow_request(request, view=None))
+
 	def test_rejects_same_new_password(self):
 		serializer = UserPasswordUpdateSerializer(
 			instance=self.user,
@@ -358,3 +387,79 @@ class UserAreaOfInterestSerializerTests(TestCase):
 		)
 		self.assertFalse(serializer.is_valid())
 		self.assertIn("users_interest", serializer.errors)
+
+
+class ForgotPasswordDuplicateEmailFlowTests(TestCase):
+	def setUp(self):
+		self.factory = APIRequestFactory()
+		self.email = "parent@example.com"
+		self.user1 = User.objects.create_user(
+			username="childone",
+			email=self.email,
+			password="OldPass123!",
+			birth_date=date(2015, 10, 10),
+			role=RoleEnum.USER,
+		)
+		self.user2 = User.objects.create_user(
+			username="childtwo",
+			email=self.email,
+			password="OldPass123!",
+			birth_date=date(2015, 10, 11),
+			role=RoleEnum.USER,
+		)
+
+	@patch("accounts.models.User.send_email_to_user")
+	def test_forgot_password_generates_shared_otp_for_all_users(self, mock_send_email):
+		request = self.factory.post(
+			"/forgot-password/",
+			{"email": self.email},
+			format="json",
+		)
+		response = ForgotPasswordAPI.as_view()(request)
+		self.assertEqual(response.status_code, 200)
+		mock_send_email.assert_called()
+
+		otp1 = PasswordResetOTP.objects.filter(user=self.user1, is_used=False).latest("created_at")
+		otp2 = PasswordResetOTP.objects.filter(user=self.user2, is_used=False).latest("created_at")
+		self.assertEqual(otp1.otp, otp2.otp)
+
+		verify_request = self.factory.post(
+			"/verify-otp/",
+			{"email": self.email, "otp": otp1.otp},
+			format="json",
+		)
+		verify_response = VerifyOTPAPI.as_view()(verify_request)
+		self.assertEqual(verify_response.status_code, 200)
+
+		reset_missing_username = self.factory.post(
+			"/reset-password/",
+			{
+				"email": self.email,
+				"otp": otp1.otp,
+				"new_password": "NewPass123!",
+				"confirm_password": "NewPass123!",
+			},
+			format="json",
+		)
+		reset_missing_username_response = ResetPasswordAPI.as_view()(reset_missing_username)
+		self.assertEqual(reset_missing_username_response.status_code, 400)
+
+		reset_request = self.factory.post(
+			"/reset-password/",
+			{
+				"email": self.email,
+				"username": self.user2.username,
+				"otp": otp1.otp,
+				"new_password": "NewPass123!",
+				"confirm_password": "NewPass123!",
+			},
+			format="json",
+		)
+		reset_response = ResetPasswordAPI.as_view()(reset_request)
+		self.assertEqual(reset_response.status_code, 200)
+
+		self.user2.refresh_from_db()
+		self.assertTrue(self.user2.check_password("NewPass123!"))
+		# Ensure OTP is consumed for the targeted user
+		otp2.refresh_from_db()
+		self.assertTrue(otp2.is_used)

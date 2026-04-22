@@ -29,7 +29,7 @@ from core.models import (
     Notification,
 )
 from core.paginations import DefaultPagination, HashTagPagination, NotificationPagination
-from core.permissions import OwnsObjectOrAdmin, IsOwnerOfLike
+from core.permissions import OwnsObjectOrAdmin, IsOwnerOfLike, OwnsMediaOrAdmin
 from core.filters import PostFilter
 from core.utils.nsfw_classifier import moderate_post, NSFWVerdict
 from core.notifications import create_notification
@@ -1056,7 +1056,7 @@ class PostRetrieveUpdateDeleteAPI(generics.RetrieveUpdateDestroyAPIView):
 
 class MediaDeleteAPI(generics.DestroyAPIView):
     queryset = MediaUpload.objects.all()
-    permission_classes = [IsAuthenticated, OwnsObjectOrAdmin]
+    permission_classes = [IsAuthenticated, OwnsMediaOrAdmin]
 
     def get_object(self):
         post_id = self.kwargs.get('post_id') #getting post_id from url
@@ -1081,7 +1081,14 @@ class MediaDeleteAPI(generics.DestroyAPIView):
                     instance.public_id,
                     resource_type="video" if instance.is_video else "image"
                 )
+            post = instance.post
             instance.delete()
+
+            #only deleting the parent post if it has no other media and no caption
+            has_caption = bool((post.caption or "").strip())
+            has_other_media = post.post_media.exists()
+            if (not has_other_media) and (not has_caption):
+                post.soft_delete()
 
             return api_response(
                 is_success=True,
@@ -1721,7 +1728,8 @@ class UnfriendAPI(generics.GenericAPIView):
         
         return api_response(
             is_success=True,
-            result={'message': 'Successfully unfriended user', 'user_id': user_id}
+            result={'message': 'Successfully unfriended user', 'user_id': user_id},
+            status_code=status.HTTP_200_OK
         )
 
 
@@ -1781,7 +1789,8 @@ class BlockAPI(generics.GenericAPIView):
         serializer = FriendSerializer(friendship)
         return api_response(
             is_success=True,
-            result={'message': 'Successfully blocked user', 'friendship': serializer.data}
+            result={'message': 'Successfully blocked user', 'friendship': serializer.data},
+            status_code=status.HTTP_200_OK
         )
 
 
@@ -1967,8 +1976,7 @@ class SessionStartAPI(generics.GenericAPIView):
                 status_code=status.HTTP_423_LOCKED,
             )
 
-        # Reuse a currently active session (common in dev hot-restart scenarios)
-        # to avoid creating overlapping sessions that inflate usage.
+        #reusing a currently active session to avoid creating overlapping sessions that inflate usage.
         active_session = UserSession.objects.filter(
             user=request.user,
             end_time__isnull=True,
